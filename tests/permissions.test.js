@@ -41,9 +41,11 @@ test("isAllowedTelegramUser compares IDs as strings", () => {
   assert.equal(isAllowedTelegramUser(999, new Set(["123"]), new Set()), false);
 });
 
-test("default admin users include antoniotsd", () => {
-  assert.deepEqual(DEFAULT_ADMIN_USERS, ["@antoniotsd"]);
+test("default admin users include configured admins", () => {
+  assert.deepEqual(DEFAULT_ADMIN_USERS, ["@antoniotsd", "@Cuervo0o0o", "@talhapervaiz97"]);
   assert.equal(isAdminTelegramUser({ id: 999, username: "antoniotsd" }), true);
+  assert.equal(isAdminTelegramUser({ id: 1000, username: "Cuervo0o0o" }), true);
+  assert.equal(isAdminTelegramUser({ id: 1001, username: "talhapervaiz97" }), true);
 });
 
 test("admin username is allowed and receives admin role", () => {

@@ -26,6 +26,7 @@ import {
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
+import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
 
 export const runtime = "nodejs";
 
@@ -34,6 +35,7 @@ export async function GET(request) {
   if (url.searchParams.get("check") === "sheets") {
     return NextResponse.json(await checkSheetsConnection());
   }
+  const credentialConfig = getGoogleCredentialConfig();
 
   return NextResponse.json({
     ok: true,
@@ -41,7 +43,8 @@ export async function GET(request) {
     env: {
       telegramBotTokenConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
       googleServiceAccountEmailConfigured: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL),
-      googlePrivateKeyConfigured: Boolean(process.env.GOOGLE_PRIVATE_KEY),
+      googlePrivateKeyConfigured: Boolean(credentialConfig.privateKey),
+      googlePrivateKeySource: credentialConfig.privateKeySource || "",
       googleSpreadsheetIdConfigured: Boolean(process.env.GOOGLE_SPREADSHEET_ID),
       allowedUsersConfigured: Boolean(process.env.ALLOWED_USERS),
       adminUsersConfigured: Boolean(process.env.ADMIN_USERS),

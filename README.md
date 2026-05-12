@@ -132,7 +132,8 @@ W Agent ID
 `Created` is parsed as `DD/MM/YYYY HH:MM:SS` for date and hour filtering.
 
 The service account must have access to the spreadsheet. Vercel also needs the
-matching `GOOGLE_PRIVATE_KEY` secret to authenticate as that account.
+matching private key secret to authenticate as that account. Do not commit the
+private key to the repository.
 
 ## Environment variables
 
@@ -146,14 +147,21 @@ Required:
 - `GOOGLE_SPREADSHEET_ID`
 - `ALLOWED_USERS` - comma-separated Telegram user IDs.
 - `ADMIN_USERS` - comma-separated Telegram usernames or IDs with full bot
-  access. Defaults to `@antoniotsd`.
+  access. Defaults to `@antoniotsd`, `@Cuervo0o0o`, and `@talhapervaiz97`.
 - `ADMIN_CHAT_IDS` - optional comma-separated admin chat IDs for proactive
   access approval requests.
 
-`@antoniotsd` is configured as a default admin. Admin users are allowed to use
-the bot even if their numeric Telegram ID is not listed in `ALLOWED_USERS`, and
-the permission layer exposes an `admin` role for future configuration/admin
-features.
+Private key alternatives are also supported:
+
+- `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
+- `GOOGLE_PRIVATE_KEY_BASE64`
+- `GOOGLE_SERVICE_ACCOUNT_JSON`
+- `GOOGLE_CREDENTIALS_JSON`
+
+`@antoniotsd`, `@Cuervo0o0o`, and `@talhapervaiz97` are configured as default
+admins. Admin users are allowed to use the bot even if their numeric Telegram ID
+is not listed in `ALLOWED_USERS`, and the permission layer exposes an `admin`
+role for future configuration/admin features.
 
 ## Access approval flow
 
@@ -251,7 +259,7 @@ that the service account can access the spreadsheet.
 Common causes:
 
 - The spreadsheet is not shared with the service account.
-- `GOOGLE_PRIVATE_KEY` does not belong to `GOOGLE_SERVICE_ACCOUNT_EMAIL`.
+- The private key does not belong to `GOOGLE_SERVICE_ACCOUNT_EMAIL`.
 - Google Sheets API is not enabled for the service account project.
 - `GOOGLE_LEADS_TAB` / `GOOGLE_LEADS_RANGE` does not match the actual tab.
 - The service account email in Vercel is not the same account shared on the Sheet.
