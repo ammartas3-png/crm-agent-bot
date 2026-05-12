@@ -12,7 +12,7 @@ import {
   notifyAdminsForAccessRequest,
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
-import { handleMenuCallback, isGreeting, startMenu } from "../../../lib/menu.js";
+import { handleMenuCallback, handleMenuText, isGreeting, startMenu } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
   buildWebhookSendMessage,
@@ -134,6 +134,15 @@ export async function POST(request) {
       }
       const response = await handleMenuCallback(userId, callbackQuery.data);
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+    }
+
+    const menuTextResponse = await handleMenuText(userId, text);
+    if (menuTextResponse) {
+      return sendMessageWebhookResponse(
+        chatId,
+        menuTextResponse.text,
+        menuTextResponse.replyMarkup,
+      );
     }
 
     if (isGreeting(text)) {

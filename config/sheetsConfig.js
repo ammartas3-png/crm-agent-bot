@@ -15,10 +15,11 @@ const DEFAULT_LEADS_COLUMNS = [
   "CR TARGET",
   "FTD DATE",
   null,
-  "LATE FTD Difference",
+  "LATE FTD Difrrence",
   null,
-  null,
+  "Diffrent Month",
   "AGENT NAMES",
+  "Agent ID",
 ];
 
 const DEFAULT_FTD_COLUMNS = ["Date", "Customer ID", "Agent", "Country", "Amount"];
@@ -56,7 +57,7 @@ export const sheetsConfig = {
     leads: {
       key: "leads",
       name: leadsTabName,
-      range: process.env.GOOGLE_LEADS_RANGE || sheetRange(leadsTabName, "A:V"),
+      range: process.env.GOOGLE_LEADS_RANGE || sheetRange(leadsTabName, "A:W"),
       columns: DEFAULT_LEADS_COLUMNS,
       fields: {
         brand: "Brand",
@@ -75,8 +76,10 @@ export const sheetsConfig = {
         office: "Office",
         crTarget: "CR TARGET",
         ftdDate: "FTD DATE",
-        lateFtdDifference: "LATE FTD Difference",
+        lateFtdDifference: "LATE FTD Difrrence",
+        differentMonth: "Diffrent Month",
         agentNames: "AGENT NAMES",
+        agentId: "Agent ID",
       },
     },
     ftd: {

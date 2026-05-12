@@ -16,12 +16,12 @@ const tabConfigs = {
       campaign: "Campaign",
       firstCallAgent: "First Call Agent",
       teamLeader: "Team Leader",
-      ftd: "FTD",
       ftdMaker: "FTD MAKER",
       office: "Office",
       crTarget: "CR TARGET",
       ftdDate: "FTD DATE",
-      lateFtdDifference: "LATE FTD Difference",
+      lateFtdDifference: "LATE FTD Difrrence",
+      differentMonth: "Diffrent Month",
       agentNames: "AGENT NAMES",
     },
   },
@@ -52,12 +52,12 @@ const data = {
       "First Call Agent": "Ahmet",
       "Team Leader": "Leader 1",
       Status: "Potential",
-      FTD: 1,
       "FTD MAKER": "Closer 1",
       Office: "Istanbul",
       "CR TARGET": "10%",
       "FTD DATE": "12/05/2026 11:00:00",
-      "LATE FTD Difference": "",
+      "LATE FTD Difrrence": "",
+      "Diffrent Month": "",
       "AGENT NAMES": "Ahmet",
     },
     {
@@ -69,10 +69,10 @@ const data = {
       "First Call Agent": "Ayse",
       "Team Leader": "Leader 1",
       Status: "Potential",
-      FTD: 0,
       Office: "Istanbul",
       "CR TARGET": "10%",
-      "LATE FTD Difference": "2h",
+      "LATE FTD Difrrence": "2h",
+      "Diffrent Month": "",
       "AGENT NAMES": "Ayse",
     },
     {
@@ -84,9 +84,10 @@ const data = {
       "First Call Agent": "Ahmet",
       "Team Leader": "Leader 2",
       Status: "Potential",
-      FTD: 1,
+      "FTD MAKER": "",
       Office: "Berlin",
       "CR TARGET": "20%",
+      "Diffrent Month": "yes",
       "AGENT NAMES": "Ahmet",
     },
   ],
@@ -141,7 +142,7 @@ test("answerQuery lists top agents by FTD", async () => {
   const response = await answer("Show top agents by FTD");
 
   assert.match(response, /^Top Agents by FTD/);
-  assert.match(response, /Ahmet: 2/);
+  assert.match(response, /Ahmet: 1/);
 });
 
 test("answerQuery lists FTD by hour", async () => {

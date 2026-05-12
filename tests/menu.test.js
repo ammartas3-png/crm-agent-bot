@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleMenuCallback, isGreeting, mainMenuKeyboard, startMenu } from "../lib/menu.js";
+import {
+  handleMenuCallback,
+  handleMenuText,
+  isGreeting,
+  mainMenuKeyboard,
+  startMenu,
+} from "../lib/menu.js";
 
 const tabConfig = {
   fields: {
@@ -9,10 +15,13 @@ const tabConfig = {
     created: "Created",
     status: "Status",
     country: "Country",
-    ftd: "FTD",
+    ftdMaker: "FTD MAKER",
     crTarget: "CR TARGET",
-    lateFtdDifference: "LATE FTD Difference",
+    lateFtdDifference: "LATE FTD Difrrence",
+    differentMonth: "Diffrent Month",
     agentNames: "AGENT NAMES",
+    campaign: "Campaign",
+    teamLeader: "Team Leader",
   },
 };
 
@@ -21,8 +30,10 @@ const rows = [
     ID: "1",
     Created: "12/05/2026 10:00:00",
     Country: "Turkey",
+    Campaign: "Campaign A",
+    "Team Leader": "Leader 1",
     Status: "Potential",
-    FTD: 1,
+    "FTD MAKER": "Closer 1",
     "CR TARGET": "10%",
     "AGENT NAMES": "Ahmet",
   },
@@ -30,9 +41,12 @@ const rows = [
     ID: "2",
     Created: "12/05/2026 11:00:00",
     Country: "Germany",
+    Campaign: "Campaign B",
+    "Team Leader": "Leader 2",
     Status: "Call Again",
-    FTD: 0,
+    "FTD MAKER": "",
     "CR TARGET": "20%",
+    "Diffrent Month": "yes",
     "AGENT NAMES": "Max",
   },
 ];
@@ -56,7 +70,7 @@ test("guided country flow lists sheet countries and calculates metric", async ()
   const started = await startMenu(123);
   assert.equal(started.text, "Select a report type:");
 
-  const countryStep = await handleMenuCallback(123, "dim:country", { tabConfig, readRows });
+  const countryStep = await handleMenuCallback(123, "report:country", { tabConfig, readRows });
   assert.equal(countryStep.text, "Select country:");
   assert.equal(
     countryStep.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Turkey"),
@@ -65,7 +79,32 @@ test("guided country flow lists sheet countries and calculates metric", async ()
 
   const selected = await handleMenuCallback(123, "value:1", { tabConfig, readRows });
   assert.match(selected.text, /Country: Turkey|Country: Germany/);
+  assert.match(selected.text, /Select date range/);
 
-  const answer = await handleMenuCallback(123, "metric:totalLeads", { tabConfig, readRows });
+  const answer = await handleMenuCallback(123, "date:all", { tabConfig, readRows });
   assert.match(answer.text, /Total Leads: 1/);
+  assert.match(answer.text, /Valid Leads:/);
+  assert.match(answer.text, /CR Target Reach:/);
+});
+
+test("post-report breakdown callbacks use the last selected report", async () => {
+  await handleMenuCallback(456, "report:country", { tabConfig, readRows });
+  await handleMenuCallback(456, "value:1", { tabConfig, readRows });
+  await handleMenuCallback(456, "date:all", { tabConfig, readRows });
+
+  const breakdown = await handleMenuCallback(456, "breakdown:campaignBreakdown", {
+    tabConfig,
+    readRows,
+  });
+  assert.match(breakdown.text, /Campaign Breakdown/);
+});
+
+test("custom date range text completes report generation", async () => {
+  await handleMenuCallback(789, "report:country", { tabConfig, readRows });
+  await handleMenuCallback(789, "value:1", { tabConfig, readRows });
+  const prompt = await handleMenuCallback(789, "date:custom", { tabConfig, readRows });
+  assert.match(prompt.text, /DD\/MM\/YYYY/);
+
+  const answer = await handleMenuText(789, "01/05/2026 - 31/05/2026", { tabConfig, readRows });
+  assert.match(answer.text, /Date Range: 01\/05\/2026 - 31\/05\/2026/);
 });

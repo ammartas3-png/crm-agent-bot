@@ -58,18 +58,40 @@ menu:
 
 The bot reads available filter values dynamically from the Google Sheet. For
 example, choosing **Report by Country** loads country values from the Country
-column, asks the user to select one, then asks for a metric.
+column, asks the user to select one, then asks for a date range.
 
-Current metric buttons include:
+Date range buttons:
 
-- Total Leads
-- Total FTD
-- CR
-- CR Target Reach
-- Late FTD
-- Status Distribution
-- Top Agents / Top Performers
-- Hourly Performance for Agent reports
+- Today
+- Yesterday
+- This Month
+- Last Month
+- Custom Range (`DD/MM/YYYY - DD/MM/YYYY`)
+- All Data
+
+The report output uses one generic report engine:
+
+```js
+generateReport({ groupField, selectedValue, dateRange })
+```
+
+Global KPI formulas:
+
+- Total Leads: `COUNT(ID)`
+- Different Month Leads: `COUNT(Diffrent Month)`
+- Valid Leads: `COUNT(ID) - COUNT(Diffrent Month)`
+- Total FTD: `COUNT(FTD MAKER)`
+- CR: `COUNT(FTD MAKER) / Valid Leads`
+- CR Target: `AVG(CR TARGET)`
+- CR Target Reach: `CR / AVG(CR TARGET)`
+- Late FTD: `COUNT(LATE FTD Difrrence)`
+
+Rows with empty `ID` are ignored. CR values return `0` when the denominator is
+zero. `CR TARGET` is normalized when stored as `7%`, `0.07`, or `7`.
+
+After each report, the bot shows optional breakdown buttons such as Top Agents,
+Campaign Breakdown, Country Breakdown, Status Distribution, and Hourly Breakdown
+depending on the selected report type.
 
 Session state is currently stored in memory in `lib/session.js`; this can be
 moved to a database later without changing the Telegram webhook contract.
@@ -101,8 +123,10 @@ N FTD MAKER
 O Office
 P CR TARGET
 Q FTD DATE
-S LATE FTD Difference
+S LATE FTD Difrrence
+U Diffrent Month
 V AGENT NAMES
+W Agent ID
 ```
 
 `Created` is parsed as `DD/MM/YYYY HH:MM:SS` for date and hour filtering.
