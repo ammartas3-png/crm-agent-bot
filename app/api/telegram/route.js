@@ -25,10 +25,16 @@ import {
   sendTelegramMessage,
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
+import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request) {
+  const url = new URL(request.url);
+  if (url.searchParams.get("check") === "sheets") {
+    return NextResponse.json(await checkSheetsConnection());
+  }
+
   return NextResponse.json({
     ok: true,
     service: "telegram-reporting-bot",
@@ -126,6 +132,11 @@ export async function POST(request) {
       );
     }
 
+    if (isAdminTelegramUser(telegramUser) && /^\/?(debug|diagnostics?|sheets)$/i.test(text)) {
+      const diagnostic = await checkSheetsConnection();
+      return sendMessageWebhookResponse(chatId, formatSheetsDiagnostic(diagnostic));
+    }
+
     if (callbackQuery) {
       if (hasTelegramBotToken()) {
         await answerCallbackQuery(callbackQuery.id).catch((error) => {
@@ -154,10 +165,13 @@ export async function POST(request) {
     return sendMessageWebhookResponse(chatId, answer);
   } catch (error) {
     console.error("Telegram webhook failed", error);
+    const safe = safeError(error);
 
     return sendMessageWebhookResponse(
       chatId,
-      "Sorry, I could not calculate that report right now. Please try again later.",
+      isAdminTelegramUser(telegramUser)
+        ? `Report failed.\n${safe.message}\n\nSend /debug for a Sheets diagnostic.`
+        : "Sorry, I could not calculate that report right now. Please try again later.",
     );
   }
 }

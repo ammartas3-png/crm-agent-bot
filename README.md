@@ -225,6 +225,37 @@ The webhook URL must be exactly:
 https://your-next-app.vercel.app/api/telegram
 ```
 
+## Troubleshooting report calculation failures
+
+If the bot replies:
+
+```text
+Sorry, I could not calculate that report right now. Please try again later.
+```
+
+then the webhook is working, but report generation failed. Most failures happen
+while reading Google Sheets.
+
+Open this URL:
+
+```text
+https://your-next-app.vercel.app/api/telegram?check=sheets
+```
+
+or send `/debug` to the bot as an admin. The diagnostic checks whether the bot
+can read the Leads tab and reports the safe error message.
+
+`ok: true` on `/api/telegram` only means the endpoint is alive. It does not prove
+that the service account can access the spreadsheet.
+
+Common causes:
+
+- The spreadsheet is not shared with the service account.
+- `GOOGLE_PRIVATE_KEY` does not belong to `GOOGLE_SERVICE_ACCOUNT_EMAIL`.
+- Google Sheets API is not enabled for the service account project.
+- `GOOGLE_LEADS_TAB` / `GOOGLE_LEADS_RANGE` does not match the actual tab.
+- The service account email in Vercel is not the same account shared on the Sheet.
+
 ## Verification
 
 ```bash
