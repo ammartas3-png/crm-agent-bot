@@ -1,1 +1,97 @@
-# crm-agent-bot
+# CRM Agent Bot
+
+Telegram reporting bot for CRM data in Google Sheets.
+
+## Goal
+
+Users ask questions in Telegram, the bot reads authorized Google Sheets tabs,
+calculates simple metrics, and replies with a short answer.
+
+## Stack
+
+- Next.js App Router
+- Vercel deployment
+- Telegram webhook
+- Google Sheets API
+- Node.js
+
+## Structure
+
+```text
+app/api/telegram/route.js
+lib/telegram.js
+lib/googleSheets.js
+lib/queryRouter.js
+lib/calculations.js
+lib/permissions.js
+config/sheetsConfig.js
+```
+
+## Supported MVP questions
+
+- `How many FTD today?`
+- `Germany total leads?`
+- `Ahmet total calls?`
+- `May Turkey leads count?`
+
+The query router is intentionally simple for the MVP. Later, OpenAI can be added
+inside `lib/queryRouter.js` without changing the Telegram webhook or calculation
+modules.
+
+## Google Sheets defaults
+
+- Service account:
+  `ammar-265@rapid-chassis-424212-r3.iam.gserviceaccount.com`
+- Spreadsheet ID:
+  `1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4`
+- Leads tab: `May 26 Turkey  Leads`
+
+The service account must have access to the spreadsheet. Vercel also needs the
+matching `GOOGLE_PRIVATE_KEY` secret to authenticate as that account.
+
+## Environment variables
+
+Copy `.env.example` to `.env.local` for local development.
+
+Required:
+
+- `TELEGRAM_BOT_TOKEN`
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_PRIVATE_KEY`
+- `GOOGLE_SPREADSHEET_ID`
+- `ALLOWED_USERS` - comma-separated Telegram user IDs.
+
+Optional tab/range overrides:
+
+- `GOOGLE_LEADS_TAB`, `GOOGLE_LEADS_RANGE`
+- `GOOGLE_FTD_TAB`, `GOOGLE_FTD_RANGE`
+- `GOOGLE_TRANSACTION_TAB`, `GOOGLE_TRANSACTION_RANGE`
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+## Register Telegram webhook
+
+Keep the BotFather token out of the repository. Use it only from a secure shell
+or secret manager:
+
+```bash
+export TELEGRAM_BOT_TOKEN="your-bot-token"
+export PUBLIC_APP_URL="https://your-next-app.vercel.app"
+
+curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"${PUBLIC_APP_URL}/api/telegram\"}"
+```
+
+## Verification
+
+```bash
+npm test
+npm run build
+npm audit --audit-level=moderate
+```
