@@ -33,10 +33,46 @@ config/sheetsConfig.js
 - `Germany total leads?`
 - `Ahmet total calls?`
 - `May Turkey leads count?`
+- `Germany CR this month`
+- `Show top agents by FTD`
+- `Show FTD by hour`
 
 The query router is intentionally simple for the MVP. Later, OpenAI can be added
 inside `lib/queryRouter.js` without changing the Telegram webhook or calculation
 modules.
+
+## Guided Telegram menu
+
+Sending `/start`, `hello`, `hi`, `selam`, or `merhaba` opens an inline keyboard
+menu:
+
+- Report by Country
+- Report by Office
+- Report by Team Leader
+- Report by Agent
+- Report by Brand
+- Report by Campaign
+- Date / Hour Analysis
+- Top Performers
+- Status Distribution
+
+The bot reads available filter values dynamically from the Google Sheet. For
+example, choosing **Report by Country** loads country values from the Country
+column, asks the user to select one, then asks for a metric.
+
+Current metric buttons include:
+
+- Total Leads
+- Total FTD
+- CR
+- CR Target Reach
+- Late FTD
+- Status Distribution
+- Top Agents / Top Performers
+- Hourly Performance for Agent reports
+
+Session state is currently stored in memory in `lib/session.js`; this can be
+moved to a database later without changing the Telegram webhook contract.
 
 ## Google Sheets defaults
 
@@ -45,6 +81,31 @@ modules.
 - Spreadsheet ID:
   `1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4`
 - Leads tab: `May 26 Turkey  Leads`
+
+The CRM table uses these columns:
+
+```text
+A Brand
+B ID
+C Created
+D Department
+E Status
+F Country
+G Campaign
+H Sub-Campaign
+I Placement
+J First Call Agent
+K Team Leader
+L FTD
+N FTD MAKER
+O Office
+P CR TARGET
+Q FTD DATE
+S LATE FTD Difference
+V AGENT NAMES
+```
+
+`Created` is parsed as `DD/MM/YYYY HH:MM:SS` for date and hour filtering.
 
 The service account must have access to the spreadsheet. Vercel also needs the
 matching `GOOGLE_PRIVATE_KEY` secret to authenticate as that account.

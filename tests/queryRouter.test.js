@@ -7,11 +7,23 @@ const NOW = new Date("2026-05-12T10:00:00Z");
 
 const tabConfigs = {
   leads: {
-    dateColumn: "Created",
-    countryColumn: "Country",
-    agentColumn: "First Call Agent",
-    statusColumn: "Status",
-    amountColumn: null,
+    fields: {
+      brand: "Brand",
+      id: "ID",
+      created: "Created",
+      status: "Status",
+      country: "Country",
+      campaign: "Campaign",
+      firstCallAgent: "First Call Agent",
+      teamLeader: "Team Leader",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      office: "Office",
+      crTarget: "CR TARGET",
+      ftdDate: "FTD DATE",
+      lateFtdDifference: "LATE FTD Difference",
+      agentNames: "AGENT NAMES",
+    },
   },
   ftd: {
     dateColumn: "Date",
@@ -32,22 +44,50 @@ const tabConfigs = {
 const data = {
   leads: [
     {
-      Created: "2026-05-01",
+      Brand: "BrandA",
+      ID: "1",
+      Created: "12/05/2026 10:15:00",
       Country: "Turkey",
+      Campaign: "Campaign A",
       "First Call Agent": "Ahmet",
+      "Team Leader": "Leader 1",
       Status: "Potential",
+      FTD: 1,
+      "FTD MAKER": "Closer 1",
+      Office: "Istanbul",
+      "CR TARGET": "10%",
+      "FTD DATE": "12/05/2026 11:00:00",
+      "LATE FTD Difference": "",
+      "AGENT NAMES": "Ahmet",
     },
     {
-      Created: "2026-05-02",
+      Brand: "BrandA",
+      ID: "2",
+      Created: "02/05/2026 12:20:00",
       Country: "Turkey",
+      Campaign: "Campaign A",
       "First Call Agent": "Ayse",
+      "Team Leader": "Leader 1",
       Status: "Potential",
+      FTD: 0,
+      Office: "Istanbul",
+      "CR TARGET": "10%",
+      "LATE FTD Difference": "2h",
+      "AGENT NAMES": "Ayse",
     },
     {
-      Created: "2026-04-02",
+      Brand: "BrandB",
+      ID: "3",
+      Created: "02/04/2026 09:00:00",
       Country: "Germany",
+      Campaign: "Campaign B",
       "First Call Agent": "Ahmet",
+      "Team Leader": "Leader 2",
       Status: "Potential",
+      FTD: 1,
+      Office: "Berlin",
+      "CR TARGET": "20%",
+      "AGENT NAMES": "Ahmet",
     },
   ],
   ftd: [
@@ -68,17 +108,17 @@ function answer(text) {
   });
 }
 
-test("parseQuery routes FTD questions to the FTD tab", () => {
+test("parseQuery routes FTD questions to the CRM leads tab", () => {
   const parsed = parseQuery("How many FTD today?", NOW);
 
   assert.equal(parsed.type, "metric");
-  assert.equal(parsed.tabKey, "ftd");
-  assert.equal(parsed.metric.key, "ftdCount");
+  assert.equal(parsed.tabKey, "leads");
+  assert.equal(parsed.metric.key, "totalFtd");
   assert.deepEqual(parsed.filters.date, { type: "today" });
 });
 
 test("answerQuery calculates FTD today count", async () => {
-  assert.equal(await answer("How many FTD today?"), "FTD (today): 1");
+  assert.equal(await answer("How many FTD today?"), "Total FTD (today): 1");
 });
 
 test("answerQuery calculates country leads", async () => {
@@ -93,9 +133,20 @@ test("answerQuery applies month and country filters", async () => {
   assert.equal(await answer("May Turkey leads count?"), "leads (May, Turkey): 2");
 });
 
-test("answerQuery can sum simple transaction amounts", async () => {
-  assert.equal(
-    await answer("Turkey deposit transactions today"),
-    "transaction amount (today, Turkey, Deposit): 100",
-  );
+test("answerQuery calculates country CR", async () => {
+  assert.equal(await answer("Germany CR this month"), "CR (May, Germany): 0.00%");
+});
+
+test("answerQuery lists top agents by FTD", async () => {
+  const response = await answer("Show top agents by FTD");
+
+  assert.match(response, /^Top Agents by FTD/);
+  assert.match(response, /Ahmet: 2/);
+});
+
+test("answerQuery lists FTD by hour", async () => {
+  const response = await answer("Show FTD by hour");
+
+  assert.match(response, /^FTD by Hour/);
+  assert.match(response, /10:00: 1/);
 });
