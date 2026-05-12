@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 
-import { isAllowedTelegramUser, UNAUTHORIZED_MESSAGE } from "../../../lib/permissions.js";
+import {
+  isAdminTelegramUser,
+  isAllowedTelegramUser,
+  UNAUTHORIZED_MESSAGE,
+} from "../../../lib/permissions.js";
+import {
+  approveAccessRequest,
+  createAccessRequest,
+  denyAccessRequest,
+  notifyAdminsForAccessRequest,
+  registerAdminChat,
+} from "../../../lib/accessRequests.js";
 import { handleMenuCallback, isGreeting, startMenu } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
@@ -11,6 +22,7 @@ import {
   getTelegramUser,
   getTelegramUserId,
   hasTelegramBotToken,
+  sendTelegramMessage,
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
 
@@ -27,6 +39,7 @@ export async function GET() {
       googleSpreadsheetIdConfigured: Boolean(process.env.GOOGLE_SPREADSHEET_ID),
       allowedUsersConfigured: Boolean(process.env.ALLOWED_USERS),
       adminUsersConfigured: Boolean(process.env.ADMIN_USERS),
+      adminChatIdsConfigured: Boolean(process.env.ADMIN_CHAT_IDS),
     },
   });
 }
@@ -55,8 +68,62 @@ export async function POST(request) {
   const text = getMessageText(message);
 
   try {
+    registerAdminChat(telegramUser, chatId);
+
+    if (callbackQuery?.data?.startsWith("access:")) {
+      if (hasTelegramBotToken()) {
+        await answerCallbackQuery(callbackQuery.id).catch((error) => {
+          console.error("Telegram callback acknowledgement failed", error);
+        });
+      }
+
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can approve access requests.");
+      }
+
+      const [, decision, requestId] = callbackQuery.data.split(":");
+      const request =
+        decision === "approve" ? approveAccessRequest(requestId) : denyAccessRequest(requestId);
+      if (!request) {
+        return sendMessageWebhookResponse(chatId, "This access request is no longer pending.");
+      }
+
+      const approved = decision === "approve";
+      if (hasTelegramBotToken()) {
+        await sendTelegramMessage(
+          request.chatId,
+          approved
+            ? "Your access request was approved. You can now use the bot."
+            : "Your access request was denied.",
+        ).catch((error) => {
+          console.error("Could not notify access requester", error);
+        });
+      }
+
+      return sendMessageWebhookResponse(
+        chatId,
+        `${approved ? "Approved" : "Denied"} access for ${request.user?.username ? `@${request.user.username}` : request.user?.id}.`,
+      );
+    }
+
     if (!isAllowedTelegramUser(telegramUser || userId)) {
-      return sendMessageWebhookResponse(chatId, UNAUTHORIZED_MESSAGE);
+      const accessRequest = createAccessRequest(telegramUser, chatId, text);
+      let notified = false;
+      try {
+        const result = hasTelegramBotToken()
+          ? await notifyAdminsForAccessRequest(accessRequest)
+          : { sent: 0, reason: "missing_telegram_bot_token" };
+        notified = result.sent > 0;
+      } catch (error) {
+        console.error("Could not notify admins for access request", error);
+      }
+
+      return sendMessageWebhookResponse(
+        chatId,
+        notified
+          ? "You are not authorized yet. An access request was sent to the admin."
+          : `${UNAUTHORIZED_MESSAGE} Ask an admin to open the bot first or configure ADMIN_CHAT_IDS.`,
+      );
     }
 
     if (callbackQuery) {

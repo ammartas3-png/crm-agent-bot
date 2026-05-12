@@ -3,9 +3,12 @@ import test from "node:test";
 
 import {
   DEFAULT_ADMIN_USERS,
+  approveTelegramUser,
+  clearRuntimeApprovals,
   getTelegramUserRole,
   isAdminTelegramUser,
   isAllowedTelegramUser,
+  parseAdminChatIds,
   parseAdminUsers,
   parseAllowedUsers,
 } from "../lib/permissions.js";
@@ -23,6 +26,10 @@ test("parseAdminUsers normalizes usernames with @ prefix", () => {
 
   assert.equal(users.has("antoniotsd"), true);
   assert.equal(users.has("otheradmin"), true);
+});
+
+test("parseAdminChatIds reads comma-separated chat IDs", () => {
+  assert.deepEqual(parseAdminChatIds("111, 222"), ["111", "222"]);
 });
 
 test("isAllowedTelegramUser denies empty config by default", () => {
@@ -50,4 +57,15 @@ test("non-admin allowed user receives user role", () => {
   const user = { id: 123, username: "regular" };
 
   assert.equal(getTelegramUserRole(user, new Set(["123"]), new Set(["antoniotsd"])), "user");
+});
+
+test("runtime-approved users are allowed until memory resets", () => {
+  clearRuntimeApprovals();
+  const user = { id: 777, username: "newuser" };
+
+  assert.equal(isAllowedTelegramUser(user, new Set(), new Set()), false);
+  approveTelegramUser(user);
+  assert.equal(isAllowedTelegramUser(user, new Set(), new Set()), true);
+  assert.equal(getTelegramUserRole(user, new Set(), new Set()), "user");
+  clearRuntimeApprovals();
 });

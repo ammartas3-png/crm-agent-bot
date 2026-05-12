@@ -123,11 +123,30 @@ Required:
 - `ALLOWED_USERS` - comma-separated Telegram user IDs.
 - `ADMIN_USERS` - comma-separated Telegram usernames or IDs with full bot
   access. Defaults to `@antoniotsd`.
+- `ADMIN_CHAT_IDS` - optional comma-separated admin chat IDs for proactive
+  access approval requests.
 
 `@antoniotsd` is configured as a default admin. Admin users are allowed to use
 the bot even if their numeric Telegram ID is not listed in `ALLOWED_USERS`, and
 the permission layer exposes an `admin` role for future configuration/admin
 features.
+
+## Access approval flow
+
+When an unauthorized user sends a message:
+
+1. The bot creates a pending access request.
+2. The user receives: `You are not authorized yet. An access request was sent to the admin.`
+3. Admins receive an approval message with `Approve` and `Deny` buttons.
+4. If an admin approves, the user is added to the in-memory approved user list
+   and can use the bot.
+5. If an admin denies, the user remains unauthorized.
+
+Admin notifications require `TELEGRAM_BOT_TOKEN` because Telegram must send a
+separate message to the admin chat. Add admin chat IDs to `ADMIN_CHAT_IDS`, or
+have an admin open the bot first so their chat ID can be remembered in memory.
+The approved user list is also in memory for now and will reset on serverless
+cold starts; move it to a database when persistent access control is needed.
 
 Optional tab/range overrides:
 
@@ -168,6 +187,8 @@ and is used for optional callback acknowledgements when configured.
 3. Check `env.allowedUsersConfigured`. If it is `false`, set `ALLOWED_USERS`.
 4. For normal users, check the Telegram user ID is included in `ALLOWED_USERS`.
    For admins, check the Telegram username or ID is included in `ADMIN_USERS`.
+   For approval notifications, set `ADMIN_CHAT_IDS` or ask the admin to open the
+   bot once.
 5. Confirm the webhook is registered:
 
 ```bash
