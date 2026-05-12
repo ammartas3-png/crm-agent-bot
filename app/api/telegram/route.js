@@ -8,6 +8,7 @@ import {
   extractCallbackQuery,
   extractTelegramMessage,
   getMessageText,
+  getTelegramUser,
   getTelegramUserId,
   hasTelegramBotToken,
 } from "../../../lib/telegram.js";
@@ -25,6 +26,7 @@ export async function GET() {
       googlePrivateKeyConfigured: Boolean(process.env.GOOGLE_PRIVATE_KEY),
       googleSpreadsheetIdConfigured: Boolean(process.env.GOOGLE_SPREADSHEET_ID),
       allowedUsersConfigured: Boolean(process.env.ALLOWED_USERS),
+      adminUsersConfigured: Boolean(process.env.ADMIN_USERS),
     },
   });
 }
@@ -48,11 +50,12 @@ export async function POST(request) {
   }
 
   const chatId = message.chat.id;
-  const userId = callbackQuery?.from?.id ?? getTelegramUserId(message);
+  const telegramUser = callbackQuery?.from ?? getTelegramUser(message);
+  const userId = telegramUser?.id ?? getTelegramUserId(message);
   const text = getMessageText(message);
 
   try {
-    if (!isAllowedTelegramUser(userId)) {
+    if (!isAllowedTelegramUser(telegramUser || userId)) {
       return sendMessageWebhookResponse(chatId, UNAUTHORIZED_MESSAGE);
     }
 

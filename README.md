@@ -121,6 +121,13 @@ Required:
 - `GOOGLE_PRIVATE_KEY`
 - `GOOGLE_SPREADSHEET_ID`
 - `ALLOWED_USERS` - comma-separated Telegram user IDs.
+- `ADMIN_USERS` - comma-separated Telegram usernames or IDs with full bot
+  access. Defaults to `@antoniotsd`.
+
+`@antoniotsd` is configured as a default admin. Admin users are allowed to use
+the bot even if their numeric Telegram ID is not listed in `ALLOWED_USERS`, and
+the permission layer exposes an `admin` role for future configuration/admin
+features.
 
 Optional tab/range overrides:
 
@@ -159,7 +166,8 @@ and is used for optional callback acknowledgements when configured.
 1. Open `https://your-next-app.vercel.app/api/telegram`.
 2. Confirm it returns JSON with `ok: true`.
 3. Check `env.allowedUsersConfigured`. If it is `false`, set `ALLOWED_USERS`.
-4. Check the Telegram user ID is included in `ALLOWED_USERS`.
+4. For normal users, check the Telegram user ID is included in `ALLOWED_USERS`.
+   For admins, check the Telegram username or ID is included in `ADMIN_USERS`.
 5. Confirm the webhook is registered:
 
 ```bash
