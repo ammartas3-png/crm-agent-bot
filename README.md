@@ -149,6 +149,29 @@ curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -d "{\"url\":\"${PUBLIC_APP_URL}/api/telegram\"}"
 ```
 
+Inbound webhook replies are returned directly to Telegram as webhook method
+responses, so normal `/start` replies do not require `TELEGRAM_BOT_TOKEN` to be
+present in Vercel at runtime. The token is still needed to register the webhook,
+and is used for optional callback acknowledgements when configured.
+
+## Troubleshooting no replies
+
+1. Open `https://your-next-app.vercel.app/api/telegram`.
+2. Confirm it returns JSON with `ok: true`.
+3. Check `env.allowedUsersConfigured`. If it is `false`, set `ALLOWED_USERS`.
+4. Check the Telegram user ID is included in `ALLOWED_USERS`.
+5. Confirm the webhook is registered:
+
+```bash
+curl "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+```
+
+The webhook URL must be exactly:
+
+```text
+https://your-next-app.vercel.app/api/telegram
+```
+
 ## Verification
 
 ```bash

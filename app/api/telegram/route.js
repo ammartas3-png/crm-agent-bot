@@ -4,11 +4,12 @@ import { isAllowedTelegramUser, UNAUTHORIZED_MESSAGE } from "../../../lib/permis
 import { handleMenuCallback, isGreeting, startMenu } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
+  buildWebhookSendMessage,
   extractCallbackQuery,
   extractTelegramMessage,
   getMessageText,
   getTelegramUserId,
-  sendTelegramMessage,
+  hasTelegramBotToken,
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
 
@@ -18,7 +19,18 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     service: "telegram-reporting-bot",
+    env: {
+      telegramBotTokenConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+      googleServiceAccountEmailConfigured: Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL),
+      googlePrivateKeyConfigured: Boolean(process.env.GOOGLE_PRIVATE_KEY),
+      googleSpreadsheetIdConfigured: Boolean(process.env.GOOGLE_SPREADSHEET_ID),
+      allowedUsersConfigured: Boolean(process.env.ALLOWED_USERS),
+    },
   });
+}
+
+function sendMessageWebhookResponse(chatId, text, replyMarkup) {
+  return NextResponse.json(buildWebhookSendMessage(chatId, text, { replyMarkup }));
 }
 
 export async function POST(request) {
@@ -41,44 +53,32 @@ export async function POST(request) {
 
   try {
     if (!isAllowedTelegramUser(userId)) {
-      await sendTelegramMessage(chatId, UNAUTHORIZED_MESSAGE);
-      return NextResponse.json({ ok: true });
+      return sendMessageWebhookResponse(chatId, UNAUTHORIZED_MESSAGE);
     }
 
     if (callbackQuery) {
-      await answerCallbackQuery(callbackQuery.id);
+      if (hasTelegramBotToken()) {
+        await answerCallbackQuery(callbackQuery.id).catch((error) => {
+          console.error("Telegram callback acknowledgement failed", error);
+        });
+      }
       const response = await handleMenuCallback(userId, callbackQuery.data);
-      await sendTelegramMessage(chatId, response.text, { replyMarkup: response.replyMarkup });
-      return NextResponse.json({ ok: true });
+      return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
 
     if (isGreeting(text)) {
       const response = await startMenu(userId);
-      await sendTelegramMessage(chatId, response.text, { replyMarkup: response.replyMarkup });
-      return NextResponse.json({ ok: true });
+      return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
 
     const answer = await answerQuery(text);
-    await sendTelegramMessage(chatId, answer);
-    return NextResponse.json({ ok: true });
+    return sendMessageWebhookResponse(chatId, answer);
   } catch (error) {
     console.error("Telegram webhook failed", error);
 
-    try {
-      await sendTelegramMessage(
-        chatId,
-        "Sorry, I could not calculate that report right now. Please try again later.",
-      );
-    } catch (sendError) {
-      console.error("Telegram error reply failed", sendError);
-    }
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Webhook processing failed",
-      },
-      { status: 500 },
+    return sendMessageWebhookResponse(
+      chatId,
+      "Sorry, I could not calculate that report right now. Please try again later.",
     );
   }
 }
