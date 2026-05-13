@@ -4,7 +4,7 @@ import test from "node:test";
 import { getGoogleCredentialConfig, normalizePrivateKey } from "../lib/googleSheets.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
-const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n";
+const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
 
 test("normalizePrivateKey converts escaped newlines", () => {
   assert.equal(normalizePrivateKey(RAW_KEY), NORMALIZED_KEY);
