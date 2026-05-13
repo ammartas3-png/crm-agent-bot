@@ -90,6 +90,8 @@ test("guided country flow lists sheet countries and calculates metric", async ()
   assert.match(answer.text, /Total Leads: 1/);
   assert.match(answer.text, /Valid Leads:/);
   assert.match(answer.text, /CR Target Reach:/);
+  assert.match(answer.text, /leadRowsByLeadDate:/);
+  assert.match(answer.text, /ftdRowsByFtdDate:/);
 });
 
 test("post-report breakdown callbacks use the last selected report", async () => {

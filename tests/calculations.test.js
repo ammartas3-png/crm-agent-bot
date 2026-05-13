@@ -52,6 +52,14 @@ const rows = [
     "CR TARGET": "10",
   },
   {
+    ID: "3",
+    Country: "Cote D'Ivoire",
+    "Lead Date": "12/05/2026",
+    "FTD DATE": "",
+    "FTD MAKER": "",
+    "CR TARGET": "10",
+  },
+  {
     ID: "4",
     Country: "Germany",
     "Lead Date": "12/05/2026",
@@ -70,11 +78,11 @@ test("lead rows use Lead Date and FTD rows use FTD DATE independently", () => {
   const leadRows = getLeadRowsByDateRange(rows, tabConfig, filters, NOW);
   const ftdRows = getFtdRowsByDateRange(rows, tabConfig, filters, NOW);
 
-  assert.deepEqual(leadRows.map((row) => row.ID), ["2", "3"]);
+  assert.deepEqual(leadRows.map((row) => row.ID), ["2", "3", "3"]);
   assert.deepEqual(ftdRows.map((row) => row.ID), ["1"]);
 });
 
-test("summary counts FTD by FTD DATE even when Lead Date is outside range", () => {
+test("summary counts unique Lead Date IDs and FTD by FTD DATE independently", () => {
   const summary = calculateSummary(
     rows,
     tabConfig,
@@ -85,13 +93,15 @@ test("summary counts FTD by FTD DATE even when Lead Date is outside range", () =
     NOW,
   );
 
+  assert.equal(summary.leadRowsByLeadDate, 3);
+  assert.equal(summary.ftdRowsByFtdDate, 1);
   assert.equal(summary.totalLeads, 2);
   assert.equal(summary.differentMonthLeads, 1);
   assert.equal(summary.validLeads, 1);
   assert.equal(summary.totalFtd, 1);
-  assert.equal(summary.cr, 100);
+  assert.equal(summary.cr, 50);
   assert.equal(summary.crTarget, 10);
-  assert.equal(summary.crTargetReach, 1000);
+  assert.equal(summary.crTargetReach, 500);
 });
 
 test("calculation helper functions handle zero denominators", () => {
