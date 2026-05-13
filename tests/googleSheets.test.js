@@ -64,6 +64,6 @@ test("readSheetRows builds a trimmed quoted range from tab name when range is ab
     },
   });
 
-  assert.equal(requestedRange, "'Leads'!A:W");
+  assert.equal(requestedRange, "'Leads'!A:Y");
   assert.deepEqual(rows, [{ ID: "1" }]);
 });

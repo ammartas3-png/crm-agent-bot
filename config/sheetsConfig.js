@@ -6,6 +6,8 @@ const DEFAULT_LEADS_COLUMNS = [
   "Status",
   "Country",
   "Campaign",
+  "Sub-Campaign",
+  "Placement",
   "First Call Agent",
   "Team Leader",
   "FTD",
@@ -20,6 +22,8 @@ const DEFAULT_LEADS_COLUMNS = [
   "Diffrent Month",
   "AGENT NAMES",
   "Agent ID",
+  null,
+  "Lead Date",
 ];
 
 const DEFAULT_FTD_COLUMNS = ["Date", "Customer ID", "Agent", "Country", "Amount"];
@@ -58,7 +62,7 @@ export const sheetsConfig = {
     leads: {
       key: "leads",
       name: leadsTabName,
-      range: process.env.GOOGLE_LEADS_RANGE || sheetRange(leadsTabName, "A:W"),
+      range: process.env.GOOGLE_LEADS_RANGE || sheetRange(leadsTabName, "A:Y"),
       columns: DEFAULT_LEADS_COLUMNS,
       fields: {
         brand: "Brand",
@@ -81,6 +85,7 @@ export const sheetsConfig = {
         differentMonth: "Diffrent Month",
         agentNames: "AGENT NAMES",
         agentId: "Agent ID",
+        leadDate: "Lead Date",
       },
     },
     ftd: {

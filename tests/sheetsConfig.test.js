@@ -15,11 +15,11 @@ test("sheetsConfig uses the provided Google Sheet by default", () => {
   assert.equal(sheetsConfig.serviceAccountEmail, DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL);
   assert.equal(DEFAULT_LEADS_TAB, "Leads");
   assert.equal(sheetsConfig.tabs.leads.name, "Leads");
-  assert.equal(sheetsConfig.tabs.leads.range, "'Leads'!A:W");
+  assert.equal(sheetsConfig.tabs.leads.range, "'Leads'!A:Y");
 });
 
 test("sheetRange trims and quotes tab names", () => {
-  assert.equal(sheetRange("  Leads  ", " A:W "), "'Leads'!A:W");
+  assert.equal(sheetRange("  Leads  ", " A:Y "), "'Leads'!A:Y");
 });
 
 test("quoteSheetName escapes apostrophes for Google A1 notation", () => {

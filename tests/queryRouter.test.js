@@ -11,6 +11,7 @@ const tabConfigs = {
       brand: "Brand",
       id: "ID",
       created: "Created",
+      leadDate: "Lead Date",
       status: "Status",
       country: "Country",
       campaign: "Campaign",
@@ -47,6 +48,7 @@ const data = {
       Brand: "BrandA",
       ID: "1",
       Created: "12/05/2026 10:15:00",
+      "Lead Date": "12/05/2026",
       Country: "Turkey",
       Campaign: "Campaign A",
       "First Call Agent": "Ahmet",
@@ -64,6 +66,7 @@ const data = {
       Brand: "BrandA",
       ID: "2",
       Created: "02/05/2026 12:20:00",
+      "Lead Date": "02/05/2026",
       Country: "Turkey",
       Campaign: "Campaign A",
       "First Call Agent": "Ayse",
@@ -79,14 +82,16 @@ const data = {
       Brand: "BrandB",
       ID: "3",
       Created: "02/04/2026 09:00:00",
+      "Lead Date": "02/04/2026",
       Country: "Germany",
       Campaign: "Campaign B",
       "First Call Agent": "Ahmet",
       "Team Leader": "Leader 2",
       Status: "Potential",
-      "FTD MAKER": "",
+      "FTD MAKER": "Closer 2",
       Office: "Berlin",
       "CR TARGET": "20%",
+      "FTD DATE": "12/05/2026 14:00:00",
       "Diffrent Month": "yes",
       "AGENT NAMES": "Ahmet",
     },
@@ -119,7 +124,7 @@ test("parseQuery routes FTD questions to the CRM leads tab", () => {
 });
 
 test("answerQuery calculates FTD today count", async () => {
-  assert.equal(await answer("How many FTD today?"), "Total FTD (today): 1");
+  assert.equal(await answer("How many FTD today?"), "Total FTD (today): 2");
 });
 
 test("answerQuery calculates country leads", async () => {
@@ -142,7 +147,7 @@ test("answerQuery lists top agents by FTD", async () => {
   const response = await answer("Show top agents by FTD");
 
   assert.match(response, /^Top Agents by FTD/);
-  assert.match(response, /Ahmet: 1/);
+  assert.match(response, /Ahmet: 2/);
 });
 
 test("answerQuery lists FTD by hour", async () => {

@@ -89,6 +89,14 @@ Global KPI formulas:
 Rows with empty `ID` are ignored. CR values return `0` when the denominator is
 zero. `CR TARGET` is normalized when stored as `7%`, `0.07`, or `7`.
 
+Lead and FTD date filters are intentionally separate:
+
+- Lead calculations use `Lead Date` (column Y).
+- FTD calculations use `FTD DATE` (column Q).
+- FTD count does not require the lead to have been created inside the selected
+  Lead Date range.
+- `Diffrent Month` affects only Valid Leads, not FTD count.
+
 After each report, the bot shows optional breakdown buttons such as Top Agents,
 Campaign Breakdown, Country Breakdown, Status Distribution, and Hourly Breakdown
 depending on the selected report type.
@@ -108,7 +116,7 @@ Do not use the spreadsheet/file name as the sheet tab name. The spreadsheet file
 can be named `May 26 Turkey Leads`, but the range must use the actual tab name:
 
 ```text
-'Leads'!A:W
+'Leads'!A:Y
 ```
 
 The CRM table uses these columns:
@@ -134,9 +142,11 @@ S LATE FTD Difrrence
 U Diffrent Month
 V AGENT NAMES
 W Agent ID
+Y Lead Date
 ```
 
-`Created` is parsed as `DD/MM/YYYY HH:MM:SS` for date and hour filtering.
+`Lead Date`, `FTD DATE`, and `Created` are parsed as `DD/MM/YYYY HH:MM:SS` when
+time is present.
 
 The service account must have access to the spreadsheet. Vercel also needs the
 matching private key secret to authenticate as that account. Do not commit the
