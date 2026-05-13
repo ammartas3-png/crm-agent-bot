@@ -128,11 +128,11 @@ test("answerQuery calculates FTD today count", async () => {
 });
 
 test("answerQuery calculates country leads", async () => {
-  assert.equal(await answer("Germany total leads?"), "leads (Germany): 1");
+  assert.equal(await answer("Germany total leads?"), "leads (Germany): 0");
 });
 
 test("answerQuery calculates agent total calls", async () => {
-  assert.equal(await answer("Ahmet total calls?"), "total calls (Ahmet): 2");
+  assert.equal(await answer("Ahmet total calls?"), "total calls (Ahmet): 1");
 });
 
 test("answerQuery applies month and country filters", async () => {

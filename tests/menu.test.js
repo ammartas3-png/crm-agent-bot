@@ -20,6 +20,7 @@ const tabConfig = {
     ftdDate: "FTD DATE",
     crTarget: "CR TARGET",
     lateFtdDifference: "LATE FTD Difrrence",
+    lateFtdPlus30Day: "LATE FTD +30 Day",
     differentMonth: "Diffrent Month",
     agentNames: "AGENT NAMES",
     campaign: "Campaign",
@@ -39,6 +40,7 @@ const rows = [
     "FTD MAKER": "Closer 1",
     "FTD DATE": "12/05/2026 10:30:00",
     "CR TARGET": "10%",
+    "LATE FTD +30 Day": "1",
     "AGENT NAMES": "Ahmet",
   },
   {
@@ -88,10 +90,11 @@ test("guided country flow lists sheet countries and calculates metric", async ()
 
   const answer = await handleMenuCallback(123, "date:all", { tabConfig, readRows });
   assert.match(answer.text, /Total Leads: 1/);
-  assert.match(answer.text, /Valid Leads:/);
+  assert.doesNotMatch(answer.text, /Valid Leads:/);
   assert.match(answer.text, /CR Target Reach:/);
-  assert.match(answer.text, /leadRowsByLeadDate:/);
-  assert.match(answer.text, /ftdRowsByFtdDate:/);
+  assert.doesNotMatch(answer.text, /leadRowsByLeadDate:/);
+  assert.doesNotMatch(answer.text, /ftdRowsByFtdDate:/);
+  assert.doesNotMatch(answer.text, /rawLeadCount:/);
 });
 
 test("post-report breakdown callbacks use the last selected report", async () => {

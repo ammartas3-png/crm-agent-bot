@@ -97,8 +97,10 @@ Lead and FTD date filters are intentionally separate:
   Lead Date range.
 - `Diffrent Month` affects only Valid Leads, not Total Leads, FTD count, or CR
   denominator.
-- Debug report values include `leadRowsByLeadDate`, `ftdRowsByFtdDate`,
-  `totalLeads`, `totalFtd`, and `cr`.
+- Late FTD uses `LATE FTD +30 Day` (column T) when present. If column T is not
+  present, the fallback is `FTD DATE - Created > 30 days`.
+- Production reports do not show debug values. Debug fields are only exposed in
+  development/debug flows.
 
 After each report, the bot shows optional breakdown buttons such as Top Agents,
 Campaign Breakdown, Country Breakdown, Status Distribution, and Hourly Breakdown
@@ -142,6 +144,7 @@ O Office
 P CR TARGET
 Q FTD DATE
 S LATE FTD Difrrence
+T LATE FTD +30 Day
 U Diffrent Month
 V AGENT NAMES
 W Agent ID
