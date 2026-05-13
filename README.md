@@ -81,7 +81,7 @@ Global KPI formulas:
 - Different Month Leads: `COUNT(Diffrent Month)`
 - Valid Leads: `COUNT(ID) - COUNT(Diffrent Month)`
 - Total FTD: `COUNT(FTD MAKER)`
-- CR: `COUNT(FTD MAKER) / Valid Leads`
+- CR: `COUNT(FTD MAKER) / Total Leads`
 - CR Target: `AVG(CR TARGET)`
 - CR Target Reach: `CR / AVG(CR TARGET)`
 - Late FTD: `COUNT(LATE FTD Difrrence)`
@@ -95,7 +95,10 @@ Lead and FTD date filters are intentionally separate:
 - FTD calculations use `FTD DATE` (column Q).
 - FTD count does not require the lead to have been created inside the selected
   Lead Date range.
-- `Diffrent Month` affects only Valid Leads, not FTD count.
+- `Diffrent Month` affects only Valid Leads, not Total Leads, FTD count, or CR
+  denominator.
+- Debug report values include `leadRowsByLeadDate`, `ftdRowsByFtdDate`,
+  `totalLeads`, `totalFtd`, and `cr`.
 
 After each report, the bot shows optional breakdown buttons such as Top Agents,
 Campaign Breakdown, Country Breakdown, Status Distribution, and Hourly Breakdown
