@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getGoogleCredentialConfig, normalizePrivateKey } from "../lib/googleSheets.js";
+import { getGoogleCredentialConfig, normalizePrivateKey, readSheetRows } from "../lib/googleSheets.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
@@ -42,4 +42,28 @@ test("getGoogleCredentialConfig reads service account JSON", () => {
   assert.equal(config.email, "json@example.com");
   assert.equal(config.privateKey, NORMALIZED_KEY);
   assert.equal(config.privateKeySource, "GOOGLE_SERVICE_ACCOUNT_JSON");
+});
+
+test("readSheetRows builds a trimmed quoted range from tab name when range is absent", async () => {
+  let requestedRange = "";
+  const rows = await readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "  Leads  ",
+      columns: ["ID"],
+    },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async ({ range }) => {
+            requestedRange = range;
+            return { data: { values: [["1"]] } };
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(requestedRange, "'Leads'!A:W");
+  assert.deepEqual(rows, [{ ID: "1" }]);
 });

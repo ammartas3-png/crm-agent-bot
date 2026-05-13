@@ -35,19 +35,20 @@ const DEFAULT_TRANSACTION_COLUMNS = [
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
 export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
   "matservice@mitservice.iam.gserviceaccount.com";
-export const DEFAULT_LEADS_TAB = "May 26 Turkey  Leads";
+export const DEFAULT_LEADS_TAB = "Leads";
 
 export function quoteSheetName(sheetName) {
-  return `'${String(sheetName).replace(/'/g, "''")}'`;
+  const trimmedName = String(sheetName || "").trim();
+  return `'${trimmedName.replace(/'/g, "''")}'`;
 }
 
 export function sheetRange(sheetName, columns = "A:Z") {
-  return `${quoteSheetName(sheetName)}!${columns}`;
+  return `${quoteSheetName(sheetName)}!${String(columns || "A:Z").trim()}`;
 }
 
-const leadsTabName = process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB;
-const ftdTabName = process.env.GOOGLE_FTD_TAB || "FTD";
-const transactionTabName = process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION";
+const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
+const ftdTabName = (process.env.GOOGLE_FTD_TAB || "FTD").trim();
+const transactionTabName = (process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION").trim();
 
 export const sheetsConfig = {
   spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || DEFAULT_GOOGLE_SPREADSHEET_ID,

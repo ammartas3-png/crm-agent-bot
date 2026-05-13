@@ -102,7 +102,14 @@ moved to a database later without changing the Telegram webhook contract.
   `matservice@mitservice.iam.gserviceaccount.com`
 - Spreadsheet ID:
   `1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4`
-- Leads tab: `May 26 Turkey  Leads`
+- Leads tab: `Leads`
+
+Do not use the spreadsheet/file name as the sheet tab name. The spreadsheet file
+can be named `May 26 Turkey Leads`, but the range must use the actual tab name:
+
+```text
+'Leads'!A:W
+```
 
 The CRM table uses these columns:
 

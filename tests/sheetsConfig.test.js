@@ -13,11 +13,13 @@ import {
 test("sheetsConfig uses the provided Google Sheet by default", () => {
   assert.equal(sheetsConfig.spreadsheetId, DEFAULT_GOOGLE_SPREADSHEET_ID);
   assert.equal(sheetsConfig.serviceAccountEmail, DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL);
-  assert.equal(sheetsConfig.tabs.leads.name, DEFAULT_LEADS_TAB);
+  assert.equal(DEFAULT_LEADS_TAB, "Leads");
+  assert.equal(sheetsConfig.tabs.leads.name, "Leads");
+  assert.equal(sheetsConfig.tabs.leads.range, "'Leads'!A:W");
 });
 
-test("sheetRange quotes tab names with spaces", () => {
-  assert.equal(sheetRange("May 26 Turkey  Leads"), "'May 26 Turkey  Leads'!A:Z");
+test("sheetRange trims and quotes tab names", () => {
+  assert.equal(sheetRange("  Leads  ", " A:W "), "'Leads'!A:W");
 });
 
 test("quoteSheetName escapes apostrophes for Google A1 notation", () => {
