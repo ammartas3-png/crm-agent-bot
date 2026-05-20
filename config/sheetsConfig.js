@@ -16,7 +16,7 @@ const DEFAULT_LEADS_COLUMNS = [
   "Office",
   "CR TARGET",
   "FTD DATE",
-  null,
+  "Selfs",
   "LATE FTD Difrrence",
   "LATE FTD +30 Day",
   "Diffrent Month",
@@ -35,7 +35,15 @@ const DEFAULT_TRANSACTION_COLUMNS = [
   "Type",
   "Country",
 ];
-const DEFAULT_INFO_AGENTS_COLUMNS = ["Agent Name", "Agent Target"];
+const DEFAULT_INFO_AGENTS_COLUMNS = [
+  "Working Status",
+  null,
+  "Agent Name",
+  "Agent Target",
+  null,
+  "Office",
+  "Team Leader",
+];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
 export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
@@ -83,6 +91,7 @@ export const sheetsConfig = {
         office: "Office",
         crTarget: "CR TARGET",
         ftdDate: "FTD DATE",
+        selfsIndicator: "Selfs",
         lateFtdDifference: "LATE FTD Difrrence",
         lateFtdPlus30Day: "LATE FTD +30 Day",
         differentMonth: "Diffrent Month",
@@ -116,11 +125,14 @@ export const sheetsConfig = {
     infoAgents: {
       key: "infoAgents",
       name: infoAgentsTabName,
-      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "C:D"),
+      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:G"),
       columns: DEFAULT_INFO_AGENTS_COLUMNS,
       fields: {
+        workingStatus: "Working Status",
         agentName: "Agent Name",
         agentTarget: "Agent Target",
+        office: "Office",
+        teamLeader: "Team Leader",
       },
     },
   },

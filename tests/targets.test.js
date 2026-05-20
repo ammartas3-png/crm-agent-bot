@@ -4,10 +4,14 @@ import test from "node:test";
 import {
   agentTarget,
   buildAgentTargetsMap,
+  buildInfoAgentsContext,
   collectAgentNames,
   formatOptionalPercent,
   formatTarget,
+  infoAgentsLabelsForGroup,
   summarizeTarget,
+  targetForOffice,
+  targetForTeamLeader,
   targetReachPercent,
 } from "../lib/targets.js";
 
@@ -17,23 +21,48 @@ const tabConfig = {
   },
 };
 
-test("buildAgentTargetsMap matches names case-insensitively and trims spaces", () => {
-  const map = buildAgentTargetsMap([
-    { "Agent Name": " Ahmet ", "Agent Target": "15" },
-    { "Agent Name": "MAX", "Agent Target": "" },
-  ]);
+const infoRows = [
+  {
+    "Working Status": "Working",
+    "Agent Name": " Ahmet ",
+    "Agent Target": "15",
+    Office: "Istanbul",
+    "Team Leader": "Leader One",
+  },
+  {
+    "Working Status": "Working",
+    "Agent Name": "MAX",
+    "Agent Target": "",
+    Office: "Istanbul",
+    "Team Leader": "Leader One",
+  },
+  {
+    "Working Status": "Left",
+    "Agent Name": "Old Agent",
+    "Agent Target": "100",
+    Office: "Berlin",
+    "Team Leader": "Leader Two",
+  },
+];
 
-  assert.equal(agentTarget(map, "ahmet"), 15);
+test("buildAgentTargetsMap includes working agents and normalizes names", () => {
+  const map = buildAgentTargetsMap(infoRows);
+  assert.equal(agentTarget(map, "  ahmet  "), 15);
   assert.equal(agentTarget(map, "max"), 0);
+  assert.equal(agentTarget(map, "old agent"), 0);
+});
+
+test("info context drives membership and target aggregation", () => {
+  const context = buildInfoAgentsContext(infoRows);
+  assert.deepEqual(infoAgentsLabelsForGroup(context, "office"), ["Istanbul"]);
+  assert.deepEqual(infoAgentsLabelsForGroup(context, "teamLeader", { office: "istanbul" }), ["Leader One"]);
+  assert.equal(targetForOffice(context, "Istanbul"), 15);
+  assert.equal(targetForTeamLeader(context, "Leader One"), 15);
 });
 
 test("summarizeTarget sums unique agents", () => {
-  const map = buildAgentTargetsMap([
-    { "Agent Name": "Ahmet", "Agent Target": "15" },
-    { "Agent Name": "Max", "Agent Target": "20" },
-  ]);
-
-  assert.equal(summarizeTarget(["Ahmet", " ahmet ", "Max"], map), 35);
+  const map = buildAgentTargetsMap(infoRows);
+  assert.equal(summarizeTarget(["Ahmet", " ahmet ", "Max"], map), 15);
 });
 
 test("target formatting handles missing targets", () => {

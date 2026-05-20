@@ -16,6 +16,7 @@ const tabConfig = {
     ftd: "FTD",
     ftdMaker: "FTD MAKER",
     ftdDate: "FTD DATE",
+    selfsIndicator: "Selfs",
     crTarget: "CR TARGET",
     lateFtdDifference: "LATE FTD Difrrence",
     lateFtdPlus30Day: "LATE FTD +30 Day",
@@ -30,8 +31,11 @@ const tabConfig = {
 
 const infoAgentsTabConfig = {
   fields: {
+    workingStatus: "Working Status",
     agentName: "Agent Name",
     agentTarget: "Agent Target",
+    office: "Office",
+    teamLeader: "Team Leader",
   },
 };
 
@@ -50,6 +54,7 @@ const leadRows = [
     "FTD MAKER": "Closer 1",
     "FTD DATE": "12/05/2026 10:30:00",
     "CR TARGET": "10%",
+    Selfs: "1",
     "LATE FTD +30 Day": "1",
   },
   {
@@ -65,6 +70,7 @@ const leadRows = [
     FTD: "0",
     "FTD MAKER": "",
     "CR TARGET": "20%",
+    Selfs: "0",
   },
   {
     ID: "3",
@@ -80,6 +86,7 @@ const leadRows = [
     "FTD MAKER": "Closer 2",
     "FTD DATE": "12/05/2026 12:00:00",
     "CR TARGET": "15%",
+    Selfs: "1",
   },
 ];
 
@@ -97,12 +104,45 @@ const paginatedOfficeRows = Array.from({ length: 20 }).map((_, idx) => ({
   "FTD MAKER": idx % 2 === 0 ? `Closer ${idx + 1}` : "",
   "FTD DATE": idx % 2 === 0 ? "12/05/2026 10:30:00" : "",
   "CR TARGET": "10%",
+  Selfs: idx % 3 === 0 ? "1" : "0",
 }));
 
 const infoAgentsRows = [
-  { "Agent Name": "Ahmet", "Agent Target": "10" },
-  { "Agent Name": "Max", "Agent Target": "20" },
-  { "Agent Name": "Mia", "Agent Target": "30" },
+  {
+    "Working Status": "Working",
+    "Agent Name": "Ahmet",
+    "Agent Target": "10",
+    Office: "Istanbul",
+    "Team Leader": "Leader 1",
+  },
+  {
+    "Working Status": "Working",
+    "Agent Name": "Max",
+    "Agent Target": "20",
+    Office: "Istanbul",
+    "Team Leader": "Leader 1",
+  },
+  {
+    "Working Status": "Working",
+    "Agent Name": "Mia",
+    "Agent Target": "30",
+    Office: "Berlin",
+    "Team Leader": "Leader 2",
+  },
+  {
+    "Working Status": "Working",
+    "Agent Name": "Zero Lead Agent",
+    "Agent Target": "25",
+    Office: "Berlin",
+    "Team Leader": "Leader 2",
+  },
+  {
+    "Working Status": "Left",
+    "Agent Name": "Left Agent",
+    "Agent Target": "100",
+    Office: "Madrid",
+    "Team Leader": "Leader X",
+  },
 ];
 
 const readRows = async (tabKey, options = {}) => {
@@ -140,6 +180,7 @@ test("office drilldown shows summary and child hierarchy", async () => {
   assert.match(officeRoot.text, /Office Results/);
   assert.match(officeRoot.text, /Summary \(all records\)/);
   assert.match(officeRoot.text, /Lead/);
+  assert.match(officeRoot.text, /Selfs/);
   assert.match(officeRoot.text, /FTD Target Reach/);
 
   const firstPick = officeRoot.replyMarkup.inline_keyboard
@@ -191,6 +232,34 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
       .some((button) => button.text === "Back to Team Leader filter"),
     true,
   );
+});
+
+test("working agents without leads still appear in team leader drilldown", async () => {
+  const started = await startMenu(103);
+  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  await handleMenuCallback(103, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+
+  const teamLeaderRoot = await handleMenuCallback(103, "report:teamLeader", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderTwoButton = teamLeaderRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.text === "Leader 2");
+  assert.ok(leaderTwoButton);
+
+  const agentsUnderLeader = await handleMenuCallback(103, leaderTwoButton.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(agentsUnderLeader.text, /Zero Lead Agent/);
+  assert.match(agentsUnderLeader.text, /Lead 0/);
+  assert.match(agentsUnderLeader.text, /FTD 0/);
+  assert.match(agentsUnderLeader.text, /Selfs 0/);
 });
 
 test("pagination buttons appear when results exceed one page", async () => {
