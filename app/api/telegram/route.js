@@ -27,6 +27,7 @@ import {
 import { answerQuery } from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
 import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
+import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
 
 export const runtime = "nodejs";
 
@@ -138,6 +139,11 @@ export async function POST(request) {
     if (isAdminTelegramUser(telegramUser) && /^\/?(debug|diagnostics?|sheets)$/i.test(text)) {
       const diagnostic = await checkSheetsConnection();
       return sendMessageWebhookResponse(chatId, formatSheetsDiagnostic(diagnostic));
+    }
+
+    if (isAdminTelegramUser(telegramUser) && /^\/?debug_totals\b/i.test(text)) {
+      const report = await buildDebugTotalsReport();
+      return sendMessageWebhookResponse(chatId, formatDebugTotalsReport(report));
     }
 
     if (callbackQuery) {
