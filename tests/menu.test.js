@@ -199,3 +199,94 @@ test("historical month only returns summary totals", async () => {
   });
   assert.match(breakdown.text, /disabled for past months/);
 });
+
+test("settings remove and hide/show month management works for admin", async () => {
+  upsertMonthFile("January 2026", "settings-test-sheet");
+  const adminUser = { id: 1, username: "antoniotsd" };
+
+  const started = await startMenu(999, { telegramUser: adminUser });
+  const targetMonthButton = started.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data === "month:2026-01");
+  assert.ok(targetMonthButton);
+
+  const settingsOpen = await handleMenuCallback(999, "settings:open", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+  assert.equal(
+    settingsOpen.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Remove Month File"),
+    true,
+  );
+  assert.equal(
+    settingsOpen.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Hide/Show Month File"),
+    true,
+  );
+
+  const visibilityMenu = await handleMenuCallback(999, "settings:visibility", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+  const hideButton = visibilityMenu.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data === "settingsToggle:2026-01");
+  assert.ok(hideButton);
+  await handleMenuCallback(999, hideButton.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+
+  const afterHideStart = await startMenu(999, { telegramUser: adminUser });
+  assert.equal(
+    afterHideStart.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "month:2026-01"),
+    false,
+  );
+
+  const listAfterHide = await handleMenuCallback(999, "settings:list", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+  assert.match(listAfterHide.text, /January 2026: settings-test-sheet \[Inactive\]/);
+
+  const removeMenu = await handleMenuCallback(999, "settings:remove", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+  const removeButton = removeMenu.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data === "settingsRemove:2026-01");
+  assert.ok(removeButton);
+  await handleMenuCallback(999, removeButton.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+
+  const listAfterRemove = await handleMenuCallback(999, "settings:list", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    telegramUser: adminUser,
+  });
+  assert.doesNotMatch(listAfterRemove.text, /January 2026: settings-test-sheet/);
+});
