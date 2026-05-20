@@ -27,6 +27,7 @@ import {
 import { answerQuery } from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
 import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
+import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
 
 export const runtime = "nodejs";
@@ -56,6 +57,21 @@ export async function GET(request) {
 
 function sendMessageWebhookResponse(chatId, text, replyMarkup) {
   return NextResponse.json(buildWebhookSendMessage(chatId, text, { replyMarkup }));
+}
+
+function debugTotalsMonthKeyboard() {
+  const months = listMonthFiles({ includeInactive: true });
+  if (!months.length) {
+    return null;
+  }
+  return {
+    inline_keyboard: months.map((month) => [
+      {
+        text: `${month.month_label}${month.active ? "" : " (Inactive)"}`,
+        callback_data: `debugTotals:${month.key}`,
+      },
+    ]),
+  };
 }
 
 export async function POST(request) {
@@ -141,9 +157,15 @@ export async function POST(request) {
       return sendMessageWebhookResponse(chatId, formatSheetsDiagnostic(diagnostic));
     }
 
-    if (isAdminTelegramUser(telegramUser) && /^\/?debug_totals\b/i.test(text)) {
-      const report = await buildDebugTotalsReport();
-      return sendMessageWebhookResponse(chatId, formatDebugTotalsReport(report));
+    if (/^\/?debug_totals\b/i.test(text)) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can run /debug_totals.");
+      }
+      const keyboard = debugTotalsMonthKeyboard();
+      if (!keyboard) {
+        return sendMessageWebhookResponse(chatId, "No month files configured for debug validation.");
+      }
+      return sendMessageWebhookResponse(chatId, "Select month for reconciliation validation:", keyboard);
     }
 
     if (callbackQuery) {
@@ -152,6 +174,30 @@ export async function POST(request) {
           console.error("Telegram callback acknowledgement failed", error);
         });
       }
+
+      if (callbackQuery.data?.startsWith("debugTotals:")) {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "Only admins can run /debug_totals.");
+        }
+        const monthKey = callbackQuery.data.split(":")[1];
+        const month = getMonthFile(monthKey, { includeInactive: true });
+        if (!month) {
+          return sendMessageWebhookResponse(
+            chatId,
+            "Month mapping not found. Run /debug_totals again.",
+            debugTotalsMonthKeyboard(),
+          );
+        }
+        const report = await buildDebugTotalsReport({
+          context: {
+            monthKey: month.key,
+            monthLabel: month.month_label,
+            spreadsheetId: month.sheet_id,
+          },
+        });
+        return sendMessageWebhookResponse(chatId, formatDebugTotalsReport(report), debugTotalsMonthKeyboard());
+      }
+
       const response = await handleMenuCallback(userId, callbackQuery.data, { telegramUser });
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
