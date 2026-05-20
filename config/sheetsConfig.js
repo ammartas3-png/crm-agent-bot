@@ -35,6 +35,7 @@ const DEFAULT_TRANSACTION_COLUMNS = [
   "Type",
   "Country",
 ];
+const DEFAULT_INFO_AGENTS_COLUMNS = ["Agent Name", "Agent Target"];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
 export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
@@ -53,6 +54,7 @@ export function sheetRange(sheetName, columns = "A:Z") {
 const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
 const ftdTabName = (process.env.GOOGLE_FTD_TAB || "FTD").trim();
 const transactionTabName = (process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION").trim();
+const infoAgentsTabName = (process.env.GOOGLE_INFO_AGENTS_TAB || "Info Agents").trim();
 
 export const sheetsConfig = {
   spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || DEFAULT_GOOGLE_SPREADSHEET_ID,
@@ -110,6 +112,16 @@ export const sheetsConfig = {
       statusColumn: "Type",
       amountColumn: "Amount",
       columns: DEFAULT_TRANSACTION_COLUMNS,
+    },
+    infoAgents: {
+      key: "infoAgents",
+      name: infoAgentsTabName,
+      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "C:D"),
+      columns: DEFAULT_INFO_AGENTS_COLUMNS,
+      fields: {
+        agentName: "Agent Name",
+        agentTarget: "Agent Target",
+      },
     },
   },
 };

@@ -3,11 +3,13 @@ import test from "node:test";
 
 import {
   DEFAULT_ADMIN_USERS,
+  SETTINGS_ADMIN_USER,
   approveTelegramUser,
   clearRuntimeApprovals,
   getTelegramUserRole,
   isAdminTelegramUser,
   isAllowedTelegramUser,
+  isSettingsAdminTelegramUser,
   parseAdminChatIds,
   parseAdminUsers,
   parseAllowedUsers,
@@ -46,6 +48,12 @@ test("default admin users include configured admins", () => {
   assert.equal(isAdminTelegramUser({ id: 999, username: "antoniotsd" }), true);
   assert.equal(isAdminTelegramUser({ id: 1000, username: "Cuervo0o0o" }), true);
   assert.equal(isAdminTelegramUser({ id: 1001, username: "talhapervaiz97" }), true);
+});
+
+test("settings access is limited to @antoniotsd", () => {
+  assert.equal(SETTINGS_ADMIN_USER, "@antoniotsd");
+  assert.equal(isSettingsAdminTelegramUser({ username: "antoniotsd" }), true);
+  assert.equal(isSettingsAdminTelegramUser({ username: "Cuervo0o0o" }), false);
 });
 
 test("admin username is allowed and receives admin role", () => {

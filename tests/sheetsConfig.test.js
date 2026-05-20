@@ -16,6 +16,8 @@ test("sheetsConfig uses the provided Google Sheet by default", () => {
   assert.equal(DEFAULT_LEADS_TAB, "Leads");
   assert.equal(sheetsConfig.tabs.leads.name, "Leads");
   assert.equal(sheetsConfig.tabs.leads.range, "'Leads'!A:Y");
+  assert.equal(sheetsConfig.tabs.infoAgents.name, "Info Agents");
+  assert.equal(sheetsConfig.tabs.infoAgents.range, "'Info Agents'!C:D");
 });
 
 test("sheetRange trims and quotes tab names", () => {

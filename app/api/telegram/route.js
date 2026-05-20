@@ -146,11 +146,11 @@ export async function POST(request) {
           console.error("Telegram callback acknowledgement failed", error);
         });
       }
-      const response = await handleMenuCallback(userId, callbackQuery.data);
+      const response = await handleMenuCallback(userId, callbackQuery.data, { telegramUser });
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
 
-    const menuTextResponse = await handleMenuText(userId, text);
+    const menuTextResponse = await handleMenuText(userId, text, { telegramUser });
     if (menuTextResponse) {
       return sendMessageWebhookResponse(
         chatId,
@@ -160,7 +160,7 @@ export async function POST(request) {
     }
 
     if (isGreeting(text)) {
-      const response = await startMenu(userId);
+      const response = await startMenu(userId, { telegramUser });
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
 
