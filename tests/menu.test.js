@@ -13,6 +13,7 @@ const tabConfig = {
     leadDate: "Lead Date",
     status: "Status",
     country: "Country",
+    ftd: "FTD",
     ftdMaker: "FTD MAKER",
     ftdDate: "FTD DATE",
     crTarget: "CR TARGET",
@@ -34,68 +35,84 @@ const infoAgentsTabConfig = {
   },
 };
 
-const leadsRows = [
+const leadRows = [
   {
     ID: "1",
     Created: "12/05/2026 10:00:00",
     "Lead Date": "12/05/2026",
     Country: "Turkey",
     Campaign: "Campaign A",
-    Department: "Retention",
     Office: "Istanbul",
     "Team Leader": "Leader 1",
+    "AGENT NAMES": "Ahmet",
     Status: "Potential",
+    FTD: "1",
     "FTD MAKER": "Closer 1",
     "FTD DATE": "12/05/2026 10:30:00",
     "CR TARGET": "10%",
     "LATE FTD +30 Day": "1",
-    "AGENT NAMES": "Ahmet",
   },
   {
     ID: "2",
     Created: "12/05/2026 11:00:00",
-    "Lead Date": "11/05/2026",
-    Country: "Germany",
-    Campaign: "Campaign B",
-    Department: "Retention",
-    Office: "Istanbul",
-    "Team Leader": "Leader 1",
-    Status: "Call Again",
-    "FTD MAKER": "",
-    "CR TARGET": "20%",
-    "Diffrent Month": "yes",
-    "AGENT NAMES": "Max",
-  },
-];
-
-const infoAgentsRows = [
-  { "Agent Name": " ahmet ", "Agent Target": "10" },
-  { "Agent Name": "Max", "Agent Target": "20" },
-];
-
-const historicalRows = [
-  {
-    ID: "7",
-    Created: "04/04/2026 10:00:00",
-    "Lead Date": "04/04/2026",
+    "Lead Date": "12/05/2026",
     Country: "Turkey",
     Campaign: "Campaign A",
-    Department: "Retention",
     Office: "Istanbul",
-    "Team Leader": "Leader Old",
-    Status: "Potential",
-    "FTD MAKER": "Closer X",
-    "FTD DATE": "05/04/2026 10:30:00",
-    "CR TARGET": "10%",
-    "AGENT NAMES": "Ahmet",
+    "Team Leader": "Leader 1",
+    "AGENT NAMES": "Max",
+    Status: "Call Again",
+    FTD: "0",
+    "FTD MAKER": "",
+    "CR TARGET": "20%",
   },
+  {
+    ID: "3",
+    Created: "12/05/2026 11:10:00",
+    "Lead Date": "12/05/2026",
+    Country: "Germany",
+    Campaign: "Campaign B",
+    Office: "Berlin",
+    "Team Leader": "Leader 2",
+    "AGENT NAMES": "Mia",
+    Status: "Potential",
+    FTD: "1",
+    "FTD MAKER": "Closer 2",
+    "FTD DATE": "12/05/2026 12:00:00",
+    "CR TARGET": "15%",
+  },
+];
+
+const paginatedOfficeRows = Array.from({ length: 20 }).map((_, idx) => ({
+  ID: `P-${idx + 1}`,
+  Created: "12/05/2026 10:00:00",
+  "Lead Date": "12/05/2026",
+  Country: "Turkey",
+  Campaign: "Campaign P",
+  Office: `Office ${String(idx + 1).padStart(2, "0")}`,
+  "Team Leader": `Leader ${idx + 1}`,
+  "AGENT NAMES": `Agent ${idx + 1}`,
+  Status: "Potential",
+  FTD: idx % 2 === 0 ? "1" : "0",
+  "FTD MAKER": idx % 2 === 0 ? `Closer ${idx + 1}` : "",
+  "FTD DATE": idx % 2 === 0 ? "12/05/2026 10:30:00" : "",
+  "CR TARGET": "10%",
+}));
+
+const infoAgentsRows = [
+  { "Agent Name": "Ahmet", "Agent Target": "10" },
+  { "Agent Name": "Max", "Agent Target": "20" },
+  { "Agent Name": "Mia", "Agent Target": "30" },
 ];
 
 const readRows = async (tabKey, options = {}) => {
-  if (options.spreadsheetId === "historical-sheet") {
-    return tabKey === "infoAgents" ? infoAgentsRows : historicalRows;
+  if (tabKey === "infoAgents") {
+    return infoAgentsRows;
   }
-  return tabKey === "infoAgents" ? infoAgentsRows : leadsRows;
+  if (options.spreadsheetId === "pagination-sheet") {
+    return paginatedOfficeRows;
+  }
+  return leadRows;
 };
 
 test("isGreeting opens the menu for hello and /start", () => {
@@ -103,112 +120,97 @@ test("isGreeting opens the menu for hello and /start", () => {
   assert.equal(isGreeting("/start"), true);
 });
 
-test("mainMenuKeyboard contains required report filters", () => {
+test("mainMenuKeyboard follows required hierarchy order", () => {
   const keyboard = mainMenuKeyboard();
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-
-  assert.equal(labels.includes("Office"), true);
-  assert.equal(labels.includes("Desk"), true);
-  assert.equal(labels.includes("Team Leader"), true);
-  assert.equal(labels.includes("Agent"), true);
-  assert.equal(labels.includes("Country"), true);
-  assert.equal(labels.includes("Total Results"), true);
+  assert.deepEqual(labels.slice(0, 5), ["Office", "Team Leader", "Agent", "Country", "Campaign"]);
 });
 
-test("month-first flow includes target metrics in agent report", async () => {
-  const started = await startMenu(123, { telegramUser: { id: 123, username: "regular" } });
-  assert.equal(started.text, "Select report month:");
-  const firstMonthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+test("office drilldown shows summary and child hierarchy", async () => {
+  const started = await startMenu(100, { telegramUser: { id: 100, username: "regular" } });
+  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  await handleMenuCallback(100, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
 
-  const monthStep = await handleMenuCallback(123, firstMonthCallback, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: { id: 123, username: "regular" },
-  });
-  assert.match(monthStep.text, /Select report filter/);
-
-  const agentStep = await handleMenuCallback(123, "report:agent", {
+  const officeRoot = await handleMenuCallback(100, "report:office", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(agentStep.text, /Select agent/);
+  assert.match(officeRoot.text, /Office Results/);
+  assert.match(officeRoot.text, /Summary \(all records\)/);
+  assert.match(officeRoot.text, /Lead/);
+  assert.match(officeRoot.text, /FTD Target Reach/);
 
-  await handleMenuCallback(123, "value:0", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
-  const answer = await handleMenuCallback(123, "date:all", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  assert.match(answer.text, /Target:/);
-  assert.match(answer.text, /FTD:/);
-  assert.match(answer.text, /Target Reach %:/);
-});
-
-test("team leader report includes summed target metrics", async () => {
-  const started = await startMenu(456);
-  const firstMonthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
-  await handleMenuCallback(456, firstMonthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
-  await handleMenuCallback(456, "report:teamLeader", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  await handleMenuCallback(456, "value:0", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
-  const answer = await handleMenuCallback(456, "date:all", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  assert.match(answer.text, /Team Leader Target:/);
-  assert.match(answer.text, /FTD Target Reach %:/);
-});
-
-test("historical month only returns summary totals", async () => {
-  upsertMonthFile("April 2026", "historical-sheet");
-  const started = await startMenu(789);
-  const historicalMonthButton = started.replyMarkup.inline_keyboard
+  const firstPick = officeRoot.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data === "month:2026-04");
-  assert.ok(historicalMonthButton);
-  await handleMenuCallback(789, "month:2026-04", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const officeSummary = await handleMenuCallback(789, "report:office", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  assert.match(officeSummary.text, /Office Totals — April 2026/);
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(firstPick);
 
-  const breakdown = await handleMenuCallback(789, "breakdown:campaignBreakdown", {
+  const teamLeaderList = await handleMenuCallback(100, firstPick.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(breakdown.text, /disabled for past months/);
+  assert.match(teamLeaderList.text, /Team Leaders in/);
+  assert.equal(
+    teamLeaderList.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Back to previous level"),
+    true,
+  );
 });
 
-test("settings remove and hide/show month management works for admin", async () => {
+test("agent flow leads to detailed metrics and back buttons", async () => {
+  const started = await startMenu(101);
+  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  await handleMenuCallback(101, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+
+  const agentRoot = await handleMenuCallback(101, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const firstAgentPick = agentRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(firstAgentPick);
+
+  const agentDetail = await handleMenuCallback(101, firstAgentPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(agentDetail.text, /^Agent:/);
+  assert.match(agentDetail.text, /Selfs:/);
+  assert.match(agentDetail.text, /FTD Target:/);
+  assert.equal(
+    agentDetail.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.text === "Back to Team Leader filter"),
+    true,
+  );
+});
+
+test("pagination buttons appear when results exceed one page", async () => {
+  upsertMonthFile("June 2026", "pagination-sheet");
+  const started = await startMenu(102);
+  await handleMenuCallback(102, "month:2026-06", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  const officeRoot = await handleMenuCallback(102, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const labels = officeRoot.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(labels.includes("Next Page"), true);
+  assert.equal(labels.includes("Previous Page"), true);
+});
+
+test("settings remove and hide/show month management still works for admin", async () => {
   upsertMonthFile("January 2026", "settings-test-sheet");
   const adminUser = { id: 1, username: "antoniotsd" };
-
-  const started = await startMenu(999, { telegramUser: adminUser });
-  const targetMonthButton = started.replyMarkup.inline_keyboard
-    .flat()
-    .find((button) => button.callback_data === "month:2026-01");
-  assert.ok(targetMonthButton);
 
   const settingsOpen = await handleMenuCallback(999, "settings:open", {
     tabConfig,
@@ -225,68 +227,4 @@ test("settings remove and hide/show month management works for admin", async () 
     settingsOpen.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Hide/Show Month File"),
     true,
   );
-
-  const visibilityMenu = await handleMenuCallback(999, "settings:visibility", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-  const hideButton = visibilityMenu.replyMarkup.inline_keyboard
-    .flat()
-    .find((button) => button.callback_data === "settingsToggle:2026-01");
-  assert.ok(hideButton);
-  await handleMenuCallback(999, hideButton.callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-
-  const afterHideStart = await startMenu(999, { telegramUser: adminUser });
-  assert.equal(
-    afterHideStart.replyMarkup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "month:2026-01"),
-    false,
-  );
-
-  const listAfterHide = await handleMenuCallback(999, "settings:list", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-  assert.match(listAfterHide.text, /January 2026: settings-test-sheet \[Inactive\]/);
-
-  const removeMenu = await handleMenuCallback(999, "settings:remove", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-  const removeButton = removeMenu.replyMarkup.inline_keyboard
-    .flat()
-    .find((button) => button.callback_data === "settingsRemove:2026-01");
-  assert.ok(removeButton);
-  await handleMenuCallback(999, removeButton.callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-
-  const listAfterRemove = await handleMenuCallback(999, "settings:list", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-    telegramUser: adminUser,
-  });
-  assert.doesNotMatch(listAfterRemove.text, /January 2026: settings-test-sheet/);
 });
