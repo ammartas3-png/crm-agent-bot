@@ -17,11 +17,13 @@ import {
   answerCallbackQuery,
   buildWebhookSendMessage,
   extractCallbackQuery,
+  fetchTelegramFileBuffer,
   extractTelegramMessage,
   getMessageText,
   getTelegramUser,
   getTelegramUserId,
   hasTelegramBotToken,
+  sendTelegramDocument,
   sendTelegramMessage,
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
@@ -29,6 +31,16 @@ import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../
 import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
+import {
+  ROOT_START_TEXT,
+  databaseCheckMenuKeyboard,
+  formatDatabaseCheckSummary,
+  handleDatabaseCheckCallback,
+  handleDatabaseCheckText,
+  processDatabaseCheckWorkbook,
+  rootStartKeyboard,
+} from "../../../lib/databaseCheck.js";
+import { getSession, setSession } from "../../../lib/session.js";
 
 export const runtime = "nodejs";
 
@@ -92,6 +104,7 @@ export async function POST(request) {
   const telegramUser = callbackQuery?.from ?? getTelegramUser(message);
   const userId = telegramUser?.id ?? getTelegramUserId(message);
   const text = getMessageText(message);
+  const document = message?.document || null;
 
   try {
     registerAdminChat(telegramUser, chatId);
@@ -198,8 +211,66 @@ export async function POST(request) {
         return sendMessageWebhookResponse(chatId, formatDebugTotalsReport(report), debugTotalsMonthKeyboard());
       }
 
+      if (callbackQuery.data === "root:start") {
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard());
+      }
+      if (callbackQuery.data === "root:results") {
+        const response = await startMenu(userId, { telegramUser });
+        return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+      }
+
+      if (callbackQuery.data?.startsWith("dbcheck:")) {
+        const dbResponse = await handleDatabaseCheckCallback(userId, callbackQuery.data, {
+          isAdmin: isAdminTelegramUser(telegramUser),
+        });
+        if (dbResponse) {
+          return sendMessageWebhookResponse(chatId, dbResponse.text, dbResponse.replyMarkup);
+        }
+      }
+
       const response = await handleMenuCallback(userId, callbackQuery.data, { telegramUser });
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+    }
+
+    if (document) {
+      const fileName = String(document.file_name || "").toLocaleLowerCase("en-US");
+      const mimeType = String(document.mime_type || "").toLocaleLowerCase("en-US");
+      if (!/\.xlsx?$/.test(fileName) && !mimeType.includes("spreadsheet") && !mimeType.includes("excel")) {
+        return sendMessageWebhookResponse(
+          chatId,
+          "Unsupported file type. Please upload .xlsx or .xls file.",
+          databaseCheckMenuKeyboard(isAdminTelegramUser(telegramUser)),
+        );
+      }
+      const session = getSession(userId);
+      if (session.dbCheckStep !== "await_file") {
+        return sendMessageWebhookResponse(
+          chatId,
+          "Open Database Check and choose Upload CRM Excel first.",
+          databaseCheckMenuKeyboard(isAdminTelegramUser(telegramUser)),
+        );
+      }
+      if (!hasTelegramBotToken()) {
+        return sendMessageWebhookResponse(chatId, "TELEGRAM_BOT_TOKEN is required for file download.");
+      }
+      const fileBuffer = await fetchTelegramFileBuffer(document.file_id);
+      const review = await processDatabaseCheckWorkbook(fileBuffer);
+      await sendTelegramDocument(chatId, review.outputBuffer, review.outputFilename, {
+        caption: "CRM comment/status validation output",
+      });
+      setSession(userId, { dbCheckStep: null });
+      return sendMessageWebhookResponse(
+        chatId,
+        formatDatabaseCheckSummary(review.summary, review.flaggedRowsCount),
+        databaseCheckMenuKeyboard(isAdminTelegramUser(telegramUser)),
+      );
+    }
+
+    const dbTextResponse = await handleDatabaseCheckText(userId, text, {
+      isAdmin: isAdminTelegramUser(telegramUser),
+    });
+    if (dbTextResponse) {
+      return sendMessageWebhookResponse(chatId, dbTextResponse.text, dbTextResponse.replyMarkup);
     }
 
     const menuTextResponse = await handleMenuText(userId, text, { telegramUser });
@@ -212,8 +283,7 @@ export async function POST(request) {
     }
 
     if (isGreeting(text)) {
-      const response = await startMenu(userId, { telegramUser });
-      return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard());
     }
 
     const answer = await answerQuery(text);
