@@ -37,7 +37,7 @@ const infoRows = [
     "Team Leader": "Leader One",
   },
   {
-    "Working Status": "Left",
+    "Working Status": "Not Working",
     "Agent Name": "Old Agent",
     "Agent Target": "100",
     Office: "Berlin",
@@ -49,7 +49,7 @@ test("buildAgentTargetsMap includes working agents and normalizes names", () => 
   const map = buildAgentTargetsMap(infoRows);
   assert.equal(agentTarget(map, "  ahmet  "), 15);
   assert.equal(agentTarget(map, "max"), 0);
-  assert.equal(agentTarget(map, "old agent"), 0);
+  assert.equal(agentTarget(map, "old agent"), 100);
 });
 
 test("info context drives membership and target aggregation", () => {
@@ -58,6 +58,8 @@ test("info context drives membership and target aggregation", () => {
   assert.deepEqual(infoAgentsLabelsForGroup(context, "teamLeader", { office: "istanbul" }), ["Leader One"]);
   assert.equal(targetForOffice(context, "Istanbul"), 15);
   assert.equal(targetForTeamLeader(context, "Leader One"), 15);
+  assert.equal(targetForOffice(context, "Berlin"), 100);
+  assert.equal(context.duplicateNormalizedAgents.length, 0);
 });
 
 test("summarizeTarget sums unique agents", () => {

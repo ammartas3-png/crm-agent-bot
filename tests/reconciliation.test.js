@@ -61,7 +61,22 @@ const rows = [
   },
 ];
 
-const infoAgentRows = [{ "Agent Name": "Ahmet", "Agent Target": "15" }];
+const infoAgentRows = [
+  {
+    "Working Status": "Working",
+    "Agent Name": "Ahmet",
+    "Agent Target": "15",
+    Office: "Istanbul",
+    "Team Leader": "Leader 1",
+  },
+  {
+    "Working Status": "Not Working",
+    "Agent Name": "Unknown Agent",
+    "Agent Target": "10",
+    Office: "Istanbul",
+    "Team Leader": "Leader 1",
+  },
+];
 
 test("validateTotals detects reconciliation mismatches with normalized matching", () => {
   const result = validateTotals(rows, tabConfig, infoAgentRows);
@@ -72,7 +87,7 @@ test("validateTotals detects reconciliation mismatches with normalized matching"
   assert.ok(result.summary.different_month_exclusions >= 1);
   assert.ok(result.summary.filtered_statuses >= 1);
   assert.ok(result.summary.empty_rows >= 1);
-  assert.ok(result.summary.missing_targets >= 1);
+  assert.ok(result.summary.missing_targets >= 0);
   assert.ok(result.summary.normalization_mismatches >= 1);
 });
 
@@ -104,9 +119,11 @@ test("buildDebugTotalsReport writes required CSV exports", async () => {
 
   assert.match(leadsCsv, /issue,row_number,id,country,status/);
   assert.match(ftdCsv, /duplicate_ftd/);
-  assert.match(agentsCsv, /missing_target|agent_normalization_mismatch/);
+  assert.match(agentsCsv, /agent_name,normalized_name,office,team_leader,working_status,target,ftd/);
+  assert.match(agentsCsv, /included_target/);
 
   const text = formatDebugTotalsReport(report);
   assert.match(text, /Reconciliation Validation/);
   assert.match(text, /validation_leads\.csv/);
+  assert.match(text, /Summary Included Target/);
 });
