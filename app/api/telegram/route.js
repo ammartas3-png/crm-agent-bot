@@ -212,7 +212,7 @@ export async function POST(request) {
       }
 
       if (callbackQuery.data === "root:start") {
-        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard());
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
       }
       if (callbackQuery.data === "root:results") {
         const response = await startMenu(userId, { telegramUser });
@@ -222,6 +222,7 @@ export async function POST(request) {
       if (callbackQuery.data?.startsWith("dbcheck:")) {
         const dbResponse = await handleDatabaseCheckCallback(userId, callbackQuery.data, {
           isAdmin: isAdminTelegramUser(telegramUser),
+          telegramUser,
         });
         if (dbResponse) {
           return sendMessageWebhookResponse(chatId, dbResponse.text, dbResponse.replyMarkup);
@@ -283,7 +284,7 @@ export async function POST(request) {
     }
 
     if (isGreeting(text)) {
-      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard());
+      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
     }
 
     const answer = await answerQuery(text);
