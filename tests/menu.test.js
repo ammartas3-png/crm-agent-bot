@@ -319,14 +319,14 @@ test("specific reports include hourly and country comparison", async () => {
   assert.equal(hourlyLabels.includes("Hourly Date: Custom Range"), true);
 });
 
-test("last 3 months option opens core report filters only", async () => {
-  const response = await handleMenuCallback(108, "month:last3", {
+test("last 4 months option opens core report filters only", async () => {
+  const response = await handleMenuCallback(108, "month:last4", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(response.text, /Period: Last 3 Months/i);
+  assert.match(response.text, /Period: Last 4 Months/i);
   const labels = response.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(labels.includes("Office"), true);
   assert.equal(labels.includes("Team Leader"), true);
@@ -336,8 +336,8 @@ test("last 3 months option opens core report filters only", async () => {
   assert.equal(labels.includes("Specific Reports"), false);
 });
 
-test("last 3 months report uses compact target metrics", async () => {
-  await handleMenuCallback(109, "month:last3", {
+test("last 4 months report uses compact target metrics and month breakdown", async () => {
+  await handleMenuCallback(109, "month:last4", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -352,11 +352,13 @@ test("last 3 months report uses compact target metrics", async () => {
   assert.match(office.text, /Target/);
   assert.match(office.text, /FTD/);
   assert.match(office.text, /CR Target Reach/);
+  assert.match(office.text, /FTD Target Reach/);
+  assert.match(office.text, /\|\s*May\s*\|/);
   assert.doesNotMatch(office.text, /Selfs/);
   assert.doesNotMatch(office.text, /Late FTD/);
 });
 
-test("last 3 months maps historical agents using current month info agents", async () => {
+test("last 4 months maps historical agents using current month info agents", async () => {
   const movingRows = [
     {
       ID: "M-1",
@@ -393,7 +395,7 @@ test("last 3 months maps historical agents using current month info agents", asy
     }
     return [];
   };
-  await handleMenuCallback(110, "month:last3", {
+  await handleMenuCallback(110, "month:last4", {
     tabConfig,
     infoAgentsTabConfig,
     readRows: readRowsLast3,
