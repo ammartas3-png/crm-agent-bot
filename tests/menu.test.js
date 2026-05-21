@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleMenuCallback, isGreeting, mainMenuKeyboard, startMenu } from "../lib/menu.js";
+import { handleMenuCallback, handleMenuText, isGreeting, mainMenuKeyboard, startMenu } from "../lib/menu.js";
 import { upsertMonthFile } from "../lib/monthlyReports.js";
 
 const NOW = new Date("2026-05-12T12:00:00Z");
@@ -307,6 +307,63 @@ test("specific reports include hourly and country comparison", async () => {
   const labels = specificMenu.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(labels.includes("Hourly Leads"), true);
   assert.equal(labels.includes("Country Comparison"), true);
+
+  const hourly = await handleMenuCallback(105, "special:hourly", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const hourlyLabels = hourly.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(hourlyLabels.includes("All Hours"), true);
+  assert.equal(hourlyLabels.includes("Set Hour Range"), true);
+});
+
+test("hourly report accepts custom hour range", async () => {
+  await selectMonthAndTotalDate(106);
+  await handleMenuCallback(106, "special:hourly", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const prompt = await handleMenuCallback(106, "special:hours:custom", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(prompt.text, /HH:MM - HH:MM/);
+
+  const ranged = await handleMenuText(106, "09:00 - 12:00", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(ranged.text, /\[09:00-12:59\]/);
+});
+
+test("country comparison displays CR target reach ranking details", async () => {
+  await startMenu(107);
+  await handleMenuCallback(107, "month:2026-05", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await handleMenuCallback(107, "date:month", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  const selector = await handleMenuCallback(107, "special:compareCountry", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const turkey = selector.replyMarkup.inline_keyboard.flat().find((button) => button.text === "Turkey");
+  assert.ok(turkey);
+  const comparison = await handleMenuCallback(107, turkey.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(comparison.text, /Top Agents/);
+  assert.match(comparison.text, /CR Target Reach/);
 });
 
 test("settings remove and hide/show month management still works for admin", async () => {
