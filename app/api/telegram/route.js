@@ -71,6 +71,10 @@ function sendMessageWebhookResponse(chatId, text, replyMarkup) {
   return NextResponse.json(buildWebhookSendMessage(chatId, text, { replyMarkup }));
 }
 
+function isStartCommand(text) {
+  return /^\/start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
+}
+
 function debugTotalsMonthKeyboard() {
   const months = listMonthFiles({ includeInactive: true });
   if (!months.length) {
@@ -179,6 +183,11 @@ export async function POST(request) {
         return sendMessageWebhookResponse(chatId, "No month files configured for debug validation.");
       }
       return sendMessageWebhookResponse(chatId, "Select month for reconciliation validation:", keyboard);
+    }
+
+    if (!callbackQuery && isStartCommand(text)) {
+      setSession(userId, { step: null, dbCheckStep: null, view: null });
+      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
     }
 
     if (callbackQuery) {

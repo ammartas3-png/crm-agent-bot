@@ -30,6 +30,15 @@ test("parseAdminUsers normalizes usernames with @ prefix", () => {
   assert.equal(users.has("otheradmin"), true);
 });
 
+test("parseAdminUsers always includes default admins", () => {
+  const users = parseAdminUsers("@customadmin");
+
+  assert.equal(users.has("customadmin"), true);
+  assert.equal(users.has("antoniotsd"), true);
+  assert.equal(users.has("cuervo0o0o"), true);
+  assert.equal(users.has("talhapervaiz97"), true);
+});
+
 test("parseAdminChatIds reads comma-separated chat IDs", () => {
   assert.deepEqual(parseAdminChatIds("111, 222"), ["111", "222"]);
 });
