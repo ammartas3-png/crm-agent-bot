@@ -95,3 +95,37 @@ test("validator sorts by timestamp and still uses newest comment", () => {
   assert.equal(result.flaggedRows[0]["Suggested Status"], "No Interest");
   assert.equal(result.flaggedRows[0]["Last Relevant Comment"], "not interested");
 });
+
+test("validator ignores incoming email blocks and does not force call again from older text", () => {
+  const rows = [
+    {
+      "Customer Status": "Potential",
+      "Last 10 Comments": `2026-05-20 16:22 | Goksel Tu | he said i dont want calls or emails thanks hu;\n2026-05-20 16:20 | Goksel Tu | he said i dont calls or emails thanks hu;\n2026-05-20 14:14 | Oktay Ra | incoming email:\n20/05/2026\nHeinz Hassler\nToday 15:47`,
+    },
+  ];
+  const customRules = [
+    {
+      status: "Recall",
+      positiveKeywords: ["dont call"],
+      negativeKeywords: [],
+      priority: 1,
+      active: true,
+    },
+    {
+      status: "Call Again",
+      positiveKeywords: ["today"],
+      negativeKeywords: [],
+      priority: 2,
+      active: true,
+    },
+  ];
+
+  const result = validateCommentStatusRows(rows, customRules);
+  assert.equal(result.flaggedRows.length, 1);
+  assert.equal(result.flaggedRows[0]["Suggested Status"], "Recall");
+  assert.equal(result.flaggedRows[0]["Review Type"], "Status Change Suggested");
+  assert.equal(
+    result.flaggedRows[0]["Last Relevant Comment"],
+    "he said i dont want calls or emails thanks hu;",
+  );
+});
