@@ -41,6 +41,7 @@ import {
   rootStartKeyboard,
 } from "../../../lib/databaseCheck.js";
 import { getSession, setSession } from "../../../lib/session.js";
+import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
 export const runtime = "nodejs";
 
@@ -188,6 +189,10 @@ export async function POST(request) {
     if (!callbackQuery && isStartCommand(text)) {
       setSession(userId, { step: null, dbCheckStep: null, view: null });
       return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+    }
+
+    if (!callbackQuery && isHelpCommand(text)) {
+      return sendMessageWebhookResponse(chatId, buildHelpText(telegramUser));
     }
 
     if (callbackQuery) {
