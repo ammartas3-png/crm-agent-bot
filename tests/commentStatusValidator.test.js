@@ -67,3 +67,31 @@ test("validator parses multiline prefixed comments before matching rules", () =>
     "customer asked to call tomorrow after work",
   );
 });
+
+test("validator uses latest comment status match for final suggestion", () => {
+  const rows = [
+    {
+      "Customer Status": "Potential",
+      "Last 10 Comments":
+        "2026-05-21 08:51 | Dilan Ka | call tomorrow\n2026-05-21 09:10 | Dilan Ka | not interested",
+    },
+  ];
+  const result = validateCommentStatusRows(rows, rules);
+  assert.equal(result.flaggedRows.length, 1);
+  assert.equal(result.flaggedRows[0]["Suggested Status"], "No Interest");
+  assert.equal(result.flaggedRows[0]["Last Relevant Comment"], "not interested");
+});
+
+test("validator sorts by timestamp and still uses newest comment", () => {
+  const rows = [
+    {
+      "Customer Status": "Potential",
+      "Last 10 Comments":
+        "2026-05-21 09:10 | Dilan Ka | not interested\n2026-05-21 08:51 | Dilan Ka | call tomorrow",
+    },
+  ];
+  const result = validateCommentStatusRows(rows, rules);
+  assert.equal(result.flaggedRows.length, 1);
+  assert.equal(result.flaggedRows[0]["Suggested Status"], "No Interest");
+  assert.equal(result.flaggedRows[0]["Last Relevant Comment"], "not interested");
+});
