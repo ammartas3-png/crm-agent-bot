@@ -319,6 +319,96 @@ test("specific reports include hourly and country comparison", async () => {
   assert.equal(hourlyLabels.includes("Hourly Date: Custom Range"), true);
 });
 
+test("last 3 months option opens core report filters only", async () => {
+  const response = await handleMenuCallback(108, "month:last3", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(response.text, /Period: Last 3 Months/i);
+  const labels = response.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(labels.includes("Office"), true);
+  assert.equal(labels.includes("Team Leader"), true);
+  assert.equal(labels.includes("Agent"), true);
+  assert.equal(labels.includes("Country"), false);
+  assert.equal(labels.includes("Campaign"), false);
+  assert.equal(labels.includes("Specific Reports"), false);
+});
+
+test("last 3 months report uses compact target metrics", async () => {
+  await handleMenuCallback(109, "month:last3", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const office = await handleMenuCallback(109, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(office.text, /Target/);
+  assert.match(office.text, /FTD/);
+  assert.match(office.text, /CR Target Reach/);
+  assert.doesNotMatch(office.text, /Selfs/);
+  assert.doesNotMatch(office.text, /Late FTD/);
+});
+
+test("last 3 months maps historical agents using current month info agents", async () => {
+  const movingRows = [
+    {
+      ID: "M-1",
+      Created: "12/04/2026 10:00:00",
+      "Lead Date": "12/04/2026",
+      Country: "Turkey",
+      Campaign: "Campaign Move",
+      Office: "OldOffice",
+      "Team Leader": "OldLeader",
+      "AGENT NAMES": "Mover",
+      Status: "Potential",
+      FTD: "1",
+      "FTD MAKER": "Closer Move",
+      "FTD DATE": "12/04/2026 11:00:00",
+      "CR TARGET": "10%",
+      Selfs: "0",
+    },
+  ];
+  const currentInfoRows = [
+    {
+      "Working Status": "Working",
+      "Agent Name": "Mover",
+      "Agent Target": "20",
+      Office: "NewOffice",
+      "Team Leader": "NewLeader",
+    },
+  ];
+  const readRowsLast3 = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      return currentInfoRows;
+    }
+    if (tabKey === "leads") {
+      return movingRows.map((row, index) => ({ ...row, ID: `${row.ID}-${options.spreadsheetId}-${index}` }));
+    }
+    return [];
+  };
+  await handleMenuCallback(110, "month:last3", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsLast3,
+    now: NOW,
+  });
+  const office = await handleMenuCallback(110, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsLast3,
+    now: NOW,
+  });
+  assert.match(office.text, /NewOffice/);
+  assert.doesNotMatch(office.text, /OldOffice/);
+});
+
 test("hourly report accepts custom date range", async () => {
   await selectMonthAndTotalDate(106);
   await handleMenuCallback(106, "special:hourly", {
