@@ -50,3 +50,20 @@ test("validator suggests status change by keyword and appointment signal", () =>
   assert.equal(result.flaggedRows[0]["Suggested Status"], "Call Again");
   assert.equal(result.flaggedRows[0]["Appointment Detected"], "YES");
 });
+
+test("validator parses multiline prefixed comments before matching rules", () => {
+  const rows = [
+    {
+      "Customer Status": "Potential",
+      "Last 10 Comments":
+        "2026-05-21 8:51 | Dilan Ka | customer asked to call\n tomorrow after work",
+    },
+  ];
+  const result = validateCommentStatusRows(rows, rules);
+  assert.equal(result.flaggedRows.length, 1);
+  assert.equal(result.flaggedRows[0]["Suggested Status"], "Call Again");
+  assert.equal(
+    result.flaggedRows[0]["Last Relevant Comment"],
+    "customer asked to call tomorrow after work",
+  );
+});
