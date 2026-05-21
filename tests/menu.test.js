@@ -155,8 +155,9 @@ const readRows = async (tabKey, options = {}) => {
   return leadRows;
 };
 
-test("isGreeting opens the menu for hello and /start", () => {
+test("isGreeting opens the menu for hello, start and /start", () => {
   assert.equal(isGreeting("hello"), true);
+  assert.equal(isGreeting("start"), true);
   assert.equal(isGreeting("/start"), true);
 });
 

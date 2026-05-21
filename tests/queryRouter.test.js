@@ -123,6 +123,13 @@ test("parseQuery routes FTD questions to the CRM leads tab", () => {
   assert.deepEqual(parsed.filters.date, { type: "today" });
 });
 
+test("parseQuery recognizes start command variants", () => {
+  assert.equal(parseQuery("/start", NOW).type, "start");
+  assert.equal(parseQuery("start", NOW).type, "start");
+  assert.equal(parseQuery("/start@crm_bot", NOW).type, "start");
+  assert.equal(parseQuery("/start payload", NOW).type, "start");
+});
+
 test("answerQuery calculates FTD today count", async () => {
   assert.equal(await answer("How many FTD today?"), "Total FTD (today): 2");
 });

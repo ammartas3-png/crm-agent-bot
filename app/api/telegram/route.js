@@ -72,7 +72,7 @@ function sendMessageWebhookResponse(chatId, text, replyMarkup) {
 }
 
 function isStartCommand(text) {
-  return /^\/start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
+  return /^\/?start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
 }
 
 function debugTotalsMonthKeyboard() {
