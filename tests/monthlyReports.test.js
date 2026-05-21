@@ -12,6 +12,13 @@ import {
   upsertMonthFile,
 } from "../lib/monthlyReports.js";
 
+test("built-in 2026 month mappings are available", () => {
+  assert.equal(getMonthFile("2026-01")?.sheet_id, "1Gf6f2xs8jRL6MMNwLMM4is-mdMBMCR_k4EW0LcvnD01k");
+  assert.equal(getMonthFile("2026-02")?.sheet_id, "1R303xCVpamBTSkbH2QyT0JHCBPctayeYV9rERML6R5s");
+  assert.equal(getMonthFile("2026-03")?.sheet_id, "1z-O1vy_vaFjU5Ys-P2VW4AMAXOEQ0nSzEjjOakDegsA");
+  assert.equal(getMonthFile("2026-04")?.sheet_id, "1tbdyjZ-lJLZby9azuDysIw2ewnhP7wSMuX2mzD_bfME");
+});
+
 test("upsertMonthFile stores required structure fields and normalizes sheet URL", () => {
   const record = upsertMonthFile(
     "May 2026",
@@ -47,4 +54,5 @@ test("removeMonthFile deletes mapping completely", () => {
   upsertMonthFile("February 2026", "sheet-feb");
   assert.equal(removeMonthFile("2026-02"), true);
   assert.equal(getMonthFile("2026-02"), null);
+  upsertMonthFile("February 2026", "1R303xCVpamBTSkbH2QyT0JHCBPctayeYV9rERML6R5s");
 });
