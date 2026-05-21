@@ -155,6 +155,13 @@ const readRows = async (tabKey, options = {}) => {
   return leadRows;
 };
 
+async function selectMonthAndTotalDate(userId, options = {}) {
+  const started = await startMenu(userId, options);
+  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  await handleMenuCallback(userId, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await handleMenuCallback(userId, "date:month", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+}
+
 test("isGreeting opens the menu for hello, start and /start", () => {
   assert.equal(isGreeting("hello"), true);
   assert.equal(isGreeting("start"), true);
@@ -168,9 +175,7 @@ test("mainMenuKeyboard follows required hierarchy order", () => {
 });
 
 test("office drilldown shows summary and child hierarchy", async () => {
-  const started = await startMenu(100, { telegramUser: { id: 100, username: "regular" } });
-  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
-  await handleMenuCallback(100, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await selectMonthAndTotalDate(100, { telegramUser: { id: 100, username: "regular" } });
 
   const officeRoot = await handleMenuCallback(100, "report:office", {
     tabConfig,
@@ -203,9 +208,7 @@ test("office drilldown shows summary and child hierarchy", async () => {
 });
 
 test("agent flow leads to detailed metrics and back buttons", async () => {
-  const started = await startMenu(101);
-  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
-  await handleMenuCallback(101, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await selectMonthAndTotalDate(101);
 
   const agentRoot = await handleMenuCallback(101, "report:agent", {
     tabConfig,
@@ -236,9 +239,7 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
 });
 
 test("working agents without leads still appear in team leader drilldown", async () => {
-  const started = await startMenu(103);
-  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
-  await handleMenuCallback(103, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await selectMonthAndTotalDate(103);
 
   const teamLeaderRoot = await handleMenuCallback(103, "report:teamLeader", {
     tabConfig,
@@ -265,8 +266,9 @@ test("working agents without leads still appear in team leader drilldown", async
 
 test("pagination buttons appear when results exceed one page", async () => {
   upsertMonthFile("June 2026", "pagination-sheet");
-  const started = await startMenu(102);
+  await startMenu(102);
   await handleMenuCallback(102, "month:2026-06", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await handleMenuCallback(102, "date:month", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
   const officeRoot = await handleMenuCallback(102, "report:office", {
     tabConfig,
     infoAgentsTabConfig,
@@ -276,6 +278,35 @@ test("pagination buttons appear when results exceed one page", async () => {
   const labels = officeRoot.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(labels.includes("Next Page"), true);
   assert.equal(labels.includes("Previous Page"), true);
+});
+
+test("month selection now asks date filter before report filters", async () => {
+  const started = await startMenu(104);
+  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  const dateMenu = await handleMenuCallback(104, monthCallback, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(dateMenu.text, /Select date filter/i);
+  const labels = dateMenu.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(labels.includes("Total Month"), true);
+  assert.equal(labels.includes("Custom Date Range"), true);
+});
+
+test("specific reports include hourly and country comparison", async () => {
+  await selectMonthAndTotalDate(105);
+  const specificMenu = await handleMenuCallback(105, "special:open", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(specificMenu.text, /Specific Reports/);
+  const labels = specificMenu.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(labels.includes("Hourly Leads"), true);
+  assert.equal(labels.includes("Country Comparison"), true);
 });
 
 test("settings remove and hide/show month management still works for admin", async () => {
