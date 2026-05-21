@@ -129,3 +129,18 @@ test("validator ignores incoming email blocks and does not force call again from
     "he said i dont want calls or emails thanks hu;",
   );
 });
+
+test("validator can infer status from Sheet1 hints when Sheet2 rule does not match", () => {
+  const rows = [
+    {
+      "Customer Status": "Potential",
+      "Last 10 Comments": "2026-05-21 10:10 | Agent | client not interested and refused service",
+    },
+  ];
+  const result = validateCommentStatusRows(rows, [], {
+    statusHints: [{ status: "No Interest", description: "client not interested refused service" }],
+  });
+  assert.equal(result.flaggedRows.length, 1);
+  assert.equal(result.flaggedRows[0]["Suggested Status"], "No Interest");
+  assert.match(result.flaggedRows[0].Reason, /Sheet1 status description/i);
+});
