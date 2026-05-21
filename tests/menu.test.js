@@ -315,11 +315,11 @@ test("specific reports include hourly and country comparison", async () => {
     now: NOW,
   });
   const hourlyLabels = hourly.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(hourlyLabels.includes("All Hours"), true);
-  assert.equal(hourlyLabels.includes("Set Hour Range"), true);
+  assert.equal(hourlyLabels.includes("Hourly Date: Total Month"), true);
+  assert.equal(hourlyLabels.includes("Hourly Date: Custom Range"), true);
 });
 
-test("hourly report accepts custom hour range", async () => {
+test("hourly report accepts custom date range", async () => {
   await selectMonthAndTotalDate(106);
   await handleMenuCallback(106, "special:hourly", {
     tabConfig,
@@ -327,21 +327,21 @@ test("hourly report accepts custom hour range", async () => {
     readRows,
     now: NOW,
   });
-  const prompt = await handleMenuCallback(106, "special:hours:custom", {
+  const prompt = await handleMenuCallback(106, "special:hourlyDate:custom", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(prompt.text, /HH:MM - HH:MM/);
+  assert.match(prompt.text, /DD\/MM\/YYYY - DD\/MM\/YYYY/);
 
-  const ranged = await handleMenuText(106, "09:00 - 12:00", {
+  const ranged = await handleMenuText(106, "12/05/2026 - 12/05/2026", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(ranged.text, /\[09:00-12:59\]/);
+  assert.match(ranged.text, /Custom \(12\/05\/2026 - 12\/05\/2026\)/);
 });
 
 test("country comparison displays CR target reach ranking details", async () => {
