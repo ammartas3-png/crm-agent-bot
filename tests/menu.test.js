@@ -411,6 +411,64 @@ test("last 4 months maps historical agents using current month info agents", asy
   assert.doesNotMatch(office.text, /OldOffice/);
 });
 
+test("last 4 months uses month-specific targets in monthly breakdown", async () => {
+  const leadTemplate = {
+    Created: "12/04/2026 10:00:00",
+    "Lead Date": "12/04/2026",
+    Country: "Turkey",
+    Campaign: "Campaign Move",
+    Office: "OldOffice",
+    "Team Leader": "OldLeader",
+    "AGENT NAMES": "Mover",
+    Status: "Potential",
+    FTD: "1",
+    "FTD MAKER": "Closer Move",
+    "FTD DATE": "12/04/2026 11:00:00",
+    "CR TARGET": "10%",
+    Selfs: "0",
+  };
+  const bySheetTarget = {
+    "1tbdyjZ-lJLZby9azuDysIw2ewnhP7wSMuX2mzD_bfME": 30, // April
+    "1z-O1vy_vaFjU5Ys-P2VW4AMAXOEQ0nSzEjjOakDegsA": 20, // March
+    "1R303xCVpamBTSkbH2QyT0JHCBPctayeYV9rERML6R5s": 10, // February
+  };
+  const readRowsByMonthTarget = async (tabKey, options = {}) => {
+    const target = bySheetTarget[options.spreadsheetId] ?? 40; // current month (May) default
+    if (tabKey === "infoAgents") {
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Mover",
+          "Agent Target": String(target),
+          Office: "NewOffice",
+          "Team Leader": "NewLeader",
+        },
+      ];
+    }
+    if (tabKey === "leads") {
+      return [{ ...leadTemplate, ID: `T-${options.spreadsheetId}` }];
+    }
+    return [];
+  };
+
+  await handleMenuCallback(111, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsByMonthTarget,
+    now: NOW,
+  });
+  const agent = await handleMenuCallback(111, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsByMonthTarget,
+    now: NOW,
+  });
+  assert.match(agent.text, /\|\s*May\s*\|\s*Target 40/);
+  assert.match(agent.text, /\|\s*April\s*\|\s*Target 30/);
+  assert.match(agent.text, /\|\s*March\s*\|\s*Target 20/);
+  assert.match(agent.text, /\|\s*February\s*\|\s*Target 10/);
+});
+
 test("hourly report accepts custom date range", async () => {
   await selectMonthAndTotalDate(106);
   await handleMenuCallback(106, "special:hourly", {
