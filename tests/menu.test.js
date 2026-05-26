@@ -375,6 +375,7 @@ test("last 4 months option opens core report filters only", async () => {
   assert.equal(labels.includes("Country"), false);
   assert.equal(labels.includes("Campaign"), false);
   assert.equal(labels.includes("Specific Reports"), false);
+  assert.equal(labels.includes("All (Excel)"), true);
 });
 
 test("last 4 months report uses compact target metrics and month breakdown", async () => {
@@ -508,6 +509,24 @@ test("last 4 months uses month-specific targets in monthly breakdown", async () 
   assert.match(agent.text, /\|\s*April\s*\|\s*Target 30/);
   assert.match(agent.text, /\|\s*March\s*\|\s*Target 20/);
   assert.match(agent.text, /\|\s*February\s*\|\s*Target 10/);
+});
+
+test("last 4 months all excel export returns document payload", async () => {
+  await handleMenuCallback(113, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const response = await handleMenuCallback(113, "export:last4all", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(response.text, /All Excel export sent/i);
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
 });
 
 test("hourly report accepts custom date range", async () => {
