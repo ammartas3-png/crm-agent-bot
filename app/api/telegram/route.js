@@ -244,6 +244,21 @@ export async function POST(request) {
       }
 
       const response = await handleMenuCallback(userId, callbackQuery.data, { telegramUser });
+      if (response?.documentBuffer) {
+        if (!hasTelegramBotToken()) {
+          return sendMessageWebhookResponse(
+            chatId,
+            "TELEGRAM_BOT_TOKEN is required to send Excel export files.",
+            response.replyMarkup,
+          );
+        }
+        await sendTelegramDocument(
+          chatId,
+          response.documentBuffer,
+          response.documentFilename || "report.xlsx",
+          { caption: "CRM report export" },
+        );
+      }
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
 

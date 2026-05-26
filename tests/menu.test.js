@@ -205,6 +205,28 @@ test("office drilldown shows summary and child hierarchy", async () => {
     teamLeaderList.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Back to previous level"),
     true,
   );
+
+  const teamLeaderPick = teamLeaderList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(teamLeaderPick);
+  const teamLeaderDetail = await handleMenuCallback(100, teamLeaderPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    teamLeaderDetail.replyMarkup.inline_keyboard.flat().some((button) => button.text === "View Agents"),
+    true,
+  );
+  const viewAgents = await handleMenuCallback(100, "drill:next:agentNames", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(viewAgents.text, /Agents/);
 });
 
 test("agent flow leads to detailed metrics and back buttons", async () => {
@@ -317,6 +339,25 @@ test("specific reports include hourly and country comparison", async () => {
   const hourlyLabels = hourly.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(hourlyLabels.includes("Hourly Date: Total Month"), true);
   assert.equal(hourlyLabels.includes("Hourly Date: Custom Range"), true);
+});
+
+test("report view can export as excel document payload", async () => {
+  await selectMonthAndTotalDate(112);
+  await handleMenuCallback(112, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const exportResponse = await handleMenuCallback(112, "export:current", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(exportResponse.text, /Excel export sent/i);
+  assert.ok(Buffer.isBuffer(exportResponse.documentBuffer));
+  assert.match(exportResponse.documentFilename, /\.xlsx$/i);
 });
 
 test("last 4 months option opens core report filters only", async () => {

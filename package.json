@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/ammartas3-png/crm-agent-bot#readme",
   "dependencies": {
+    "exceljs": "^4.4.0",
     "googleapis": "^171.4.0",
     "next": "^16.2.6",
     "postcss": "8.5.14",
