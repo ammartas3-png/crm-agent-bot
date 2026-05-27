@@ -44,6 +44,7 @@ const DEFAULT_INFO_AGENTS_COLUMNS = [
   "Office",
   "Team Leader",
 ];
+const DEFAULT_AGENT_DIRECTORY_COLUMNS = ["Agent Name", "Agent ID"];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
 export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
@@ -63,6 +64,7 @@ const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
 const ftdTabName = (process.env.GOOGLE_FTD_TAB || "FTD").trim();
 const transactionTabName = (process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION").trim();
 const infoAgentsTabName = (process.env.GOOGLE_INFO_AGENTS_TAB || "Info Agents").trim();
+const agentDirectoryTabName = (process.env.GOOGLE_AGENT_DIRECTORY_TAB || "Agent ID").trim();
 
 export const sheetsConfig = {
   spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || DEFAULT_GOOGLE_SPREADSHEET_ID,
@@ -133,6 +135,16 @@ export const sheetsConfig = {
         agentTarget: "Agent Target",
         office: "Office",
         teamLeader: "Team Leader",
+      },
+    },
+    agentDirectory: {
+      key: "agentDirectory",
+      name: agentDirectoryTabName,
+      range: process.env.GOOGLE_AGENT_DIRECTORY_RANGE || sheetRange(agentDirectoryTabName, "A:B"),
+      columns: DEFAULT_AGENT_DIRECTORY_COLUMNS,
+      fields: {
+        agentName: "Agent Name",
+        agentId: "Agent ID",
       },
     },
   },

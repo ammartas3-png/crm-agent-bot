@@ -598,6 +598,78 @@ test("last 4 months excludes agents not working in current info agents", async (
   assert.doesNotMatch(agentList.text, /Old Agent/);
 });
 
+test("last 4 months resolves renamed agents by Agent ID mapping", async () => {
+  upsertMonthFile("May 2026", "sheet-current-id-rename");
+  const readRowsByAgentId = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      if (options.spreadsheetId === "sheet-current-id-rename") {
+        return [
+          {
+            "Working Status": "Working",
+            "Agent Name": "Annalena Gu",
+            "Agent Target": "25",
+            Office: "Turkey French",
+            "Team Leader": "Yosr S",
+          },
+        ];
+      }
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Asli Gu",
+          "Agent Target": "25",
+          Office: "Turkey French",
+          "Team Leader": "Yosr S",
+        },
+      ];
+    }
+    if (tabKey === "agentDirectory") {
+      if (options.spreadsheetId === "sheet-current-id-rename") {
+        return [{ "Agent Name": "Annalena Gu", "Agent ID": "THR1465" }];
+      }
+      return [{ "Agent Name": "Asli Gu", "Agent ID": "THR1465" }];
+    }
+    if (tabKey === "leads") {
+      return [
+        {
+          ID: `R-${options.spreadsheetId}`,
+          Created: "12/05/2026 11:00:00",
+          "Lead Date": "12/05/2026",
+          Country: "Turkey",
+          Campaign: "Campaign R",
+          Office: "Turkey French",
+          "Team Leader": "Yosr S",
+          "AGENT NAMES": "Asli Gu",
+          "Agent ID": "THR1465",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer",
+          "FTD DATE": "12/05/2026 11:30:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+
+  await handleMenuCallback(115, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsByAgentId,
+    now: NOW,
+  });
+  const agentList = await handleMenuCallback(115, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsByAgentId,
+    now: NOW,
+  });
+  assert.match(agentList.text, /Annalena Gu/);
+  assert.match(agentList.text, /FTD 4/);
+  assert.doesNotMatch(agentList.text, /Asli Gu/);
+});
+
 test("last 4 months all excel export returns document payload", async () => {
   await handleMenuCallback(113, "month:last4", {
     tabConfig,
