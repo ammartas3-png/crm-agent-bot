@@ -5,10 +5,12 @@ import {
   agentTarget,
   buildAgentTargetsMap,
   buildInfoAgentsContext,
+  canonicalAgentName,
   collectAgentNames,
   formatOptionalPercent,
   formatTarget,
   infoAgentsLabelsForGroup,
+  normalizeAgentName,
   summarizeTarget,
   targetForOffice,
   targetForTeamLeader,
@@ -76,4 +78,10 @@ test("target formatting handles missing targets", () => {
 test("collectAgentNames reads agent field values", () => {
   const names = collectAgentNames([{ "AGENT NAMES": "Ahmet" }, { "AGENT NAMES": "Max" }], tabConfig);
   assert.deepEqual(names, ["Ahmet", "Max"]);
+});
+
+test("agent alias maps Asli Gu to Annalena Gu", () => {
+  assert.equal(normalizeAgentName("Asli Gu"), "annalena gu");
+  assert.equal(normalizeAgentName(" annalena   gu "), "annalena gu");
+  assert.equal(canonicalAgentName("Asli Gu"), "Annalena Gu");
 });

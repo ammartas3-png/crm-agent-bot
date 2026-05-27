@@ -746,6 +746,66 @@ test("last 4 months reuses first found Agent ID name for older months", async ()
   assert.doesNotMatch(agentList.text, /Legacy Name/);
 });
 
+test("single month reports show Annalena for Asli alias", async () => {
+  upsertMonthFile("May 2026", "sheet-alias-single");
+  const readRowsAliasSingle = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Asli Gu",
+          "Agent Target": "25",
+          Office: "Turkey French",
+          "Team Leader": "Yosr S",
+        },
+      ];
+    }
+    if (tabKey === "leads") {
+      return [
+        {
+          ID: `A-${options.spreadsheetId}`,
+          Created: "12/05/2026 11:00:00",
+          "Lead Date": "12/05/2026",
+          Country: "Turkey",
+          Campaign: "Campaign Alias",
+          Office: "Turkey French",
+          "Team Leader": "Yosr S",
+          "AGENT NAMES": "Asli Gu",
+          "Agent ID": "THR1465",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer",
+          "FTD DATE": "12/05/2026 11:30:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+  await startMenu(117);
+  await handleMenuCallback(117, "month:2026-05", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsAliasSingle,
+    now: NOW,
+  });
+  await handleMenuCallback(117, "date:month", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsAliasSingle,
+    now: NOW,
+  });
+  const agentReport = await handleMenuCallback(117, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsAliasSingle,
+    now: NOW,
+  });
+  assert.match(agentReport.text, /Annalena Gu/);
+  assert.doesNotMatch(agentReport.text, /Asli Gu/);
+});
+
 test("last 4 months all excel export returns document payload", async () => {
   await handleMenuCallback(113, "month:last4", {
     tabConfig,
