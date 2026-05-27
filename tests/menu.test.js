@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as XLSX from "xlsx";
 
 import { handleMenuCallback, handleMenuText, isGreeting, mainMenuKeyboard, startMenu } from "../lib/menu.js";
 import { upsertMonthFile } from "../lib/monthlyReports.js";
@@ -359,6 +360,14 @@ test("report view can export as excel document payload", async () => {
   assert.match(exportResponse.text, /Excel export sent/i);
   assert.ok(Buffer.isBuffer(exportResponse.documentBuffer));
   assert.match(exportResponse.documentFilename, /\.xlsx$/i);
+  const workbook = XLSX.read(exportResponse.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerCandidates = [rows[1] || [], rows[2] || []];
+  const headerText = headerCandidates.flat().join(" | ");
+  assert.equal(/Office/.test(headerText), true);
+  assert.equal(/Team Leader/.test(headerText), true);
+  assert.equal(/Agent/.test(headerText), true);
 });
 
 test("last 4 months option opens core report filters only", async () => {
