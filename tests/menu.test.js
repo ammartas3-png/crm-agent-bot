@@ -511,6 +511,93 @@ test("last 4 months uses month-specific targets in monthly breakdown", async () 
   assert.match(agent.text, /\|\s*February\s*\|\s*Target 10/);
 });
 
+test("last 4 months excludes agents not working in current info agents", async () => {
+  const readRowsExcludeNonWorking = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      if (options.spreadsheetId === "sheet-current") {
+        return [
+          {
+            "Working Status": "Working",
+            "Agent Name": "Working Agent",
+            "Agent Target": "20",
+            Office: "Office A",
+            "Team Leader": "Leader A",
+          },
+          {
+            "Working Status": "Not Working",
+            "Agent Name": "Old Agent",
+            "Agent Target": "10",
+            Office: "Office Z",
+            "Team Leader": "Leader Z",
+          },
+        ];
+      }
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Working Agent",
+          "Agent Target": "20",
+          Office: "Office A",
+          "Team Leader": "Leader A",
+        },
+      ];
+    }
+    if (tabKey === "leads") {
+      return [
+        {
+          ID: `W-${options.spreadsheetId}`,
+          Created: "12/05/2026 10:00:00",
+          "Lead Date": "12/05/2026",
+          Country: "Turkey",
+          Campaign: "Campaign X",
+          Office: "OldOffice",
+          "Team Leader": "OldLeader",
+          "AGENT NAMES": "Working Agent",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer",
+          "FTD DATE": "12/05/2026 10:30:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+        {
+          ID: `O-${options.spreadsheetId}`,
+          Created: "12/05/2026 11:00:00",
+          "Lead Date": "12/05/2026",
+          Country: "Turkey",
+          Campaign: "Campaign X",
+          Office: "Office Z",
+          "Team Leader": "Leader Z",
+          "AGENT NAMES": "Old Agent",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer",
+          "FTD DATE": "12/05/2026 11:30:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+
+  upsertMonthFile("May 2026", "sheet-current");
+  await handleMenuCallback(114, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsExcludeNonWorking,
+    now: NOW,
+  });
+  const agentList = await handleMenuCallback(114, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsExcludeNonWorking,
+    now: NOW,
+  });
+  assert.match(agentList.text, /Working Agent/);
+  assert.doesNotMatch(agentList.text, /Old Agent/);
+});
+
 test("last 4 months all excel export returns document payload", async () => {
   await handleMenuCallback(113, "month:last4", {
     tabConfig,
