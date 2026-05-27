@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { handleMenuCallback, handleMenuText, isGreeting, mainMenuKeyboard, startMenu } from "../lib/menu.js";
 import { upsertMonthFile } from "../lib/monthlyReports.js";
+import { setSession } from "../lib/session.js";
 
 const NOW = new Date("2026-05-12T12:00:00Z");
 
@@ -668,6 +669,81 @@ test("last 4 months resolves renamed agents by Agent ID mapping", async () => {
   assert.match(agentList.text, /Annalena Gu/);
   assert.match(agentList.text, /FTD 4/);
   assert.doesNotMatch(agentList.text, /Asli Gu/);
+});
+
+test("last 4 months reuses first found Agent ID name for older months", async () => {
+  upsertMonthFile("February 2026", "sheet-id-feb");
+  upsertMonthFile("March 2026", "sheet-id-mar");
+  upsertMonthFile("April 2026", "sheet-id-apr");
+  upsertMonthFile("May 2026", "sheet-id-may");
+
+  const readRowsAgentIdCarry = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      if (options.spreadsheetId === "sheet-id-may") {
+        return [
+          {
+            "Working Status": "Working",
+            "Agent Name": "Annalena Gu",
+            "Agent Target": "25",
+            Office: "Turkey French",
+            "Team Leader": "Yosr S",
+          },
+        ];
+      }
+      return [];
+    }
+    if (tabKey === "agentDirectory") {
+      if (options.spreadsheetId === "sheet-id-apr") {
+        return [{ "Agent Name": "Annalena Gu", "Agent ID": "THR1465" }];
+      }
+      return [];
+    }
+    if (tabKey === "leads") {
+      const agentName = options.spreadsheetId === "sheet-id-may" ? "Annalena Gu" : "Legacy Name";
+      return [
+        {
+          ID: `R2-${options.spreadsheetId}`,
+          Created: "12/05/2026 11:00:00",
+          "Lead Date": "12/05/2026",
+          Country: "Turkey",
+          Campaign: "Campaign R",
+          Office: "Turkey French",
+          "Team Leader": "Yosr S",
+          "AGENT NAMES": agentName,
+          "Agent ID": "THR1465",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer",
+          "FTD DATE": "12/05/2026 11:30:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+
+  setSession(116, {
+    monthKey: "2026-05",
+    monthLabel: "Last 4 Months (February 2026 - May 2026)",
+    spreadsheetId: "sheet-id-may",
+    last3Mode: true,
+    last3MonthKeys: ["2026-02", "2026-03", "2026-04", "2026-05"],
+    dateFilter: null,
+    dateFilterLabel: "Last 4 Months",
+    dateFilterKey: "last4",
+    step: "select_report_type",
+  });
+
+  const agentList = await handleMenuCallback(116, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsAgentIdCarry,
+    now: NOW,
+  });
+  assert.match(agentList.text, /Annalena Gu/);
+  assert.match(agentList.text, /FTD 4/);
+  assert.doesNotMatch(agentList.text, /Legacy Name/);
 });
 
 test("last 4 months all excel export returns document payload", async () => {
