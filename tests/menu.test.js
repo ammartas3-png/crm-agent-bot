@@ -608,6 +608,13 @@ test("office and team leader support multi-select for export filters", async () 
     .find((line) => /Office:\s*|Team Leader:\s*/i.test(line)) || "";
   assert.equal(/Office:\s*/i.test(filterLine), true);
   assert.equal(/Team Leader:\s*Leader 1/i.test(filterLine), true);
+  const headerRow = matrix.find((row) => row.includes("Lead"));
+  assert.ok(headerRow);
+  assert.equal(headerRow.includes("Office"), true);
+  assert.equal(headerRow.includes("Team Leader"), true);
+  const flattened = matrix.flat().map((cell) => String(cell || ""));
+  assert.equal(flattened.some((cell) => cell === "Summary (all records)"), false);
+  assert.equal(flattened.some((cell) => cell === "Total"), true);
 });
 
 test("campaign export includes selected campaign values in columns", async () => {
