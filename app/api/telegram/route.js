@@ -15,6 +15,7 @@ import {
 import { handleMenuCallback, handleMenuText, isGreeting, startMenu } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
+  buildWebhookEditMessage,
   buildWebhookSendMessage,
   extractCallbackQuery,
   fetchTelegramFileBuffer,
@@ -70,6 +71,10 @@ export async function GET(request) {
 
 function sendMessageWebhookResponse(chatId, text, replyMarkup) {
   return NextResponse.json(buildWebhookSendMessage(chatId, text, { replyMarkup }));
+}
+
+function editMessageWebhookResponse(chatId, messageId, text, replyMarkup) {
+  return NextResponse.json(buildWebhookEditMessage(chatId, messageId, text, { replyMarkup }));
 }
 
 function isStartCommand(text) {
@@ -261,6 +266,14 @@ export async function POST(request) {
         if (response.suppressTextResponse) {
           return NextResponse.json({ ok: true, sentDocument: true });
         }
+      }
+      if (response?.editCurrentMessage && callbackQuery.message?.message_id) {
+        return editMessageWebhookResponse(
+          chatId,
+          callbackQuery.message.message_id,
+          response.text,
+          response.replyMarkup,
+        );
       }
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
