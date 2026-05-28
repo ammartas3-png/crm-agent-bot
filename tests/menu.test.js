@@ -24,6 +24,8 @@ const tabConfig = {
     lateFtdPlus30Day: "LATE FTD +30 Day",
     differentMonth: "Diffrent Month",
     agentNames: "AGENT NAMES",
+    placement: "Placement",
+    subCampaign: "Sub-Campaign",
     campaign: "Campaign",
     teamLeader: "Team Leader",
     office: "Office",
@@ -48,6 +50,8 @@ const leadRows = [
     "Lead Date": "12/05/2026",
     Country: "Turkey",
     Campaign: "Campaign A",
+    "Sub-Campaign": "Sub A1",
+    Placement: "Placement A1",
     Office: "Istanbul",
     "Team Leader": "Leader 1",
     "AGENT NAMES": "Ahmet",
@@ -65,6 +69,8 @@ const leadRows = [
     "Lead Date": "12/05/2026",
     Country: "Turkey",
     Campaign: "Campaign A",
+    "Sub-Campaign": "Sub A2",
+    Placement: "Placement A2",
     Office: "Istanbul",
     "Team Leader": "Leader 1",
     "AGENT NAMES": "Max",
@@ -80,6 +86,8 @@ const leadRows = [
     "Lead Date": "12/05/2026",
     Country: "Germany",
     Campaign: "Campaign B",
+    "Sub-Campaign": "Sub B1",
+    Placement: "Placement B1",
     Office: "Berlin",
     "Team Leader": "Leader 2",
     "AGENT NAMES": "Mia",
@@ -98,6 +106,8 @@ const paginatedOfficeRows = Array.from({ length: 20 }).map((_, idx) => ({
   "Lead Date": "12/05/2026",
   Country: "Turkey",
   Campaign: "Campaign P",
+  "Sub-Campaign": `Sub P${idx + 1}`,
+  Placement: `Placement P${idx + 1}`,
   Office: `Office ${String(idx + 1).padStart(2, "0")}`,
   "Team Leader": `Leader ${idx + 1}`,
   "AGENT NAMES": `Agent ${idx + 1}`,
@@ -258,6 +268,107 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
     agentDetail.replyMarkup.inline_keyboard
       .flat()
       .some((button) => button.text === "Back to Team Leader filter"),
+    true,
+  );
+});
+
+test("team leader detail supports countries to sub-campaign drilldown", async () => {
+  await selectMonthAndTotalDate(119);
+  const officeRoot = await handleMenuCallback(119, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const officePick = officeRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(officePick);
+  const teamLeaderList = await handleMenuCallback(119, officePick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderPick = teamLeaderList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(leaderPick);
+
+  const leaderDetail = await handleMenuCallback(119, leaderPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderButtons = leaderDetail.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(leaderButtons.includes("View Agents"), true);
+  assert.equal(leaderButtons.includes("View Countries"), true);
+
+  const countryList = await handleMenuCallback(119, "drill:next:country", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(countryList.text, /Country/);
+  const countryPick = countryList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(countryPick);
+
+  const countryDetail = await handleMenuCallback(119, countryPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    countryDetail.replyMarkup.inline_keyboard.flat().some((button) => button.text === "View Campaigns"),
+    true,
+  );
+
+  const campaignList = await handleMenuCallback(119, "drill:next:campaign", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const campaignPick = campaignList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(campaignPick);
+
+  const campaignDetail = await handleMenuCallback(119, campaignPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    campaignDetail.replyMarkup.inline_keyboard.flat().some((button) => button.text === "View Placements"),
+    true,
+  );
+
+  const placementList = await handleMenuCallback(119, "drill:next:placement", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const placementPick = placementList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(placementPick);
+
+  const placementDetail = await handleMenuCallback(119, placementPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    placementDetail.replyMarkup.inline_keyboard.flat().some((button) => button.text === "View Sub-Campaigns"),
     true,
   );
 });
