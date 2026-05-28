@@ -481,6 +481,76 @@ test("report view can export as excel document payload", async () => {
   assert.equal(/Agent/.test(headerText), true);
 });
 
+test("campaign export includes selected campaign values in columns", async () => {
+  await selectMonthAndTotalDate(120);
+  const officeRoot = await handleMenuCallback(120, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const officePick = officeRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(officePick);
+  const teamLeaderList = await handleMenuCallback(120, officePick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderPick = teamLeaderList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(leaderPick);
+  await handleMenuCallback(120, leaderPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const countryList = await handleMenuCallback(120, "drill:next:country", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const countryPick = countryList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(countryPick);
+  await handleMenuCallback(120, countryPick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  await handleMenuCallback(120, "drill:next:campaign", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+
+  const exportResponse = await handleMenuCallback(120, "export:current", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const workbook = XLSX.read(exportResponse.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerIndex = matrix.findIndex((row) => row.includes("Campaign"));
+  assert.ok(headerIndex >= 0);
+  const campaignColIndex = matrix[headerIndex].findIndex((value) => value === "Campaign");
+  assert.ok(campaignColIndex >= 0);
+  const hasCampaignValue = matrix
+    .slice(headerIndex + 1)
+    .some((row) => String(row[campaignColIndex] || "").trim() !== "");
+  assert.equal(hasCampaignValue, true);
+});
+
 test("last 4 months sends ALL excel directly and shows office export option", async () => {
   const response = await handleMenuCallback(108, "month:last4", {
     tabConfig,
