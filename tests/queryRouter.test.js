@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { answerQuery, parseQuery } from "../lib/queryRouter.js";
+import {
+  answerQuery,
+  answerQueryDetailed,
+  parseQuery,
+  shouldAskScopeFollowUp,
+} from "../lib/queryRouter.js";
 
 const NOW = new Date("2026-05-12T10:00:00Z");
 
@@ -95,6 +100,24 @@ const data = {
       "Diffrent Month": "yes",
       "AGENT NAMES": "Ahmet",
     },
+    {
+      Brand: "BrandC",
+      ID: "4",
+      Created: "11/05/2026 08:00:00",
+      "Lead Date": "11/05/2026",
+      Country: "Uganda",
+      Campaign: "Campaign C",
+      "First Call Agent": "Max",
+      "Team Leader": "Leader 1",
+      Status: "Potential",
+      "FTD MAKER": "Closer 3",
+      Office: "Kampala",
+      "CR TARGET": "8%",
+      "FTD DATE": "11/05/2026 13:15:00",
+      "LATE FTD Difrrence": "",
+      "Diffrent Month": "",
+      "AGENT NAMES": "Max",
+    },
   ],
   ftd: [
     { Date: "2026-05-12", Country: "Turkey", Agent: "Ahmet", Amount: 100 },
@@ -108,6 +131,14 @@ const data = {
 
 function answer(text) {
   return answerQuery(text, {
+    now: NOW,
+    getTabConfig: (tabKey) => tabConfigs[tabKey],
+    readRows: async (tabKey) => data[tabKey],
+  });
+}
+
+function answerDetailed(text) {
+  return answerQueryDetailed(text, {
     now: NOW,
     getTabConfig: (tabKey) => tabConfigs[tabKey],
     readRows: async (tabKey) => data[tabKey],
@@ -130,12 +161,22 @@ test("parseQuery recognizes start command variants", () => {
   assert.equal(parseQuery("/start payload", NOW).type, "start");
 });
 
+test("parseQuery recognizes hello command variants", () => {
+  assert.equal(parseQuery("/hello", NOW).type, "hello");
+  assert.equal(parseQuery("hello", NOW).type, "hello");
+});
+
 test("answerQuery calculates FTD today count", async () => {
   assert.equal(await answer("How many FTD today?"), "Total FTD (today): 2");
 });
 
 test("answerQuery calculates country leads", async () => {
   assert.equal(await answer("Germany total leads?"), "leads (Germany): 0");
+});
+
+test("answerQuery uses dynamic country detection for non-alias countries", async () => {
+  assert.equal(await answer("Uganda total leads?"), "leads (Uganda): 1");
+  assert.equal(await answer("Uganda total FTD?"), "Total FTD (Uganda): 1");
 });
 
 test("answerQuery calculates agent total calls", async () => {
@@ -148,6 +189,19 @@ test("answerQuery applies month and country filters", async () => {
 
 test("answerQuery calculates country CR", async () => {
   assert.equal(await answer("Germany CR this month"), "CR (May, Germany): 0.00%");
+});
+
+test("answerQuery supports yesterday and rolling month ranges", async () => {
+  assert.equal(await answer("How many FTD yesterday?"), "Total FTD (11 May 2026): 1");
+  assert.equal(await answer("Ahmet FTD last 4 months?"), "Total FTD (2026-02-01 to 2026-05-12, Ahmet): 2");
+  assert.equal(await answer("Leader 1 leads last 4 months"), "leads (2026-02-01 to 2026-05-12, Leader 1): 3");
+});
+
+test("hello mode asks follow-up when scope is missing", async () => {
+  const detail = await answerDetailed("How many FTD yesterday?");
+  assert.equal(shouldAskScopeFollowUp(detail.parsed, detail.filters), true);
+  const scoped = await answerDetailed("How many FTD yesterday in Uganda?");
+  assert.equal(shouldAskScopeFollowUp(scoped.parsed, scoped.filters), false);
 });
 
 test("answerQuery lists top agents by FTD", async () => {

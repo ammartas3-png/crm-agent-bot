@@ -27,7 +27,13 @@ import {
   sendTelegramDocument,
   sendTelegramMessage,
 } from "../../../lib/telegram.js";
-import { answerQuery } from "../../../lib/queryRouter.js";
+import {
+  answerQuery,
+  answerQueryDetailed,
+  HELLO_MESSAGE,
+  isHelloCommand,
+  shouldAskScopeFollowUp,
+} from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
 import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
@@ -79,6 +85,14 @@ function editMessageWebhookResponse(chatId, messageId, text, replyMarkup) {
 
 function isStartCommand(text) {
   return /^\/?start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
+}
+
+function isHelloStopCommand(text) {
+  return /^\/?(?:hello_stop|stop_hello|bye_hello|quit_hello)$/i.test(String(text || "").trim());
+}
+
+function isAllScopeReply(text) {
+  return /^(?:all|total|genel|hepsi)$/i.test(String(text || "").trim());
 }
 
 function debugTotalsMonthKeyboard() {
@@ -192,12 +206,27 @@ export async function POST(request) {
     }
 
     if (!callbackQuery && isStartCommand(text)) {
-      setSession(userId, { step: null, dbCheckStep: null, view: null });
+      setSession(userId, { step: null, dbCheckStep: null, view: null, chatAssistant: null });
       return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
     }
 
     if (!callbackQuery && isHelpCommand(text)) {
       return sendMessageWebhookResponse(chatId, buildHelpText(telegramUser));
+    }
+
+    if (!callbackQuery && isHelloCommand(text)) {
+      setSession(userId, {
+        step: null,
+        dbCheckStep: null,
+        view: null,
+        chatAssistant: { active: true, pendingQuery: null },
+      });
+      return sendMessageWebhookResponse(chatId, HELLO_MESSAGE);
+    }
+
+    if (!callbackQuery && isHelloStopCommand(text)) {
+      setSession(userId, { chatAssistant: null });
+      return sendMessageWebhookResponse(chatId, "Hello mode stopped. Use /hello to start again.");
     }
 
     if (callbackQuery) {
@@ -326,6 +355,31 @@ export async function POST(request) {
         menuTextResponse.text,
         menuTextResponse.replyMarkup,
       );
+    }
+
+    const session = getSession(userId);
+    if (!callbackQuery && session.chatAssistant?.active) {
+      const pendingQuery = session.chatAssistant.pendingQuery;
+      if (pendingQuery) {
+        const finalQuery = isAllScopeReply(text) ? pendingQuery : `${pendingQuery} ${text}`;
+        const resolved = await answerQueryDetailed(finalQuery);
+        setSession(userId, {
+          chatAssistant: { ...session.chatAssistant, pendingQuery: null },
+        });
+        return sendMessageWebhookResponse(chatId, resolved.text);
+      }
+
+      const resolved = await answerQueryDetailed(text);
+      if (shouldAskScopeFollowUp(resolved.parsed, resolved.filters)) {
+        setSession(userId, {
+          chatAssistant: { ...session.chatAssistant, pendingQuery: text },
+        });
+        return sendMessageWebhookResponse(
+          chatId,
+          "Hangi scope ile bakayım? Country / Office (Desk) / Team Leader / Agent yazabilirsin. `all` yazarsan toplam sonucu veririm.",
+        );
+      }
+      return sendMessageWebhookResponse(chatId, resolved.text);
     }
 
     if (isGreeting(text)) {
