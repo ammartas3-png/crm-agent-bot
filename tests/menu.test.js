@@ -636,6 +636,12 @@ test("office and team leader support multi-select for export filters", async () 
   });
   assert.match(filteredTeamLeader.text, /Leader 1/);
   assert.doesNotMatch(filteredTeamLeader.text, /Leader 2/);
+  assert.equal(
+    filteredTeamLeader.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "drill:listNext:country"),
+    true,
+  );
 
   const exportResponse = await handleMenuCallback(121, "export:current", {
     tabConfig,
