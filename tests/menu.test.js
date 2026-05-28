@@ -763,6 +763,79 @@ test("campaign export includes selected campaign values in columns", async () =>
   assert.equal(/Country:\s*Turkey|Country:\s*Germany/i.test(filterLine), true);
 });
 
+test("drill by agent export keeps multiple team leader assignments", async () => {
+  await selectMonthAndTotalDate(123);
+  const officeSelect = await handleMenuCallback(123, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const officeToggles = officeSelect.replyMarkup.inline_keyboard
+    .flat()
+    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  for (const toggleButton of officeToggles.slice(0, 2)) {
+    await handleMenuCallback(123, toggleButton.callback_data, {
+      tabConfig,
+      infoAgentsTabConfig,
+      readRows,
+      now: NOW,
+    });
+  }
+  const teamLeaderSelect = await handleMenuCallback(123, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  await handleMenuCallback(123, "drill:multiAll", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderList = await handleMenuCallback(123, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    teamLeaderList.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "drill:listNext:agentNames"),
+    true,
+  );
+  await handleMenuCallback(123, "drill:listNext:agentNames", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const exportResponse = await handleMenuCallback(123, "export:current", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const workbook = XLSX.read(exportResponse.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerIndex = matrix.findIndex((row) => row.includes("Team Leader") && row.includes("Agent"));
+  assert.ok(headerIndex >= 0);
+  const teamLeaderCol = matrix[headerIndex].findIndex((cell) => cell === "Team Leader");
+  assert.ok(teamLeaderCol >= 0);
+  const uniqueTeamLeaders = [
+    ...new Set(
+      matrix
+        .slice(headerIndex + 1)
+        .map((row) => String(row[teamLeaderCol] || "").trim())
+        .filter((value) => value && value !== "Total"),
+    ),
+  ];
+  assert.equal(uniqueTeamLeaders.length >= 2, true);
+});
+
 test("last 4 months sends ALL excel directly and shows office export option", async () => {
   const response = await handleMenuCallback(108, "month:last4", {
     tabConfig,
