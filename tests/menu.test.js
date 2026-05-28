@@ -476,9 +476,9 @@ test("report view can export as excel document payload", async () => {
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
   const headerCandidates = [rows[1] || [], rows[2] || []];
   const headerText = headerCandidates.flat().join(" | ");
-  assert.equal(/Office/.test(headerText), true);
-  assert.equal(/Team Leader/.test(headerText), true);
-  assert.equal(/Agent/.test(headerText), true);
+  assert.equal(/Lead/.test(headerText), true);
+  assert.equal(/FTD/.test(headerText), true);
+  assert.equal(/CR Target Reach/.test(headerText), true);
 });
 
 test("campaign export includes selected campaign values in columns", async () => {
@@ -541,14 +541,18 @@ test("campaign export includes selected campaign values in columns", async () =>
   const workbook = XLSX.read(exportResponse.documentBuffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-  const headerIndex = matrix.findIndex((row) => row.includes("Campaign"));
+  const headerIndex = matrix.findIndex((row) => row.includes("Country") || row.includes("Campaign"));
   assert.ok(headerIndex >= 0);
-  const campaignColIndex = matrix[headerIndex].findIndex((value) => value === "Campaign");
-  assert.ok(campaignColIndex >= 0);
-  const hasCampaignValue = matrix
+  const dimensionColIndex = matrix[headerIndex].findIndex(
+    (value) => value === "Country" || value === "Campaign",
+  );
+  assert.ok(dimensionColIndex >= 0);
+  const hasDimensionValue = matrix
     .slice(headerIndex + 1)
-    .some((row) => String(row[campaignColIndex] || "").trim() !== "");
-  assert.equal(hasCampaignValue, true);
+    .some((row) => String(row[dimensionColIndex] || "").trim() !== "");
+  assert.equal(hasDimensionValue, true);
+  const filterLine = String((matrix[1] || [])[0] || "");
+  assert.equal(/Country:\s*Turkey|Country:\s*Germany/i.test(filterLine), true);
 });
 
 test("last 4 months sends ALL excel directly and shows office export option", async () => {
