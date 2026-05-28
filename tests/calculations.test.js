@@ -9,6 +9,7 @@ import {
   calculateValidLeads,
   getFtdRowsByDateRange,
   getLeadRowsByDateRange,
+  rowMatchesFilters,
 } from "../lib/calculations.js";
 
 const NOW = new Date("2026-05-12T12:00:00Z");
@@ -167,4 +168,44 @@ test("calculation helper functions handle zero denominators", () => {
   });
   assert.equal(calculateFtdCount([], tabConfig), 0);
   assert.equal(calculateCR(5, 0), 0);
+});
+
+test("row filters support multi-select arrays", () => {
+  const officeConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      teamLeader: "Team Leader",
+      campaign: "Campaign",
+    },
+  };
+  const row = {
+    ID: "1",
+    Office: "Arabic",
+    "Team Leader": "Leader A",
+    Campaign: "Honda",
+  };
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      officeConfig,
+      {
+        office: ["English", "Arabic"],
+        teamLeader: ["Leader X", "Leader A"],
+      },
+      NOW,
+    ),
+    true,
+  );
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      officeConfig,
+      {
+        office: ["English", "German"],
+      },
+      NOW,
+    ),
+    false,
+  );
 });

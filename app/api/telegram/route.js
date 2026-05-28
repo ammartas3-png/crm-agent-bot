@@ -258,6 +258,9 @@ export async function POST(request) {
           response.documentFilename || "report.xlsx",
           { caption: "CRM report export" },
         );
+        if (response.suppressTextResponse) {
+          return NextResponse.json({ ok: true, sentDocument: true });
+        }
       }
       return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
     }
