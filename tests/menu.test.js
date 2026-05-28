@@ -195,18 +195,35 @@ test("office drilldown shows summary and child hierarchy", async () => {
     readRows,
     now: NOW,
   });
-  assert.match(officeRoot.text, /Office Results/);
-  assert.match(officeRoot.text, /Summary \(all records\)/);
-  assert.match(officeRoot.text, /Lead/);
-  assert.match(officeRoot.text, /Selfs/);
-  assert.match(officeRoot.text, /FTD Target Reach/);
-
-  const firstPick = officeRoot.replyMarkup.inline_keyboard
+  assert.match(officeRoot.text, /Multi-select Office/);
+  const officeToggle = officeRoot.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:pick:"));
-  assert.ok(firstPick);
-
-  const teamLeaderList = await handleMenuCallback(100, firstPick.callback_data, {
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(officeToggle);
+  await handleMenuCallback(100, officeToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderSelect = await handleMenuCallback(100, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(teamLeaderSelect.text, /Multi-select Team Leader/);
+  const leaderToggle = teamLeaderSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(leaderToggle);
+  await handleMenuCallback(100, leaderToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderList = await handleMenuCallback(100, "drill:multiDone", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -274,17 +291,41 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
 
 test("team leader detail supports countries to sub-campaign drilldown", async () => {
   await selectMonthAndTotalDate(119);
-  const officeRoot = await handleMenuCallback(119, "report:office", {
+  const officeSelect = await handleMenuCallback(119, "report:office", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  const officePick = officeRoot.replyMarkup.inline_keyboard
+  assert.match(officeSelect.text, /Multi-select Office/);
+  const officeToggle = officeSelect.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:pick:"));
-  assert.ok(officePick);
-  const teamLeaderList = await handleMenuCallback(119, officePick.callback_data, {
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(officeToggle);
+  await handleMenuCallback(119, officeToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderSelect = await handleMenuCallback(119, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(teamLeaderSelect.text, /Multi-select Team Leader/);
+  const leaderToggle = teamLeaderSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(leaderToggle);
+  await handleMenuCallback(119, leaderToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderList = await handleMenuCallback(119, "drill:multiDone", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -376,7 +417,23 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
 test("working agents without leads still appear in team leader drilldown", async () => {
   await selectMonthAndTotalDate(103);
 
-  const teamLeaderRoot = await handleMenuCallback(103, "report:teamLeader", {
+  const teamLeaderSelect = await handleMenuCallback(103, "report:teamLeader", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderTwoToggle = teamLeaderSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => /Leader 2/i.test(button.text) && button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(leaderTwoToggle);
+  await handleMenuCallback(103, leaderTwoToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderRoot = await handleMenuCallback(103, "drill:multiDone", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -531,10 +588,7 @@ test("office and team leader support multi-select for export filters", async () 
     readRows,
     now: NOW,
   });
-  assert.equal(
-    officeRoot.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Select Multiple"),
-    true,
-  );
+  assert.match(officeRoot.text, /Multi-select Office/);
   const officeMulti = await handleMenuCallback(121, "drill:multiStart", {
     tabConfig,
     infoAgentsTabConfig,
@@ -563,18 +617,8 @@ test("office and team leader support multi-select for export filters", async () 
     readRows,
     now: NOW,
   });
-  assert.match(teamLeaderList.text, /Team Leaders in selected Offices/);
-  assert.equal(
-    teamLeaderList.replyMarkup.inline_keyboard.flat().some((button) => button.text === "Select Multiple"),
-    true,
-  );
-  const leaderMulti = await handleMenuCallback(121, "drill:multiStart", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const leaderToggle = leaderMulti.replyMarkup.inline_keyboard
+  assert.match(teamLeaderList.text, /Multi-select Team Leader/);
+  const leaderToggle = teamLeaderList.replyMarkup.inline_keyboard
     .flat()
     .find((button) => /Leader 1/i.test(button.text) && button.callback_data?.startsWith("drill:multiToggle:"));
   assert.ok(leaderToggle);
@@ -619,17 +663,39 @@ test("office and team leader support multi-select for export filters", async () 
 
 test("campaign export includes selected campaign values in columns", async () => {
   await selectMonthAndTotalDate(120);
-  const officeRoot = await handleMenuCallback(120, "report:office", {
+  const officeSelect = await handleMenuCallback(120, "report:office", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  const officePick = officeRoot.replyMarkup.inline_keyboard
+  const officeToggle = officeSelect.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:pick:"));
-  assert.ok(officePick);
-  const teamLeaderList = await handleMenuCallback(120, officePick.callback_data, {
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(officeToggle);
+  await handleMenuCallback(120, officeToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderSelect = await handleMenuCallback(120, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const leaderToggle = teamLeaderSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(leaderToggle);
+  await handleMenuCallback(120, leaderToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const teamLeaderList = await handleMenuCallback(120, "drill:multiDone", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -714,7 +780,7 @@ test("last 4 months report uses compact target metrics and month breakdown", asy
     readRows,
     now: NOW,
   });
-  const office = await handleMenuCallback(109, "report:office", {
+  const office = await handleMenuCallback(109, "report:agent", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -778,8 +844,9 @@ test("last 4 months maps historical agents using current month info agents", asy
     readRows: readRowsLast3,
     now: NOW,
   });
-  assert.match(office.text, /NewOffice/);
-  assert.doesNotMatch(office.text, /OldOffice/);
+  const officeOptions = office.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(officeOptions.some((label) => /NewOffice/.test(label)), true);
+  assert.equal(officeOptions.some((label) => /OldOffice/.test(label)), false);
 });
 
 test("last 4 months uses month-specific targets in monthly breakdown", async () => {

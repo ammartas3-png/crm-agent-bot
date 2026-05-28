@@ -261,7 +261,7 @@ export async function POST(request) {
           chatId,
           response.documentBuffer,
           response.documentFilename || "report.xlsx",
-          { caption: "CRM report export" },
+          { caption: response.documentCaption || "CRM report export" },
         );
         if (response.suppressTextResponse) {
           return NextResponse.json({ ok: true, sentDocument: true });
