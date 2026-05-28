@@ -370,7 +370,7 @@ test("report view can export as excel document payload", async () => {
   assert.equal(/Agent/.test(headerText), true);
 });
 
-test("last 4 months option opens core report filters only", async () => {
+test("last 4 months sends ALL excel directly and shows office export option", async () => {
   const response = await handleMenuCallback(108, "month:last4", {
     tabConfig,
     infoAgentsTabConfig,
@@ -378,14 +378,12 @@ test("last 4 months option opens core report filters only", async () => {
     now: NOW,
   });
   assert.match(response.text, /Period: Last 4 Months/i);
+  assert.match(response.text, /ALL Excel sent/i);
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
   const labels = response.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Office"), true);
-  assert.equal(labels.includes("Team Leader"), true);
-  assert.equal(labels.includes("Agent"), true);
-  assert.equal(labels.includes("Country"), false);
-  assert.equal(labels.includes("Campaign"), false);
-  assert.equal(labels.includes("Specific Reports"), false);
-  assert.equal(labels.includes("All (Excel)"), true);
+  assert.equal(labels.includes("Specific Office Excel"), true);
+  assert.equal(labels.includes("Send ALL Excel Again"), true);
 });
 
 test("last 4 months report uses compact target metrics and month breakdown", async () => {
@@ -831,6 +829,35 @@ test("last 4 months all excel export returns document payload", async () => {
   assert.match(response.text, /All Excel export sent/i);
   assert.ok(Buffer.isBuffer(response.documentBuffer));
   assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
+});
+
+test("last 4 months office-specific excel export returns filtered payload", async () => {
+  await handleMenuCallback(118, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const officeList = await handleMenuCallback(118, "last4:officeList:0", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(officeList.text, /Select office/i);
+  const officePick = officeList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("last4:officePick:"));
+  assert.ok(officePick);
+  const officeExport = await handleMenuCallback(118, officePick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(officeExport.text, /Office Excel sent/i);
+  assert.ok(Buffer.isBuffer(officeExport.documentBuffer));
+  assert.match(officeExport.documentFilename, /last4-.*\.xlsx$/i);
 });
 
 test("hourly report accepts custom date range", async () => {
