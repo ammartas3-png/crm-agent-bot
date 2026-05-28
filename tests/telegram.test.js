@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSendMessagePayload, buildWebhookEditMessage, buildWebhookSendMessage } from "../lib/telegram.js";
+import {
+  buildSendMessagePayload,
+  buildWebhookEditMessage,
+  buildWebhookSendMessage,
+  sanitizeTelegramCaption,
+} from "../lib/telegram.js";
 
 test("buildSendMessagePayload includes inline reply markup", () => {
   const payload = buildSendMessagePayload(123, "Hello", {
@@ -30,4 +35,16 @@ test("buildWebhookEditMessage returns editMessageText payload", () => {
   assert.equal(payload.message_id, 456);
   assert.equal(payload.text, "Updated");
   assert.equal(payload.reply_markup.inline_keyboard[0][0].text, "Done");
+});
+
+test("sanitizeTelegramCaption keeps short captions unchanged", () => {
+  const caption = "Short caption";
+  assert.equal(sanitizeTelegramCaption(caption), caption);
+});
+
+test("sanitizeTelegramCaption truncates long captions safely", () => {
+  const caption = "A".repeat(1100);
+  const result = sanitizeTelegramCaption(caption);
+  assert.equal(result.length <= 1024, true);
+  assert.equal(result.endsWith("..."), true);
 });
