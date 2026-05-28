@@ -430,6 +430,48 @@ test("month selection now asks date filter before report filters", async () => {
   assert.equal(labels.includes("Custom Date Range"), true);
 });
 
+test("multi-month selection supports selecting two months", async () => {
+  const started = await startMenu(122);
+  const multiButton = started.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data === "month:multi");
+  assert.ok(multiButton);
+  const multiView = await handleMenuCallback(122, "month:multi", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(multiView.text, /Select one or more months/i);
+  const monthToggles = multiView.replyMarkup.inline_keyboard
+    .flat()
+    .filter((button) => button.callback_data?.startsWith("monthMulti:toggle:"));
+  assert.equal(monthToggles.length >= 2, true);
+  await handleMenuCallback(122, monthToggles[0].callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  await handleMenuCallback(122, monthToggles[1].callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const done = await handleMenuCallback(122, "monthMulti:done", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(done.text, /Selected Months/i);
+  const labels = done.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(labels.includes("Office"), true);
+  assert.equal(labels.includes("Team Leader"), true);
+  assert.equal(labels.includes("Country"), false);
+});
+
 test("specific reports include hourly and country comparison", async () => {
   await selectMonthAndTotalDate(105);
   const specificMenu = await handleMenuCallback(105, "special:open", {
