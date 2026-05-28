@@ -595,6 +595,48 @@ test("pagination buttons appear when results exceed one page", async () => {
   assert.equal(labels.includes("Previous Page"), true);
 });
 
+test("drill pagination edits same message instead of sending new", async () => {
+  upsertMonthFile("June 2026", "pagination-sheet");
+  await startMenu(124);
+  await handleMenuCallback(124, "month:2026-06", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  await handleMenuCallback(124, "date:month", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
+  const officeRoot = await handleMenuCallback(124, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const nextPage = officeRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data === "drill:multiPage:1");
+  assert.ok(nextPage);
+  const pageResponse = await handleMenuCallback(124, nextPage.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(pageResponse.editCurrentMessage, true);
+});
+
+test("special pagination edits current message", async () => {
+  setSession(125, {
+    specialSelection: {
+      fieldKey: "country",
+      values: Array.from({ length: 30 }).map((_, idx) => `Country ${idx + 1}`),
+      page: 0,
+      backCallback: "special:open",
+    },
+  });
+  const response = await handleMenuCallback(125, "specialPage:1", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(response.editCurrentMessage, true);
+});
+
 test("month selection now asks date filter before report filters", async () => {
   const started = await startMenu(104);
   const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
