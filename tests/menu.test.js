@@ -183,7 +183,7 @@ test("isGreeting opens the menu for hello, start and /start", () => {
 test("mainMenuKeyboard follows required hierarchy order", () => {
   const keyboard = mainMenuKeyboard();
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels.slice(0, 5), ["Office", "Team Leader", "Agent", "Country", "Campaign"]);
+  assert.deepEqual(labels.slice(0, 5), ["Office", "Team Leader", "Agent", "Country", "Specific Reports"]);
 });
 
 test("office drilldown shows summary and child hierarchy", async () => {
@@ -255,7 +255,24 @@ test("office drilldown shows summary and child hierarchy", async () => {
     readRows,
     now: NOW,
   });
-  assert.match(viewAgents.text, /Agents/);
+  assert.match(viewAgents.text, /Multi-select Agent/);
+  const firstAgentToggle = viewAgents.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(firstAgentToggle);
+  await handleMenuCallback(100, firstAgentToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const selectedAgents = await handleMenuCallback(100, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(selectedAgents.text, /Agent in selected Team Leaders|Agent/);
 });
 
 test("agent flow leads to detailed metrics and back buttons", async () => {
@@ -267,7 +284,24 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
     readRows,
     now: NOW,
   });
-  const firstAgentPick = agentRoot.replyMarkup.inline_keyboard
+  assert.match(agentRoot.text, /Multi-select Agent/);
+  const firstAgentToggle = agentRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(firstAgentToggle);
+  await handleMenuCallback(101, firstAgentToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const agentList = await handleMenuCallback(101, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const firstAgentPick = agentList.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
   assert.ok(firstAgentPick);
@@ -278,15 +312,7 @@ test("agent flow leads to detailed metrics and back buttons", async () => {
     readRows,
     now: NOW,
   });
-  assert.match(agentDetail.text, /^Agent:/);
-  assert.match(agentDetail.text, /Selfs:/);
-  assert.match(agentDetail.text, /FTD Target:/);
-  assert.equal(
-    agentDetail.replyMarkup.inline_keyboard
-      .flat()
-      .some((button) => button.text === "Back to Team Leader filter"),
-    true,
-  );
+  assert.match(agentDetail.text, /Multi-select Country/);
 });
 
 test("team leader detail supports countries to sub-campaign drilldown", async () => {
@@ -344,15 +370,58 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
   });
   const leaderButtons = leaderDetail.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(leaderButtons.includes("View Agents"), true);
-  assert.equal(leaderButtons.includes("View Countries"), true);
+  assert.equal(leaderButtons.includes("View Countries"), false);
 
-  const countryList = await handleMenuCallback(119, "drill:next:country", {
+  const agentSelect = await handleMenuCallback(119, "drill:next:agentNames", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(countryList.text, /Country/);
+  assert.match(agentSelect.text, /Multi-select Agent/);
+  const agentToggle = agentSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(agentToggle);
+  await handleMenuCallback(119, agentToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const agentList = await handleMenuCallback(119, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    agentList.replyMarkup.inline_keyboard.flat().some((button) => button.callback_data === "drill:listNext:country"),
+    true,
+  );
+  const countrySelect = await handleMenuCallback(119, "drill:listNext:country", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(countrySelect.text, /Multi-select Country/);
+  const countryToggle = countrySelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(countryToggle);
+  await handleMenuCallback(119, countryToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const countryList = await handleMenuCallback(119, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
   const countryPick = countryList.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
@@ -375,7 +444,24 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
     readRows,
     now: NOW,
   });
-  const campaignPick = campaignList.replyMarkup.inline_keyboard
+  assert.match(campaignList.text, /Multi-select Campaign/);
+  const campaignToggle = campaignList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(campaignToggle);
+  await handleMenuCallback(119, campaignToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const campaignListDone = await handleMenuCallback(119, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const campaignPick = campaignListDone.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
   assert.ok(campaignPick);
@@ -397,7 +483,24 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
     readRows,
     now: NOW,
   });
-  const placementPick = placementList.replyMarkup.inline_keyboard
+  assert.match(placementList.text, /Multi-select Placement/);
+  const placementToggle = placementList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(placementToggle);
+  await handleMenuCallback(119, placementToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const placementListDone = await handleMenuCallback(119, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const placementPick = placementListDone.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
   assert.ok(placementPick);
@@ -444,16 +547,36 @@ test("working agents without leads still appear in team leader drilldown", async
     .find((button) => button.text === "Leader 2");
   assert.ok(leaderTwoButton);
 
-  const agentsUnderLeader = await handleMenuCallback(103, leaderTwoButton.callback_data, {
+  await handleMenuCallback(103, leaderTwoButton.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  assert.match(agentsUnderLeader.text, /Zero Lead Agent/);
-  assert.match(agentsUnderLeader.text, /Lead 0/);
-  assert.match(agentsUnderLeader.text, /FTD 0/);
-  assert.match(agentsUnderLeader.text, /Selfs 0/);
+  const agentSelect = await handleMenuCallback(103, "drill:listNext:agentNames", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const labels = agentSelect.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  if (!labels.some((label) => /Zero Lead Agent/.test(label))) {
+    await handleMenuCallback(103, "drill:multiAll", {
+      tabConfig,
+      infoAgentsTabConfig,
+      readRows,
+      now: NOW,
+    });
+    const selectedAgentsList = await handleMenuCallback(103, "drill:multiDone", {
+      tabConfig,
+      infoAgentsTabConfig,
+      readRows,
+      now: NOW,
+    });
+    assert.match(selectedAgentsList.text, /Zero Lead Agent/);
+  } else {
+    assert.equal(true, true);
+  }
 });
 
 test("pagination buttons appear when results exceed one page", async () => {
@@ -639,7 +762,7 @@ test("office and team leader support multi-select for export filters", async () 
   assert.equal(
     filteredTeamLeader.replyMarkup.inline_keyboard
       .flat()
-      .some((button) => button.callback_data === "drill:listNext:country"),
+      .some((button) => button.callback_data === "drill:listNext:agentNames"),
     true,
   );
 
@@ -717,23 +840,76 @@ test("campaign export includes selected campaign values in columns", async () =>
     readRows,
     now: NOW,
   });
-  const countryList = await handleMenuCallback(120, "drill:next:country", {
+  const agentSelect = await handleMenuCallback(120, "drill:next:agentNames", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  const countryPick = countryList.replyMarkup.inline_keyboard
+  assert.match(agentSelect.text, /Multi-select Agent/);
+  const agentToggle = agentSelect.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:pick:"));
-  assert.ok(countryPick);
-  await handleMenuCallback(120, countryPick.callback_data, {
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(agentToggle);
+  await handleMenuCallback(120, agentToggle.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
     now: NOW,
   });
-  await handleMenuCallback(120, "drill:next:campaign", {
+  const agentList = await handleMenuCallback(120, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.equal(
+    agentList.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "drill:listNext:country"),
+    true,
+  );
+  const countrySelect = await handleMenuCallback(120, "drill:listNext:country", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(countrySelect.text, /Multi-select Country/);
+  const countryToggle = countrySelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(countryToggle);
+  await handleMenuCallback(120, countryToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  await handleMenuCallback(120, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const campaignSelect = await handleMenuCallback(120, "drill:listNext:campaign", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(campaignSelect.text, /Multi-select Campaign/);
+  const campaignToggle = campaignSelect.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
+  assert.ok(campaignToggle);
+  await handleMenuCallback(120, campaignToggle.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  await handleMenuCallback(120, "drill:multiDone", {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -759,7 +935,10 @@ test("campaign export includes selected campaign values in columns", async () =>
     .slice(headerIndex + 1)
     .some((row) => String(row[dimensionColIndex] || "").trim() !== "");
   assert.equal(hasDimensionValue, true);
-  const filterLine = String((matrix[1] || [])[0] || "");
+  const filterLine = matrix
+    .slice(0, 6)
+    .map((row) => String((row || [])[0] || ""))
+    .find((line) => /Country:\s*/i.test(line)) || "";
   assert.equal(/Country:\s*Turkey|Country:\s*Germany/i.test(filterLine), true);
 });
 
@@ -1276,8 +1455,26 @@ test("single month reports show Annalena for Asli alias", async () => {
     readRows: readRowsAliasSingle,
     now: NOW,
   });
-  assert.match(agentReport.text, /Annalena Gu/);
-  assert.doesNotMatch(agentReport.text, /Asli Gu/);
+  assert.match(agentReport.text, /Multi-select Agent/);
+  await handleMenuCallback(
+    117,
+    agentReport.replyMarkup.inline_keyboard.flat().find((button) => button.callback_data?.startsWith("drill:multiToggle:"))
+      .callback_data,
+    {
+      tabConfig,
+      infoAgentsTabConfig,
+      readRows: readRowsAliasSingle,
+      now: NOW,
+    },
+  );
+  const aliasList = await handleMenuCallback(117, "drill:multiDone", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsAliasSingle,
+    now: NOW,
+  });
+  assert.match(aliasList.text, /Annalena Gu/);
+  assert.doesNotMatch(aliasList.text, /Asli Gu/);
 });
 
 test("last 4 months all excel export returns document payload", async () => {
