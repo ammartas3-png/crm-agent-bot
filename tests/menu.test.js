@@ -725,6 +725,7 @@ test("specific reports include hourly and country comparison", async () => {
   const labels = specificMenu.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(labels.includes("Hourly Leads"), true);
   assert.equal(labels.includes("Country Comparison"), true);
+  assert.equal(labels.includes("Best Performers"), true);
 
   const hourly = await handleMenuCallback(105, "special:hourly", {
     tabConfig,
@@ -735,6 +736,101 @@ test("specific reports include hourly and country comparison", async () => {
   const hourlyLabels = hourly.replyMarkup.inline_keyboard.flat().map((button) => button.text);
   assert.equal(hourlyLabels.includes("Hourly Date: Total Month"), true);
   assert.equal(hourlyLabels.includes("Hourly Date: Custom Range"), true);
+});
+
+test("best performers drill supports agent to country to placement flow", async () => {
+  await selectMonthAndTotalDate(131);
+  const bestMenu = await handleMenuCallback(131, "special:bestOpen", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(bestMenu.text, /Best Performers/);
+  const bestAgentList = await handleMenuCallback(131, "special:bestAgents", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const firstAgent = bestAgentList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("specialPick:"));
+  assert.ok(firstAgent);
+  const agentOverview = await handleMenuCallback(131, firstAgent.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(agentOverview.text, /Top Countries/);
+  assert.equal(
+    agentOverview.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "special:bestAgentCountryList"),
+    true,
+  );
+
+  const countryList = await handleMenuCallback(131, "special:bestAgentCountryList", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const firstCountry = countryList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("specialPick:"));
+  assert.ok(firstCountry);
+  const countryOverview = await handleMenuCallback(131, firstCountry.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(countryOverview.text, /Top Campaigns/);
+  assert.match(countryOverview.text, /Top AFF \(Placement\)/);
+});
+
+test("best performers drill supports country to campaign flow", async () => {
+  await selectMonthAndTotalDate(132);
+  const bestCountryList = await handleMenuCallback(132, "special:bestCountries", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const turkeyButton = bestCountryList.replyMarkup.inline_keyboard.flat().find((button) => button.text === "Turkey");
+  assert.ok(turkeyButton);
+  const countryOverview = await handleMenuCallback(132, turkeyButton.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(countryOverview.text, /Top Agents in Turkey/);
+  assert.equal(
+    countryOverview.replyMarkup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "special:bestCountryCampaignList"),
+    true,
+  );
+  const campaignList = await handleMenuCallback(132, "special:bestCountryCampaignList", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const firstCampaign = campaignList.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("specialPick:"));
+  assert.ok(firstCampaign);
+  const campaignOverview = await handleMenuCallback(132, firstCampaign.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.match(campaignOverview.text, /Top Agents in Campaign/);
 });
 
 test("report view can export as excel document payload", async () => {
