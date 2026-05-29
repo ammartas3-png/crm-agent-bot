@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 
 import {
+  approveTelegramUser,
+  denyTelegramUser,
   isAdminTelegramUser,
   isAllowedTelegramUser,
+  listRuntimeApprovals,
+  normalizePrincipal,
+  parseAllowedUsers,
+  parseAdminUsers,
+  telegramUserPrincipals,
   UNAUTHORIZED_MESSAGE,
 } from "../../../lib/permissions.js";
 import {
@@ -87,6 +94,43 @@ function isStartCommand(text) {
   return /^\/?start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
 }
 
+function parseAllowCommand(text) {
+  const match = String(text || "")
+    .trim()
+    .match(/^\/?(allow|deny)\s+(.+)$/i);
+  if (!match) {
+    return null;
+  }
+  const action = match[1].toLocaleLowerCase("en-US");
+  const target = normalizePrincipal(match[2]);
+  if (!target) {
+    return null;
+  }
+  return { action, target };
+}
+
+function isWhoAmICommand(text) {
+  return /^\/?(whoami|me)\b/i.test(String(text || "").trim());
+}
+
+function formatUserIdentity(telegramUser) {
+  const principals = telegramUserPrincipals(telegramUser);
+  return [
+    `Telegram ID: ${telegramUser?.id ?? "-"}`,
+    `Username: ${telegramUser?.username ? `@${telegramUser.username}` : "-"}`,
+    `Principals: ${principals.join(", ") || "-"}`,
+  ].join("\n");
+}
+
+function formatAllowHelp() {
+  return [
+    "Admin access commands:",
+    "- /allow <telegram-id-or-username>",
+    "- /deny <telegram-id-or-username>",
+    "- /allowlist",
+  ].join("\n");
+}
+
 function isHelloStopCommand(text) {
   return /^\/?(?:hello_stop|stop_hello|bye_hello|quit_hello)$/i.test(String(text || "").trim());
 }
@@ -132,6 +176,50 @@ export async function POST(request) {
 
   try {
     registerAdminChat(telegramUser, chatId);
+
+    if (!callbackQuery && isWhoAmICommand(text)) {
+      return sendMessageWebhookResponse(chatId, formatUserIdentity(telegramUser));
+    }
+
+    const allowCommand = !callbackQuery ? parseAllowCommand(text) : null;
+    if (allowCommand) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can run allow/deny commands.");
+      }
+      const updated =
+        allowCommand.action === "allow"
+          ? approveTelegramUser(allowCommand.target)
+          : denyTelegramUser(allowCommand.target);
+      return sendMessageWebhookResponse(
+        chatId,
+        [
+          `${allowCommand.action === "allow" ? "Allowed" : "Denied"}: ${allowCommand.target}`,
+          `Matched principals: ${updated.join(", ") || "-"}`,
+          "",
+          "Note: this runtime allowlist resets after redeploy. Keep permanent users in ALLOWED_USERS.",
+        ].join("\n"),
+      );
+    }
+
+    if (!callbackQuery && /^\/?allowlist$/i.test(text)) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can run /allowlist.");
+      }
+      const envAllowed = [...parseAllowedUsers()].sort((left, right) => left.localeCompare(right));
+      const runtimeAllowed = listRuntimeApprovals();
+      const adminUsers = [...parseAdminUsers()].sort((left, right) => left.localeCompare(right));
+      return sendMessageWebhookResponse(
+        chatId,
+        [
+          "Access overview",
+          `Admins (${adminUsers.length}): ${adminUsers.join(", ") || "-"}`,
+          `Allowed from ALLOWED_USERS (${envAllowed.length}): ${envAllowed.join(", ") || "-"}`,
+          `Runtime allowed (${runtimeAllowed.length}): ${runtimeAllowed.join(", ") || "-"}`,
+          "",
+          formatAllowHelp(),
+        ].join("\n"),
+      );
+    }
 
     if (callbackQuery?.data?.startsWith("access:")) {
       if (hasTelegramBotToken()) {
@@ -184,8 +272,18 @@ export async function POST(request) {
       return sendMessageWebhookResponse(
         chatId,
         notified
-          ? "You are not authorized yet. An access request was sent to the admin."
-          : `${UNAUTHORIZED_MESSAGE} Ask an admin to open the bot first or configure ADMIN_CHAT_IDS.`,
+          ? [
+              "You are not authorized yet.",
+              "An access request was sent to admin.",
+              `Request ID: ${accessRequest.id}`,
+              formatUserIdentity(telegramUser),
+            ].join("\n")
+          : [
+              `${UNAUTHORIZED_MESSAGE} Ask an admin to open the bot first or configure ADMIN_CHAT_IDS.`,
+              `Request ID: ${accessRequest.id}`,
+              formatUserIdentity(telegramUser),
+              "Tip: send /whoami and share it with admin.",
+            ].join("\n"),
       );
     }
 
