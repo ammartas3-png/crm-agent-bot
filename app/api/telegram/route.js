@@ -509,7 +509,10 @@ export async function POST(request) {
 
     if (!callbackQuery && isAccessRequestsCommand(text)) {
       if (!isAdminTelegramUser(telegramUser)) {
-        return sendMessageWebhookResponse(chatId, "Only admins can run /access_requests.");
+        return sendMessageWebhookResponse(
+          chatId,
+          "Your access request is already waiting for admin approval. Please wait.",
+        );
       }
       const pending = listPendingAccessRequests();
       return sendMessageWebhookResponse(chatId, pendingAccessRequestsText(pending), pendingAccessRequestsKeyboard(pending));
@@ -784,7 +787,7 @@ export async function POST(request) {
               `${UNAUTHORIZED_MESSAGE} Your request is saved and waiting for admin approval.`,
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),
-              "Admin can review pending requests with /access_requests.",
+              "Please wait until an admin approves your access.",
             ].join("\n"),
       );
     }
