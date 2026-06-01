@@ -13,10 +13,12 @@ import {
   UNAUTHORIZED_MESSAGE,
 } from "../../../lib/permissions.js";
 import {
+  accessRequestMessage,
   approveAccessRequest,
   createAccessRequest,
   denyAccessRequest,
   getAccessRequest,
+  listPendingAccessRequests,
   notifyAdminsForAccessRequest,
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
@@ -384,6 +386,34 @@ function isAllScopeReply(text) {
   return /^(?:all|total|genel|hepsi)$/i.test(String(text || "").trim());
 }
 
+function isAccessRequestsCommand(text) {
+  return /^\/?access_requests\b/i.test(String(text || "").trim());
+}
+
+function pendingAccessRequestsKeyboard(requests = []) {
+  return {
+    inline_keyboard: requests.slice(0, 20).map((request) => [
+      {
+        text: request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`,
+        callback_data: `access:open:${request.id}`,
+      },
+    ]),
+  };
+}
+
+function pendingAccessRequestsText(requests = []) {
+  if (!requests.length) {
+    return "No pending access requests.";
+  }
+  return [
+    `Pending access requests: ${requests.length}`,
+    ...requests.slice(0, 20).map((request, index) => {
+      const label = request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`;
+      return `${index + 1}. ${label} (request: ${request.id})`;
+    }),
+  ].join("\n");
+}
+
 function debugTotalsMonthKeyboard() {
   const months = listMonthFiles({ includeInactive: true });
   if (!months.length) {
@@ -477,6 +507,14 @@ export async function POST(request) {
       return sendMessageWebhookResponse(chatId, listing.text, listing.replyMarkup);
     }
 
+    if (!callbackQuery && isAccessRequestsCommand(text)) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can run /access_requests.");
+      }
+      const pending = listPendingAccessRequests();
+      return sendMessageWebhookResponse(chatId, pendingAccessRequestsText(pending), pendingAccessRequestsKeyboard(pending));
+    }
+
     const authorityRemoveCommand = !callbackQuery ? parseAuthorityRemoveCommand(text) : null;
     if (authorityRemoveCommand) {
       if (!isAdminTelegramUser(telegramUser)) {
@@ -528,6 +566,26 @@ export async function POST(request) {
       }
 
       const [, decision, requestId] = callbackQuery.data.split(":");
+      if (decision === "open") {
+        const request = getAccessRequest(requestId);
+        if (!request || request.status !== "pending") {
+          return sendMessageWebhookResponse(chatId, "This access request is no longer pending.");
+        }
+        const textMessage = accessRequestMessage(request);
+        const markup = {
+          inline_keyboard: [
+            [
+              { text: "Approve Full", callback_data: `access:approve:${request.id}` },
+              { text: "Deny", callback_data: `access:deny:${request.id}` },
+            ],
+            [{ text: "Grant Scoped Access", callback_data: `access:scope:${request.id}` }],
+          ],
+        };
+        if (callbackQuery.message?.message_id) {
+          return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, textMessage, markup);
+        }
+        return sendMessageWebhookResponse(chatId, textMessage, markup);
+      }
       if (decision === "scope") {
         const draft = await loadScopeDraftForRequest(requestId);
         if (!draft) {
@@ -565,7 +623,14 @@ export async function POST(request) {
 
       return sendMessageWebhookResponse(
         chatId,
-        `${approved ? "Approved" : "Denied"} access for ${request.user?.username ? `@${request.user.username}` : request.user?.id}.`,
+        [
+          `${approved ? "Approved" : "Denied"} access for ${
+            request.user?.username ? `@${request.user.username}` : request.user?.id
+          }.`,
+          "",
+          pendingAccessRequestsText(listPendingAccessRequests()),
+        ].join("\n"),
+        pendingAccessRequestsKeyboard(listPendingAccessRequests()),
       );
     }
 
@@ -711,15 +776,15 @@ export async function POST(request) {
         notified
           ? [
               "You are not authorized yet.",
-              "An access request was sent to admin.",
+              "Your request was sent to admins. Please wait for approval.",
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),
             ].join("\n")
           : [
-              `${UNAUTHORIZED_MESSAGE} Ask an admin to open the bot first or configure ADMIN_CHAT_IDS.`,
+              `${UNAUTHORIZED_MESSAGE} Your request is saved and waiting for admin approval.`,
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),
-              "Tip: send /whoami and share it with admin.",
+              "Admin can review pending requests with /access_requests.",
             ].join("\n"),
       );
     }

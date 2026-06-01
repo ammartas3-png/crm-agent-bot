@@ -8,6 +8,7 @@ import {
   denyAccessRequest,
   describeTelegramUser,
   getAccessRequest,
+  listPendingAccessRequests,
   registerAdminChat,
 } from "../lib/accessRequests.js";
 import { clearRuntimeApprovals, isAllowedTelegramUser } from "../lib/permissions.js";
@@ -17,6 +18,7 @@ test("createAccessRequest stores pending request", () => {
 
   assert.equal(getAccessRequest(request.id).status, "pending");
   assert.equal(getAccessRequest(request.id).messageText, "hello");
+  assert.equal(listPendingAccessRequests().some((item) => item.id === request.id), true);
 });
 
 test("accessApprovalKeyboard contains approve and deny callbacks", () => {
