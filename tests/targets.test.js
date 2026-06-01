@@ -85,3 +85,24 @@ test("agent alias maps Asli Gu to Annalena Gu", () => {
   assert.equal(normalizeAgentName(" annalena   gu "), "annalena gu");
   assert.equal(canonicalAgentName("Asli Gu"), "Annalena Gu");
 });
+
+test("info agent context supports Active status and Desk column", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "Active",
+      Agent: "Rizwan Kh",
+      "TARGET'S": "12",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+    },
+    {
+      "Working Status": "Not Active",
+      Agent: "Archived Agent",
+      "TARGET'S": "30",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+    },
+  ]);
+  assert.deepEqual(infoAgentsLabelsForGroup(context, "office"), ["Indian Team - TR"]);
+  assert.equal(targetForOffice(context, "Indian Team - TR"), 42);
+});

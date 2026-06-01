@@ -209,3 +209,41 @@ test("row filters support multi-select arrays", () => {
     false,
   );
 });
+
+test("row filters treat Desk as Office-compatible field", () => {
+  const deskConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      country: "Country",
+    },
+  };
+  const row = {
+    ID: "9",
+    Desk: "Indian Team - TR",
+    Country: "Pakistan",
+  };
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      deskConfig,
+      {
+        office: ["Indian Team - TR"],
+      },
+      NOW,
+    ),
+    true,
+  );
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      deskConfig,
+      {
+        officeContains: ["pakistan"],
+      },
+      NOW,
+    ),
+    true,
+  );
+});
