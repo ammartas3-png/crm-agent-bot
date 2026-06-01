@@ -139,16 +139,15 @@ function officeCountryFromOfficeName(office = "") {
 
 function buildAccessScopeContext(rows = [], tabConfig) {
   const officeField = getFieldName(tabConfig, "office");
-  const deskField = getFieldName(tabConfig, "department");
-  const teamField = getFieldName(tabConfig, "team");
+  const deskField = getFieldName(tabConfig, "office");
   const teamLeaderField = getFieldName(tabConfig, "teamLeader");
   const triples = [];
   const seen = new Set();
   for (const row of rows) {
     const office = String(getRowValue(row, officeField) || "").trim();
     const desk = String(getRowValue(row, deskField) || "").trim();
-    const team = String(getRowValue(row, teamField) || "").trim();
     const teamLeader = String(getRowValue(row, teamLeaderField) || "").trim();
+    const team = teamLeader;
     const country = officeCountryFromOfficeName(office);
     const key = `${country.toLocaleLowerCase("en-US")}::${office.toLocaleLowerCase("en-US")}::${desk.toLocaleLowerCase(
       "en-US",

@@ -36,7 +36,7 @@ test("computeAuthorityScopeFromRows parses office, desk and team leader filters"
   );
   assert.equal(scope.allowed, true);
   assert.deepEqual(scope.filters.office, ["Turkey Office"]);
-  assert.deepEqual(scope.filters.department, ["Turkey English"]);
+  assert.deepEqual(scope.filters.officeOrDepartment, ["Turkey English"]);
   assert.deepEqual(scope.filters.teamLeader, ["Rafik B"]);
 });
 
@@ -109,5 +109,5 @@ test("resolveAuthorityScopeForUser reads rows via injected reader", async () => 
   );
   assert.equal(scope.allowed, true);
   assert.deepEqual(scope.filters.office, ["Istanbul"]);
-  assert.deepEqual(scope.filters.department, ["Desk A"]);
+  assert.deepEqual(scope.filters.officeOrDepartment, ["Desk A"]);
 });
