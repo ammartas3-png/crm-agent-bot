@@ -67,3 +67,58 @@ test("readSheetRows builds a trimmed quoted range from tab name when range is ab
   assert.equal(requestedRange, "'Leads'!A:Y");
   assert.deepEqual(rows, [{ ID: "1" }]);
 });
+
+test("readSheetRows falls back to configured column when header cell is blank", async () => {
+  const rows = await readSheetRows("infoAgents", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "Info Agents",
+      range: "'Info Agents'!A:L",
+      columns: [
+        "Working Status",
+        "LANG",
+        "Agent",
+        "TARGET'S",
+        "FTD'S",
+        "Office",
+        "Team Leader",
+        "Leads",
+        "CR",
+        "CR TARGET",
+        "Late FTD",
+        "Starting Date",
+      ],
+    },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({
+            data: {
+              values: [
+                [
+                  "Working Status",
+                  "LANG",
+                  "Agent",
+                  "TARGET'S",
+                  "FTD'S",
+                  "Office",
+                  "Team Leader",
+                  "Leads",
+                  "CR",
+                  "CR TARGET",
+                  "Late FTD",
+                  "",
+                ],
+                ["Working", "ENG", "Ahmet", "10", "2", "Turkey English", "Leader 1", "30", "5%", "5%", "0", "13/02/2022"],
+              ],
+            },
+          }),
+        },
+      },
+    },
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]["Agent"], "Ahmet");
+  assert.equal(rows[0]["Starting Date"], "13/02/2022");
+});
