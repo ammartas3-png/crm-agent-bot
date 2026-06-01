@@ -1597,15 +1597,17 @@ test("last 4 months all excel export returns document payload", async () => {
 test("last 4 months all excel includes starting date column at the end", async () => {
   const readRowsWithJobEntry = async (tabKey, options = {}) => {
     if (tabKey === "infoAgents") {
+      if (String(options.tabConfig?.range || "").includes("!A:L") && options.tabConfig?.name !== "Info Agnets") {
+        throw new Error("Tab not found");
+      }
+      if (!String(options.tabConfig?.range || "").includes("!A:L")) {
+        return infoAgentsRows;
+      }
       return [
         {
-          "Working Status": "Working",
-          "Agent Name": "Ahmet",
-          "Agent Target": "10",
-          "Team Leader": "Leader 1",
-          Agent: "Ahmet",
-          Office: "Istanbul",
-          "Starting Date": "13/02/2022",
+          C: "Ahmet",
+          F: "Istanbul",
+          L: "13/02/2022",
         },
       ];
     }
