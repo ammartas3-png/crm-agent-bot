@@ -42,9 +42,12 @@ import {
   shouldAskScopeFollowUp,
 } from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
-import { getGoogleCredentialConfig } from "../../../lib/googleSheets.js";
+import { filteredRows } from "../../../lib/calculations.js";
+import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
+import { resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
+import { getTabConfig } from "../../../config/sheetsConfig.js";
 import {
   ROOT_START_TEXT,
   databaseCheckMenuKeyboard,
@@ -92,6 +95,23 @@ function editMessageWebhookResponse(chatId, messageId, text, replyMarkup) {
 
 function isStartCommand(text) {
   return /^\/?start(?:@\w+)?(?:\s+.*)?$/i.test(String(text || "").trim());
+}
+
+function scopeFiltersFromAuthority(authorityScope = {}) {
+  const filters = authorityScope?.filters || {};
+  return Object.keys(filters).length ? filters : {};
+}
+
+function buildScopedReadRows(authorityScope = {}, now = new Date()) {
+  const scopeFilters = scopeFiltersFromAuthority(authorityScope);
+  return async (tabKey, options = {}) => {
+    const rows = await readSheetRows(tabKey, options);
+    if (tabKey !== "leads" || !Object.keys(scopeFilters).length) {
+      return rows;
+    }
+    const tabConfig = options.tabConfig || getTabConfig("leads");
+    return filteredRows(rows, tabConfig, scopeFilters, now);
+  };
 }
 
 function parseAllowCommand(text) {
@@ -173,9 +193,12 @@ export async function POST(request) {
   const userId = telegramUser?.id ?? getTelegramUserId(message);
   const text = getMessageText(message);
   const document = message?.document || null;
+  const now = new Date();
 
   try {
     registerAdminChat(telegramUser, chatId);
+    const authorityScope = await resolveAuthorityScopeForUser(telegramUser);
+    const scopedReadRows = buildScopedReadRows(authorityScope, now);
 
     if (!callbackQuery && isWhoAmICommand(text)) {
       return sendMessageWebhookResponse(chatId, formatUserIdentity(telegramUser));
@@ -257,7 +280,7 @@ export async function POST(request) {
       );
     }
 
-    if (!isAllowedTelegramUser(telegramUser || userId)) {
+    if (!isAllowedTelegramUser(telegramUser || userId) && !authorityScope.allowed) {
       const accessRequest = createAccessRequest(telegramUser, chatId, text);
       let notified = false;
       try {
@@ -375,7 +398,10 @@ export async function POST(request) {
         }
       }
 
-      const response = await handleMenuCallback(userId, callbackQuery.data, { telegramUser });
+      const response = await handleMenuCallback(userId, callbackQuery.data, {
+        telegramUser,
+        authorityScope,
+      });
       if (response?.documentBuffer) {
         if (!hasTelegramBotToken()) {
           return sendMessageWebhookResponse(
@@ -446,7 +472,7 @@ export async function POST(request) {
       return sendMessageWebhookResponse(chatId, dbTextResponse.text, dbTextResponse.replyMarkup);
     }
 
-    const menuTextResponse = await handleMenuText(userId, text, { telegramUser });
+    const menuTextResponse = await handleMenuText(userId, text, { telegramUser, authorityScope });
     if (menuTextResponse) {
       return sendMessageWebhookResponse(
         chatId,
@@ -460,14 +486,22 @@ export async function POST(request) {
       const pendingQuery = session.chatAssistant.pendingQuery;
       if (pendingQuery) {
         const finalQuery = isAllScopeReply(text) ? pendingQuery : `${pendingQuery} ${text}`;
-        const resolved = await answerQueryDetailed(finalQuery);
+        const resolved = await answerQueryDetailed(finalQuery, {
+          now,
+          readRows: scopedReadRows,
+          scopeFilters: scopeFiltersFromAuthority(authorityScope),
+        });
         setSession(userId, {
           chatAssistant: { ...session.chatAssistant, pendingQuery: null },
         });
         return sendMessageWebhookResponse(chatId, resolved.text);
       }
 
-      const resolved = await answerQueryDetailed(text);
+      const resolved = await answerQueryDetailed(text, {
+        now,
+        readRows: scopedReadRows,
+        scopeFilters: scopeFiltersFromAuthority(authorityScope),
+      });
       if (shouldAskScopeFollowUp(resolved.parsed, resolved.filters)) {
         setSession(userId, {
           chatAssistant: { ...session.chatAssistant, pendingQuery: text },
@@ -484,7 +518,11 @@ export async function POST(request) {
       return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
     }
 
-    const answer = await answerQuery(text);
+    const answer = await answerQuery(text, {
+      now,
+      readRows: scopedReadRows,
+      scopeFilters: scopeFiltersFromAuthority(authorityScope),
+    });
     return sendMessageWebhookResponse(chatId, answer);
   } catch (error) {
     console.error("Telegram webhook failed", error);

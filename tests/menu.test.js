@@ -49,6 +49,7 @@ const leadRows = [
     Created: "12/05/2026 10:00:00",
     "Lead Date": "12/05/2026",
     Country: "Turkey",
+    Department: "Turkey English",
     Campaign: "Campaign A",
     "Sub-Campaign": "Sub A1",
     Placement: "Placement A1",
@@ -68,6 +69,7 @@ const leadRows = [
     Created: "12/05/2026 11:00:00",
     "Lead Date": "12/05/2026",
     Country: "Turkey",
+    Department: "Turkey Arabic",
     Campaign: "Campaign A",
     "Sub-Campaign": "Sub A2",
     Placement: "Placement A2",
@@ -85,6 +87,7 @@ const leadRows = [
     Created: "12/05/2026 11:10:00",
     "Lead Date": "12/05/2026",
     Country: "Germany",
+    Department: "Germany Desk",
     Campaign: "Campaign B",
     "Sub-Campaign": "Sub B1",
     Placement: "Placement B1",
@@ -221,6 +224,31 @@ test("country options are sorted by lead count", async () => {
     .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"))
     .map((button) => String(button.text).replace(/^✅\s*|^⬜\s*/u, "").trim());
   assert.equal(countryLabels[0], "Turkey");
+});
+
+test("authority scope restricts reports by office and desk", async () => {
+  await selectMonthAndTotalDate(135);
+  const agentSelect = await handleMenuCallback(135, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    authorityScope: {
+      allowed: true,
+      unrestricted: false,
+      filters: {
+        office: ["Istanbul"],
+        department: ["Turkey English"],
+      },
+    },
+  });
+  const labels = agentSelect.replyMarkup.inline_keyboard
+    .flat()
+    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"))
+    .map((button) => String(button.text));
+  assert.equal(labels.some((label) => /Ahmet/i.test(label)), true);
+  assert.equal(labels.some((label) => /Max/i.test(label)), false);
+  assert.equal(labels.some((label) => /Mia/i.test(label)), false);
 });
 
 test("office drilldown shows summary and child hierarchy", async () => {
