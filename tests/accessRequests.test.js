@@ -23,7 +23,7 @@ test("accessApprovalKeyboard contains approve and deny callbacks", () => {
   const keyboard = accessApprovalKeyboard("abc");
   const callbacks = keyboard.inline_keyboard.flat().map((button) => button.callback_data);
 
-  assert.deepEqual(callbacks, ["access:approve:abc", "access:deny:abc"]);
+  assert.deepEqual(callbacks, ["access:approve:abc", "access:deny:abc", "access:scope:abc"]);
 });
 
 test("approveAccessRequest grants runtime access", () => {
