@@ -473,6 +473,14 @@ function formatAllowHelp() {
   ].join("\n");
 }
 
+function adminContactsText() {
+  const admins = [...parseAdminUsers()]
+    .filter((principal) => !/^-?\d+$/.test(principal))
+    .map((principal) => `@${principal}`)
+    .sort((left, right) => left.localeCompare(right));
+  return admins.join(", ") || "-";
+}
+
 function isHelloStopCommand(text) {
   return /^\/?(?:hello_stop|stop_hello|bye_hello|quit_hello)$/i.test(String(text || "").trim());
 }
@@ -876,11 +884,13 @@ export async function POST(request) {
           ? [
               "You are not authorized yet.",
               "Your request was sent to admins. Please wait for approval.",
+              `Admins: ${adminContactsText()}`,
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),
             ].join("\n")
           : [
               `${UNAUTHORIZED_MESSAGE} Your request is saved and waiting for admin approval.`,
+              `Admins: ${adminContactsText()}`,
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),
               "Please wait until an admin approves your access.",
