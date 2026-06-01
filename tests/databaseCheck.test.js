@@ -8,10 +8,10 @@ import {
   rootStartKeyboard,
 } from "../lib/databaseCheck.js";
 
-test("rootStartKeyboard exposes two sections", () => {
+test("rootStartKeyboard exposes admin sections", () => {
   const keyboard = rootStartKeyboard({ username: "antoniotsd" });
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels, ["Results from Months Table", "Database Check"]);
+  assert.deepEqual(labels, ["Results from Months Table", "Access Requests", "Database Check"]);
 });
 
 test("rootStartKeyboard hides database check for non-admin", () => {

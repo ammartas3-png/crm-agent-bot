@@ -494,13 +494,15 @@ function isAccessRequestsCommand(text) {
 }
 
 function pendingAccessRequestsKeyboard(requests = []) {
+  const rows = requests.slice(0, 20).map((request) => [
+    {
+      text: request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`,
+      callback_data: `access:open:${request.id}`,
+    },
+  ]);
+  rows.push([{ text: "Back to Section Select", callback_data: "root:start" }]);
   return {
-    inline_keyboard: requests.slice(0, 20).map((request) => [
-      {
-        text: request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`,
-        callback_data: `access:open:${request.id}`,
-      },
-    ]),
+    inline_keyboard: rows,
   };
 }
 
@@ -974,6 +976,13 @@ export async function POST(request) {
       if (callbackQuery.data === "root:results") {
         const response = await startMenu(userId, { telegramUser });
         return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+      }
+      if (callbackQuery.data === "root:access_requests") {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "Only admins can review access requests.");
+        }
+        const pending = listPendingAccessRequests();
+        return sendMessageWebhookResponse(chatId, pendingAccessRequestsText(pending), pendingAccessRequestsKeyboard(pending));
       }
 
       if (callbackQuery.data?.startsWith("dbcheck:")) {
