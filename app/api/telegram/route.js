@@ -49,6 +49,7 @@ import { filteredRows, getFieldName, getRowValue, normalizeText } from "../../..
 import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
 import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
+import { getOfficeMonthMap } from "../../../lib/officeMappings.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
 import { getTabConfig } from "../../../config/sheetsConfig.js";
 import {
@@ -294,9 +295,24 @@ async function loadScopeDraftForRequest(requestId) {
     return null;
   }
   const months = listMonthFiles();
+  let officeMonths = [];
+  try {
+    const officeMap = await getOfficeMonthMap();
+    officeMonths = Object.values(officeMap.byCountry || {}).flat();
+  } catch {
+    officeMonths = [];
+  }
+  const uniqueMonthsBySheetId = new Map();
+  for (const month of [...months, ...officeMonths]) {
+    const sheetId = String(month?.sheet_id || "").trim();
+    if (!sheetId || uniqueMonthsBySheetId.has(sheetId)) {
+      continue;
+    }
+    uniqueMonthsBySheetId.set(sheetId, month);
+  }
   const tabConfig = getTabConfig("leads");
   const rows = [];
-  for (const month of months) {
+  for (const month of uniqueMonthsBySheetId.values()) {
     try {
       const monthRows = await readSheetRows("leads", {
         tabConfig,
