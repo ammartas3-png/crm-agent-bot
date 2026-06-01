@@ -47,7 +47,7 @@ import {
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
 import { filteredRows, getFieldName, getRowValue } from "../../../lib/calculations.js";
 import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
-import { resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
+import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
 import { getTabConfig } from "../../../config/sheetsConfig.js";
@@ -121,21 +121,25 @@ function uniqueSorted(values = []) {
 function buildAccessScopeContext(rows = [], tabConfig) {
   const officeField = getFieldName(tabConfig, "office");
   const deskField = getFieldName(tabConfig, "department");
-  const teamField = getFieldName(tabConfig, "teamLeader");
+  const teamField = getFieldName(tabConfig, "team");
+  const teamLeaderField = getFieldName(tabConfig, "teamLeader");
   const triples = [];
   const seen = new Set();
   for (const row of rows) {
     const office = String(getRowValue(row, officeField) || "").trim();
     const desk = String(getRowValue(row, deskField) || "").trim();
-    const teamLeader = String(getRowValue(row, teamField) || "").trim();
-    const key = `${office.toLocaleLowerCase("en-US")}::${desk.toLocaleLowerCase("en-US")}::${teamLeader.toLocaleLowerCase(
+    const team = String(getRowValue(row, teamField) || "").trim();
+    const teamLeader = String(getRowValue(row, teamLeaderField) || "").trim();
+    const key = `${office.toLocaleLowerCase("en-US")}::${desk.toLocaleLowerCase("en-US")}::${team.toLocaleLowerCase(
+      "en-US",
+    )}::${teamLeader.toLocaleLowerCase(
       "en-US",
     )}`;
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
-    triples.push({ office, desk, teamLeader });
+    triples.push({ office, desk, team, teamLeader });
   }
   return {
     triples,
@@ -143,10 +147,45 @@ function buildAccessScopeContext(rows = [], tabConfig) {
   };
 }
 
+function normalizedScopeRole(role = "") {
+  const normalized = normalizeText(role);
+  if (normalized === "teamleader" || normalized === "team_leader") {
+    return "team leader";
+  }
+  if (normalized === "deskmanager" || normalized === "desk_manager") {
+    return "desk manager";
+  }
+  return normalized;
+}
+
+function scopeRoleOptions() {
+  return ["CRM", "Manager", "Desk Manager", "Team Leader"];
+}
+
+function roleNeedsTeamSelection(role = "") {
+  const normalized = normalizedScopeRole(role);
+  return normalized === "manager" || normalized === "desk manager" || normalized === "team leader";
+}
+
+function teamSelectionLabelForRole(role = "") {
+  const normalized = normalizedScopeRole(role);
+  if (normalized === "manager" || normalized === "desk manager") {
+    return "Team";
+  }
+  if (normalized === "team leader") {
+    return "Team Leader";
+  }
+  return "Team";
+}
+
 function valuesForScopeStage(draft = {}, stage = "office") {
   const triples = draft.scopeTriples || [];
   const selectedOffices = new Set(draft.selectedOffices || []);
   const selectedDesks = new Set(draft.selectedDesks || []);
+  const role = normalizedScopeRole(draft.selectedRole);
+  if (stage === "role") {
+    return scopeRoleOptions();
+  }
   if (stage === "office") {
     return uniqueSorted(draft.officeOptions || []);
   }
@@ -162,27 +201,40 @@ function valuesForScopeStage(draft = {}, stage = "office") {
   const filteredByDesk = selectedDesks.size
     ? filteredByOffice.filter((item) => selectedDesks.has(item.desk))
     : filteredByOffice;
-  return uniqueSorted(filteredByDesk.map((item) => item.teamLeader));
+  if (role === "manager") {
+    return uniqueSorted(filteredByDesk.map((item) => item.team || item.teamLeader));
+  }
+  return uniqueSorted(filteredByDesk.map((item) => item.teamLeader || item.team));
 }
 
 function selectedForScopeStage(draft = {}, stage = "office") {
+  if (stage === "role") {
+    return draft.selectedRole ? [draft.selectedRole] : [];
+  }
   if (stage === "office") {
     return draft.selectedOffices || [];
   }
   if (stage === "desk") {
     return draft.selectedDesks || [];
   }
-  return draft.selectedTeamLeaders || [];
+  return draft.selectedTeams || [];
 }
 
 function normalizeScopeSelections(draft = {}) {
   const next = { ...draft };
+  const validRoles = new Set(valuesForScopeStage(next, "role"));
+  if (!validRoles.has(next.selectedRole)) {
+    next.selectedRole = "";
+  }
   const validOffices = new Set(valuesForScopeStage(next, "office"));
   next.selectedOffices = (next.selectedOffices || []).filter((value) => validOffices.has(value));
   const validDesks = new Set(valuesForScopeStage(next, "desk"));
   next.selectedDesks = (next.selectedDesks || []).filter((value) => validDesks.has(value));
-  const validTeams = new Set(valuesForScopeStage(next, "teamLeader"));
-  next.selectedTeamLeaders = (next.selectedTeamLeaders || []).filter((value) => validTeams.has(value));
+  const validTeams = new Set(valuesForScopeStage(next, "team"));
+  next.selectedTeams = (next.selectedTeams || []).filter((value) => validTeams.has(value));
+  if (!roleNeedsTeamSelection(next.selectedRole)) {
+    next.selectedTeams = [];
+  }
   return next;
 }
 
@@ -199,13 +251,16 @@ function paginateList(items = [], page = 0, pageSize = 10) {
 }
 
 function scopeStageLabel(stage = "office") {
+  if (stage === "role") {
+    return "Role";
+  }
   if (stage === "office") {
     return "Office";
   }
   if (stage === "desk") {
     return "Desk";
   }
-  return "Team Leader";
+  return "Team";
 }
 
 function scopeDraftKeyboard(draft = {}, stage = "office") {
@@ -219,16 +274,18 @@ function scopeDraftKeyboard(draft = {}, stage = "office") {
       callback_data: `accessScope:${draft.requestId}:toggle:${stage}:${start + index}`,
     },
   ]);
-  if (totalPages > 1) {
+  if (stage !== "role" && totalPages > 1) {
     rows.push([
       { text: "Previous Page", callback_data: `accessScope:${draft.requestId}:page:${stage}:${Math.max(page - 1, 0)}` },
       { text: "Next Page", callback_data: `accessScope:${draft.requestId}:page:${stage}:${Math.min(page + 1, totalPages - 1)}` },
     ]);
   }
-  rows.push([
-    { text: "All", callback_data: `accessScope:${draft.requestId}:all:${stage}` },
-    { text: "Clear", callback_data: `accessScope:${draft.requestId}:clear:${stage}` },
-  ]);
+  if (stage !== "role") {
+    rows.push([
+      { text: "All", callback_data: `accessScope:${draft.requestId}:all:${stage}` },
+      { text: "Clear", callback_data: `accessScope:${draft.requestId}:clear:${stage}` },
+    ]);
+  }
   rows.push([{ text: "Done", callback_data: `accessScope:${draft.requestId}:done:${stage}` }]);
   rows.push([{ text: "Cancel", callback_data: `accessScope:${draft.requestId}:cancel` }]);
   return { inline_keyboard: rows };
@@ -236,11 +293,16 @@ function scopeDraftKeyboard(draft = {}, stage = "office") {
 
 function scopeDraftPrompt(draft = {}, stage = "office") {
   const selected = selectedForScopeStage(draft, stage);
+  const role = draft.selectedRole || "not selected";
+  const stageLabel = stage === "team" ? teamSelectionLabelForRole(draft.selectedRole) : scopeStageLabel(stage);
+  const usageHint =
+    stage === "role" ? "Select exactly one role, then press Done." : "Use All/Clear and Done to continue.";
   return [
-    `Grant scoped access — ${scopeStageLabel(stage)} selection`,
+    `Grant scoped access — ${stageLabel} selection`,
     `User: ${draft.targetUsername || draft.targetId || "Unknown"}`,
+    `Role: ${role}`,
     `Selected ${selected.length}/${valuesForScopeStage(draft, stage).length}`,
-    "Use All/Clear and Done to continue.",
+    usageHint,
   ].join("\n");
 }
 
@@ -265,16 +327,49 @@ async function loadScopeDraftForRequest(requestId) {
     officeOptions: scope.offices,
     selectedOffices: [],
     selectedDesks: [],
-    selectedTeamLeaders: [],
-    pageByStage: { office: 0, desk: 0, teamLeader: 0 },
+    selectedTeams: [],
+    selectedRole: "",
+    pageByStage: { role: 0, office: 0, desk: 0, team: 0 },
   };
 }
 
 function scopeSummaryText(draft = {}) {
+  const role = draft.selectedRole || "crm";
   const offices = draft.selectedOffices?.length ? draft.selectedOffices.join(", ") : "all";
   const desks = draft.selectedDesks?.length ? draft.selectedDesks.join(", ") : "all";
-  const teams = draft.selectedTeamLeaders?.length ? draft.selectedTeamLeaders.join(", ") : "all";
-  return [`Office: ${offices}`, `Desk: ${desks}`, `Team Leader: ${teams}`].join("\n");
+  const teams = draft.selectedTeams?.length ? draft.selectedTeams.join(", ") : "all";
+  return [`Role: ${role}`, `Office: ${offices}`, `Desk: ${desks}`, `${teamSelectionLabelForRole(role)}: ${teams}`].join(
+    "\n",
+  );
+}
+
+function setScopeStageSelection(draft = {}, stage = "office", values = []) {
+  if (stage === "role") {
+    draft.selectedRole = values[0] || "";
+    return;
+  }
+  if (stage === "office") {
+    draft.selectedOffices = values;
+    return;
+  }
+  if (stage === "desk") {
+    draft.selectedDesks = values;
+    return;
+  }
+  draft.selectedTeams = values;
+}
+
+function nextScopeStage(draft = {}, currentStage = "role") {
+  if (currentStage === "role") {
+    return "office";
+  }
+  if (currentStage === "office") {
+    return "desk";
+  }
+  if (currentStage === "desk") {
+    return roleNeedsTeamSelection(draft.selectedRole) ? "team" : null;
+  }
+  return null;
 }
 
 function isAuthorityUsersCommand(text) {
@@ -321,7 +416,7 @@ async function authorityListResponse(page = 0) {
       (row, index) =>
         `${start + index + 1}. ${authorityRowDisplayLabel(row)}\nOffice: ${row.office || "all"} | Desk: ${
           row.desk || "all"
-        } | Authority: ${row.authority || "all"}`,
+        } | Team: ${row.team || "all"} | Authority: ${row.authority || "all"}`,
     ),
   ].join("\n\n");
   return { text, replyMarkup: authorityListKeyboard(rows, safePage) };
@@ -527,6 +622,7 @@ export async function POST(request) {
       if (!removed.removed) {
         return sendMessageWebhookResponse(chatId, `No authority row found for ${authorityRemoveCommand.principal}.`);
       }
+      clearAuthorityScopeCache();
       denyTelegramUser(authorityRemoveCommand.principal);
       return sendMessageWebhookResponse(
         chatId,
@@ -548,6 +644,7 @@ export async function POST(request) {
       }
       if (action === "del") {
         await removeAuthorityRowByNumber(Number(value));
+        clearAuthorityScopeCache();
         const listing = await authorityListResponse(Number(pageValue) || 0);
         const textMessage = `Authority row ${value} deleted.\n\n${listing.text}`;
         if (callbackQuery.message?.message_id) {
@@ -595,8 +692,8 @@ export async function POST(request) {
           return sendMessageWebhookResponse(chatId, "This access request is no longer pending.");
         }
         setSession(userId, { accessScopeDraft: draft });
-        const textMessage = scopeDraftPrompt(draft, "office");
-        const replyMarkup = scopeDraftKeyboard(draft, "office");
+        const textMessage = scopeDraftPrompt(draft, "role");
+        const replyMarkup = scopeDraftKeyboard(draft, "role");
         if (callbackQuery.message?.message_id) {
           return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, textMessage, replyMarkup);
         }
@@ -609,9 +706,16 @@ export async function POST(request) {
 
       const approved = decision === "approve";
       if (approved) {
-        await upsertAuthorityUserScope({ user: request.user, offices: [], desks: [], teamLeaders: [] }).catch((error) => {
+        await upsertAuthorityUserScope({
+          user: request.user,
+          offices: [],
+          desks: [],
+          teams: [],
+          authorityRole: "all",
+        }).catch((error) => {
           console.error("Could not upsert full authority scope", error);
         });
+        clearAuthorityScopeCache();
       }
       if (hasTelegramBotToken()) {
         await sendTelegramMessage(
@@ -641,7 +745,8 @@ export async function POST(request) {
       if (!isAdminTelegramUser(telegramUser)) {
         return sendMessageWebhookResponse(chatId, "Only admins can grant scoped access.");
       }
-      const [, requestId, action, stage, rawValue] = callbackQuery.data.split(":");
+      const [, requestId, action, rawStage, rawValue] = callbackQuery.data.split(":");
+      const stage = rawStage === "teamLeader" ? "team" : rawStage;
       const session = getSession(userId);
       const currentDraft = session.accessScopeDraft;
       if (!currentDraft || currentDraft.requestId !== requestId) {
@@ -654,7 +759,11 @@ export async function POST(request) {
         return sendMessageWebhookResponse(chatId, "Scoped access flow cancelled.");
       }
 
-      const options = valuesForScopeStage(draft, stage);
+      const stageActions = new Set(["page", "toggle", "all", "clear", "done"]);
+      if (stageActions.has(action) && !stage) {
+        return sendMessageWebhookResponse(chatId, "Scope selection expired. Please open Grant Scoped Access again.");
+      }
+      const options = stage ? valuesForScopeStage(draft, stage) : [];
       if (action === "page") {
         draft.pageByStage = {
           ...(draft.pageByStage || {}),
@@ -666,54 +775,36 @@ export async function POST(request) {
           return sendMessageWebhookResponse(chatId, "Selection expired. Please try again.");
         }
         const value = options[index];
-        const selected = new Set(selectedForScopeStage(draft, stage));
-        if (selected.has(value)) {
-          selected.delete(value);
+        if (stage === "role") {
+          draft.selectedRole = value;
         } else {
-          selected.add(value);
-        }
-        const selectedList = [...selected].sort((left, right) => left.localeCompare(right));
-        if (stage === "office") {
-          draft.selectedOffices = selectedList;
-        } else if (stage === "desk") {
-          draft.selectedDesks = selectedList;
-        } else {
-          draft.selectedTeamLeaders = selectedList;
+          const selected = new Set(selectedForScopeStage(draft, stage));
+          if (selected.has(value)) {
+            selected.delete(value);
+          } else {
+            selected.add(value);
+          }
+          const selectedList = [...selected].sort((left, right) => left.localeCompare(right));
+          setScopeStageSelection(draft, stage, selectedList);
         }
       } else if (action === "all") {
-        if (stage === "office") {
-          draft.selectedOffices = [...options];
-        } else if (stage === "desk") {
-          draft.selectedDesks = [...options];
-        } else {
-          draft.selectedTeamLeaders = [...options];
+        if (stage === "role") {
+          return sendMessageWebhookResponse(chatId, "Role stage allows selecting one role only.");
         }
+        setScopeStageSelection(draft, stage, [...options]);
       } else if (action === "clear") {
-        if (stage === "office") {
-          draft.selectedOffices = [];
-        } else if (stage === "desk") {
-          draft.selectedDesks = [];
-        } else {
-          draft.selectedTeamLeaders = [];
-        }
+        setScopeStageSelection(draft, stage, []);
       } else if (action === "done") {
-        if (stage === "office") {
-          draft = normalizeScopeSelections(draft);
-          draft.pageByStage = { ...(draft.pageByStage || {}), desk: 0 };
-          setSession(userId, { accessScopeDraft: draft });
-          const responseText = scopeDraftPrompt(draft, "desk");
-          const responseMarkup = scopeDraftKeyboard(draft, "desk");
-          if (callbackQuery.message?.message_id) {
-            return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, responseText, responseMarkup);
-          }
-          return sendMessageWebhookResponse(chatId, responseText, responseMarkup);
+        draft = normalizeScopeSelections(draft);
+        if (stage === "role" && !draft.selectedRole) {
+          return sendMessageWebhookResponse(chatId, "Please select a role first.");
         }
-        if (stage === "desk") {
-          draft = normalizeScopeSelections(draft);
-          draft.pageByStage = { ...(draft.pageByStage || {}), teamLeader: 0 };
+        const nextStage = nextScopeStage(draft, stage);
+        if (nextStage) {
+          draft.pageByStage = { ...(draft.pageByStage || {}), [nextStage]: 0 };
           setSession(userId, { accessScopeDraft: draft });
-          const responseText = scopeDraftPrompt(draft, "teamLeader");
-          const responseMarkup = scopeDraftKeyboard(draft, "teamLeader");
+          const responseText = scopeDraftPrompt(draft, nextStage);
+          const responseMarkup = scopeDraftKeyboard(draft, nextStage);
           if (callbackQuery.message?.message_id) {
             return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, responseText, responseMarkup);
           }
@@ -728,8 +819,10 @@ export async function POST(request) {
           user: request.user,
           offices: draft.selectedOffices || [],
           desks: draft.selectedDesks || [],
-          teamLeaders: draft.selectedTeamLeaders || [],
+          teams: draft.selectedTeams || [],
+          authorityRole: draft.selectedRole || "crm",
         });
+        clearAuthorityScopeCache();
         setSession(userId, { accessScopeDraft: null });
         if (hasTelegramBotToken()) {
           await sendTelegramMessage(
