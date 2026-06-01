@@ -1594,7 +1594,7 @@ test("last 4 months all excel export returns document payload", async () => {
   assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
 });
 
-test("last 4 months all excel includes işe giriş column at the end", async () => {
+test("last 4 months all excel includes job entry date column at the end", async () => {
   const readRowsWithJobEntry = async (tabKey, options = {}) => {
     if (tabKey === "infoAgents") {
       return infoAgentsRows;
@@ -1620,9 +1620,9 @@ test("last 4 months all excel includes işe giriş column at the end", async () 
   const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-  const headerRowIndex = matrix.findIndex((row) => row.includes("İşe Giriş"));
+  const headerRowIndex = matrix.findIndex((row) => row.includes("Job Entry Date"));
   assert.ok(headerRowIndex >= 0);
-  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "İşe Giriş");
+  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Job Entry Date");
   assert.ok(entryColumnIndex >= 0);
   const ahmetRow = matrix.find((row) => row.includes("Ahmet"));
   assert.ok(ahmetRow);
