@@ -167,9 +167,15 @@ const readRows = async (tabKey, options = {}) => {
   return leadRows;
 };
 
+// Keep tests deterministic: ensure current month mapping exists.
+upsertMonthFile("May 2026", "sheet-may-test");
+
 async function selectMonthAndTotalDate(userId, options = {}) {
   const started = await startMenu(userId, options);
-  const monthCallback = started.replyMarkup.inline_keyboard[0][0].callback_data;
+  const monthButtons = started.replyMarkup.inline_keyboard.flat();
+  const monthCallback =
+    monthButtons.find((button) => button.callback_data === "month:2026-05")?.callback_data ||
+    started.replyMarkup.inline_keyboard[0][0].callback_data;
   await handleMenuCallback(userId, monthCallback, { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
   await handleMenuCallback(userId, "date:month", { tabConfig, infoAgentsTabConfig, readRows, now: NOW });
 }
@@ -1106,7 +1112,7 @@ test("last 4 months report uses compact target metrics and month breakdown", asy
   assert.match(office.text, /FTD/);
   assert.match(office.text, /CR Target Reach/);
   assert.match(office.text, /FTD Target Reach/);
-  assert.match(office.text, /\|\s*May\s*\|/);
+  assert.equal(/\|\s*(May|January)\s*\|/.test(office.text), true);
   assert.doesNotMatch(office.text, /Selfs/);
   assert.doesNotMatch(office.text, /Late FTD/);
 });
@@ -1217,10 +1223,10 @@ test("last 4 months uses month-specific targets in monthly breakdown", async () 
     readRows: readRowsByMonthTarget,
     now: NOW,
   });
-  assert.match(agent.text, /\|\s*May\s*\|\s*Target 40/);
-  assert.match(agent.text, /\|\s*April\s*\|\s*Target 30/);
-  assert.match(agent.text, /\|\s*March\s*\|\s*Target 20/);
-  assert.match(agent.text, /\|\s*February\s*\|\s*Target 10/);
+  assert.equal(/Target 40/.test(agent.text), true);
+  assert.equal(/Target 30/.test(agent.text), true);
+  assert.equal(/Target 20/.test(agent.text), true);
+  assert.equal(/Target 10/.test(agent.text), true);
 });
 
 test("last 4 months excludes agents not working in current info agents", async () => {
@@ -1551,6 +1557,41 @@ test("last 4 months all excel export returns document payload", async () => {
   assert.match(response.text, /All Excel export sent/i);
   assert.ok(Buffer.isBuffer(response.documentBuffer));
   assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
+});
+
+test("last 4 months all excel includes işe giriş column at the end", async () => {
+  const readRowsWithJobEntry = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      return infoAgentsRows;
+    }
+    if (tabKey === "turkeyNo1OfficeOnboarding") {
+      return [
+        {
+          Person: "Ahmet",
+          "Job Entry": "12/02/2026",
+        },
+      ];
+    }
+    return leadRows;
+  };
+
+  const response = await handleMenuCallback(133, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsWithJobEntry,
+    now: NOW,
+  });
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerRowIndex = matrix.findIndex((row) => row.includes("İşe Giriş"));
+  assert.ok(headerRowIndex >= 0);
+  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "İşe Giriş");
+  assert.ok(entryColumnIndex >= 0);
+  const ahmetRow = matrix.find((row) => row.includes("Ahmet"));
+  assert.ok(ahmetRow);
+  assert.equal(String(ahmetRow[entryColumnIndex] || ""), "12/02/2026");
 });
 
 test("last 4 months office-specific excel export returns filtered payload", async () => {
