@@ -946,7 +946,7 @@ export async function POST(request) {
         return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
       }
       if (callbackQuery.data === "root:results") {
-        const response = await startMenu(userId, { telegramUser });
+        const response = await startMenu(userId, { telegramUser, authorityScope });
         return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
       }
       if (callbackQuery.data === "root:access_requests") {
