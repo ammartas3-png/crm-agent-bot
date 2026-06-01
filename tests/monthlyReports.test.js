@@ -17,6 +17,7 @@ test("built-in 2026 month mappings are available", () => {
   assert.equal(getMonthFile("2026-02")?.sheet_id, "1R303xCVpamBTSkbH2QyT0JHCBPctayeYV9rERML6R5s");
   assert.equal(getMonthFile("2026-03")?.sheet_id, "1z-O1vy_vaFjU5Ys-P2VW4AMAXOEQ0nSzEjjOakDegsA");
   assert.equal(getMonthFile("2026-04")?.sheet_id, "1tbdyjZ-lJLZby9azuDysIw2ewnhP7wSMuX2mzD_bfME");
+  assert.equal(getMonthFile("2026-06")?.sheet_id, "1sry1psAKWFWGWnE47aQYR2uC0k0Wj7-0RUD8sn5XOAM");
 });
 
 test("upsertMonthFile stores required structure fields and normalizes sheet URL", () => {
