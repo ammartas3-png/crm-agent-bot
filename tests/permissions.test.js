@@ -45,6 +45,7 @@ test("parseAdminUsers always includes default admins", () => {
 
   assert.equal(users.has("customadmin"), true);
   assert.equal(users.has("antoniotsd"), true);
+  assert.equal(users.has("1240141730"), true);
   assert.equal(users.has("cuervo0o0o"), true);
   assert.equal(users.has("talhapervaiz97"), true);
 });
@@ -63,8 +64,9 @@ test("isAllowedTelegramUser compares IDs as strings", () => {
 });
 
 test("default admin users include configured admins", () => {
-  assert.deepEqual(DEFAULT_ADMIN_USERS, ["@antoniotsd", "@Cuervo0o0o", "@talhapervaiz97"]);
+  assert.deepEqual(DEFAULT_ADMIN_USERS, ["@antoniotsd", "1240141730", "@Cuervo0o0o", "@talhapervaiz97"]);
   assert.equal(isAdminTelegramUser({ id: 999, username: "antoniotsd" }), true);
+  assert.equal(isAdminTelegramUser({ id: 1240141730 }), true);
   assert.equal(isAdminTelegramUser({ id: 1000, username: "Cuervo0o0o" }), true);
   assert.equal(isAdminTelegramUser({ id: 1001, username: "talhapervaiz97" }), true);
 });
