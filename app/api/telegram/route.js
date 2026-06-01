@@ -862,6 +862,9 @@ export async function POST(request) {
         const result = hasTelegramBotToken()
           ? await notifyAdminsForAccessRequest(accessRequest)
           : { sent: 0, reason: "missing_telegram_bot_token" };
+        if (Array.isArray(result.failed) && result.failed.length) {
+          console.warn("Some admin notifications failed", result.failed);
+        }
         notified = result.sent > 0;
       } catch (error) {
         console.error("Could not notify admins for access request", error);
