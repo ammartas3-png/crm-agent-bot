@@ -1594,10 +1594,20 @@ test("last 4 months all excel export returns document payload", async () => {
   assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
 });
 
-test("last 4 months all excel includes job entry date column at the end", async () => {
+test("last 4 months all excel includes starting date column at the end", async () => {
   const readRowsWithJobEntry = async (tabKey, options = {}) => {
     if (tabKey === "infoAgents") {
-      return infoAgentsRows;
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Ahmet",
+          "Agent Target": "10",
+          "Team Leader": "Leader 1",
+          Agent: "Ahmet",
+          Office: "Istanbul",
+          "Starting Date": "13/02/2022",
+        },
+      ];
     }
     if (tabKey === "turkeyNo1OfficeOnboarding") {
       return [
@@ -1620,13 +1630,16 @@ test("last 4 months all excel includes job entry date column at the end", async 
   const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-  const headerRowIndex = matrix.findIndex((row) => row.includes("Job Entry Date"));
+  const headerRowIndex = matrix.findIndex((row) => row.includes("Starting Date"));
   assert.ok(headerRowIndex >= 0);
-  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Job Entry Date");
+  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Starting Date");
   assert.ok(entryColumnIndex >= 0);
-  const ahmetRow = matrix.find((row) => row.includes("Ahmet"));
-  assert.ok(ahmetRow);
-  assert.equal(String(ahmetRow[entryColumnIndex] || ""), "12/02/2026");
+  const rowWithStartingDate = matrix.find((row) => String(row[entryColumnIndex] || "") === "13/02/2022");
+  assert.ok(rowWithStartingDate);
+  assert.equal(
+    matrix.some((row) => String(row[entryColumnIndex] || "") === "12/02/2026"),
+    false,
+  );
 });
 
 test("last 4 months office-specific excel export returns filtered payload", async () => {
