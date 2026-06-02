@@ -333,11 +333,20 @@ function authorityUserFromRow(row = {}) {
 }
 
 async function loadScopeRowsForDraft() {
-  const months = listMonthFiles();
+  const months = listMonthFiles()
+    .filter((item) => item?.active !== false)
+    .sort((left, right) => String(right?.key || "").localeCompare(String(left?.key || "")))
+    .slice(0, 8);
   let officeMonths = [];
   try {
     const officeMap = await getOfficeMonthMap();
-    officeMonths = Object.values(officeMap.byCountry || {}).flat();
+    officeMonths = Object.values(officeMap.byCountry || {})
+      .flatMap((items) =>
+        [...(Array.isArray(items) ? items : [])]
+          .sort((left, right) => String(right?.key || "").localeCompare(String(left?.key || "")))
+          .slice(0, 2),
+      )
+      .filter(Boolean);
   } catch {
     officeMonths = [];
   }
@@ -350,19 +359,20 @@ async function loadScopeRowsForDraft() {
     uniqueMonthsBySheetId.set(sheetId, month);
   }
   const tabConfig = getTabConfig("leads");
-  const rows = [];
-  for (const month of uniqueMonthsBySheetId.values()) {
-    try {
-      const monthRows = await readSheetRows("leads", {
-        tabConfig,
-        spreadsheetId: month?.sheet_id,
-      });
-      rows.push(...monthRows);
-    } catch (error) {
-      console.error("Could not read scope options from month file", month?.key, error);
-    }
-  }
-  return rows;
+  const monthRows = await Promise.all(
+    [...uniqueMonthsBySheetId.values()].map(async (month) => {
+      try {
+        return await readSheetRows("leads", {
+          tabConfig,
+          spreadsheetId: month?.sheet_id,
+        });
+      } catch (error) {
+        console.error("Could not read scope options from month file", month?.key, error);
+        return [];
+      }
+    }),
+  );
+  return monthRows.flat();
 }
 
 async function loadScopeDraftForAuthorityRow(rowNumber) {
@@ -797,6 +807,9 @@ export async function POST(request) {
     }
 
     if (callbackQuery?.data?.startsWith("accessManage:")) {
+      if (hasTelegramBotToken()) {
+        await answerCallbackQuery(callbackQuery.id).catch(() => {});
+      }
       if (!isAdminTelegramUser(telegramUser)) {
         return sendMessageWebhookResponse(chatId, "Only admins can manage authority users.");
       }
