@@ -255,3 +255,59 @@ test("getRowValue resolves AGENT NAMES from First Call Agent column", () => {
   };
   assert.equal(getRowValue(row, "AGENT NAMES"), "Annalena Gu");
 });
+
+test("lead date filtering falls back to Created when Lead Date is missing", () => {
+  const localRows = [
+    {
+      ID: "L-1",
+      Created: "12/05/2026 10:00:00",
+      "FTD DATE": "",
+      "FTD MAKER": "",
+    },
+  ];
+  const leadRows = getLeadRowsByDateRange(
+    localRows,
+    tabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(leadRows.length, 1);
+});
+
+test("ftd date filtering falls back to Created when FTD DATE is missing", () => {
+  const localRows = [
+    {
+      ID: "F-1",
+      Created: "12/05/2026 11:00:00",
+      "FTD DATE": "",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    tabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+});
+
+test("ftd count falls back to FTD flag when FTD MAKER is empty", () => {
+  const localRows = [
+    { FTD: "1", "FTD MAKER": "" },
+    { FTD: "0", "FTD MAKER": "" },
+    { FTD: "", "FTD MAKER": "Closer X" },
+  ];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 2);
+});
