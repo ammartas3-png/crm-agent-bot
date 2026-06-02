@@ -9,6 +9,7 @@ import {
   calculateValidLeads,
   getFtdRowsByDateRange,
   getLeadRowsByDateRange,
+  getRowValue,
   rowMatchesFilters,
 } from "../lib/calculations.js";
 
@@ -246,4 +247,11 @@ test("row filters treat Desk as Office-compatible field", () => {
     ),
     true,
   );
+});
+
+test("getRowValue resolves AGENT NAMES from First Call Agent column", () => {
+  const row = {
+    "First Call Agent": "Annalena Gu",
+  };
+  assert.equal(getRowValue(row, "AGENT NAMES"), "Annalena Gu");
 });
