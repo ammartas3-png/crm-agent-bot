@@ -311,3 +311,32 @@ test("ftd count falls back to FTD flag when FTD MAKER is empty", () => {
   };
   assert.equal(calculateFtdCount(localRows, localTabConfig), 2);
 });
+
+test("summary-layout rows without ID are treated as valid report rows", () => {
+  const summaryConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "Agent",
+      ftd: "FTD",
+      crTarget: "CR TARGET",
+      lateFtdPlus30Day: "Late FTD",
+    },
+  };
+  const summaryRows = [
+    {
+      "Working Status": "Working",
+      Agent: "Mehmet Ki",
+      Desk: "Indian Team - TR",
+      Leads: "691",
+      FTD: "96",
+      "CR TARGET": "18.73%",
+      "Late FTD": "5",
+    },
+  ];
+  const metrics = calculateSummary(summaryRows, summaryConfig, { office: "Indian Team - TR" }, NOW);
+  assert.equal(metrics.totalLeads, 691);
+  assert.equal(metrics.totalFtd, 96);
+  assert.equal(metrics.lateFtd, 5);
+});
