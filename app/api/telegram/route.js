@@ -294,6 +294,45 @@ async function loadScopeDraftForRequest(requestId) {
   if (!request || request.status !== "pending") {
     return null;
   }
+  const rows = await loadScopeRowsForDraft();
+  const scope = buildAccessScopeContext(rows, getTabConfig("leads"));
+  return {
+    requestId,
+    mode: "accessRequest",
+    targetUser: request.user,
+    targetId: request.user?.id ? String(request.user.id) : "",
+    targetUsername: request.user?.username ? `@${request.user.username}` : "",
+    scopeTriples: scope.triples,
+    officeOptions: scope.countries,
+    selectedOffices: [],
+    selectedDesks: [],
+    selectedTeams: [],
+    pageByStage: { office: 0, desk: 0, team: 0 },
+    authorityRole: "Manager",
+  };
+}
+
+function parseScopeCellValues(value = "") {
+  const text = String(value || "").trim();
+  if (!text || normalizeText(text) === "all") {
+    return [];
+  }
+  return uniqueSorted(text.split(",").map((item) => item.trim()).filter(Boolean));
+}
+
+function authorityUserFromRow(row = {}) {
+  const username = String(row.telegramUsername || "")
+    .trim()
+    .replace(/^@/, "");
+  const user = {
+    id: row.telegramId || "",
+    username,
+    first_name: row.userName || username || row.telegramId || "Authority User",
+  };
+  return user;
+}
+
+async function loadScopeRowsForDraft() {
   const months = listMonthFiles();
   let officeMonths = [];
   try {
@@ -323,20 +362,142 @@ async function loadScopeDraftForRequest(requestId) {
       console.error("Could not read scope options from month file", month?.key, error);
     }
   }
-  const scope = buildAccessScopeContext(rows, tabConfig);
+  return rows;
+}
+
+async function loadScopeDraftForAuthorityRow(rowNumber) {
+  const rows = await readAuthorityRows();
+  const row = rows.find((item) => Number(item.rowNumber) === Number(rowNumber));
+  if (!row) {
+    return null;
+  }
+  const leadsRows = await loadScopeRowsForDraft();
+  const scope = buildAccessScopeContext(leadsRows, getTabConfig("leads"));
+  const selectedOfficeCountries = uniqueSorted(
+    parseScopeCellValues(row.office).map((officeName) => officeCountryFromOfficeName(officeName)).filter(Boolean),
+  );
   return {
-    requestId,
-    targetUser: request.user,
-    targetId: request.user?.id ? String(request.user.id) : "",
-    targetUsername: request.user?.username ? `@${request.user.username}` : "",
+    requestId: `authority-${row.rowNumber}`,
+    mode: "authorityEdit",
+    authorityRowNumber: row.rowNumber,
+    targetUser: authorityUserFromRow(row),
+    targetId: row.telegramId || "",
+    targetUsername: row.telegramUsername || "",
     scopeTriples: scope.triples,
     officeOptions: scope.countries,
-    selectedOffices: [],
-    selectedDesks: [],
-    selectedTeams: [],
+    selectedOffices: selectedOfficeCountries,
+    selectedDesks: parseScopeCellValues(row.desk),
+    selectedTeams: parseScopeCellValues(row.team),
     pageByStage: { office: 0, desk: 0, team: 0 },
+    authorityRole: row.authority || "Manager",
   };
 }
+
+function accessRequestsRootKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "Pending Requests", callback_data: "root:access_requests:pending" }],
+      [{ text: "Registered Users", callback_data: "root:access_requests:users:0" }],
+      [{ text: "Back to Section Select", callback_data: "root:start" }],
+    ],
+  };
+}
+
+function accessRequestsRootText() {
+  return "Access Management\nChoose what to review:";
+}
+
+function authorityManageListKeyboard(rows = [], page = 0) {
+  const { page: safePage, totalPages, chunk } = paginateList(rows, page, 10);
+  const keyboardRows = chunk.map((row) => [
+    {
+      text: authorityRowDisplayLabel(row),
+      callback_data: `accessManage:user:${row.rowNumber}:${safePage}`,
+    },
+  ]);
+  if (totalPages > 1) {
+    keyboardRows.push([
+      { text: "Previous Page", callback_data: `root:access_requests:users:${Math.max(safePage - 1, 0)}` },
+      { text: "Next Page", callback_data: `root:access_requests:users:${Math.min(safePage + 1, totalPages - 1)}` },
+    ]);
+  }
+  keyboardRows.push([{ text: "Back to Access Management", callback_data: "root:access_requests" }]);
+  return { inline_keyboard: keyboardRows };
+}
+
+async function authorityManageListResponse(page = 0) {
+  const rows = await readAuthorityRows();
+  if (!rows.length) {
+    return { text: "No registered authority users found.", replyMarkup: accessRequestsRootKeyboard() };
+  }
+  const { page: safePage, totalPages, chunk, start } = paginateList(rows, page, 10);
+  const text = [
+    `Registered Users (Page ${safePage + 1}/${totalPages})`,
+    ...chunk.map((row, index) => `${start + index + 1}. ${authorityRowDisplayLabel(row)}`),
+  ].join("\n");
+  return { text, replyMarkup: authorityManageListKeyboard(rows, safePage) };
+}
+
+function authorityManageUserKeyboard(row = {}, page = 0) {
+  return {
+    inline_keyboard: [
+      [{ text: "Edit Permissions", callback_data: `accessManage:edit:${row.rowNumber}:${page}` }],
+      [{ text: "Delete User", callback_data: `accessManage:del:${row.rowNumber}:${page}` }],
+      [{ text: "Back to Registered Users", callback_data: `root:access_requests:users:${page}` }],
+      [{ text: "Back to Access Management", callback_data: "root:access_requests" }],
+    ],
+  };
+}
+
+function authorityManageUserText(row = {}) {
+  return [
+    `User: ${authorityRowDisplayLabel(row)}`,
+    `Office: ${row.office || "all"}`,
+    `Desk: ${row.desk || "all"}`,
+    `Team: ${row.team || "all"}`,
+    `Authority: ${row.authority || "all"}`,
+  ].join("\n");
+}
+
+async function authorityManageUserResponse(rowNumber, page = 0) {
+  const rows = await readAuthorityRows();
+  const row = rows.find((item) => Number(item.rowNumber) === Number(rowNumber));
+  if (!row) {
+    return { text: "User not found.", replyMarkup: accessRequestsRootKeyboard() };
+  }
+  return {
+    text: authorityManageUserText(row),
+    replyMarkup: authorityManageUserKeyboard(row, page),
+  };
+}
+
+function pendingAccessRequestsKeyboard(requests = []) {
+  const rows = requests.slice(0, 20).map((request) => [
+    {
+      text: request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`,
+      callback_data: `access:open:${request.id}`,
+    },
+  ]);
+  rows.push([{ text: "Back to Access Management", callback_data: "root:access_requests" }]);
+  return {
+    inline_keyboard: rows,
+  };
+}
+
+function pendingAccessRequestsText(requests = []) {
+  if (!requests.length) {
+    return "No pending access requests.";
+  }
+  return [
+    `Pending access requests: ${requests.length}`,
+    ...requests.slice(0, 20).map((request, index) => {
+      const label = request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`;
+      return `${index + 1}. ${label} (request: ${request.id})`;
+    }),
+  ].join("\n");
+}
+
+// Legacy command helpers and callbacks below.
 
 function scopeSummaryText(draft = {}) {
   const officeCountries = draft.selectedOffices?.length ? draft.selectedOffices.join(", ") : "all";
@@ -490,31 +651,6 @@ function isAccessRequestsCommand(text) {
   return /^\/?access_requests\b/i.test(String(text || "").trim());
 }
 
-function pendingAccessRequestsKeyboard(requests = []) {
-  const rows = requests.slice(0, 20).map((request) => [
-    {
-      text: request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`,
-      callback_data: `access:open:${request.id}`,
-    },
-  ]);
-  rows.push([{ text: "Back to Section Select", callback_data: "root:start" }]);
-  return {
-    inline_keyboard: rows,
-  };
-}
-
-function pendingAccessRequestsText(requests = []) {
-  if (!requests.length) {
-    return "No pending access requests.";
-  }
-  return [
-    `Pending access requests: ${requests.length}`,
-    ...requests.slice(0, 20).map((request, index) => {
-      const label = request.user?.username ? `@${request.user.username}` : `ID ${request.user?.id || "unknown"}`;
-      return `${index + 1}. ${label} (request: ${request.id})`;
-    }),
-  ].join("\n");
-}
 
 function debugTotalsMonthKeyboard() {
   const months = listMonthFiles({ includeInactive: true });
@@ -616,8 +752,7 @@ export async function POST(request) {
           "Your access request is already waiting for admin approval. Please wait.",
         );
       }
-      const pending = listPendingAccessRequests();
-      return sendMessageWebhookResponse(chatId, pendingAccessRequestsText(pending), pendingAccessRequestsKeyboard(pending));
+      return sendMessageWebhookResponse(chatId, accessRequestsRootText(), accessRequestsRootKeyboard());
     }
 
     const authorityRemoveCommand = !callbackQuery ? parseAuthorityRemoveCommand(text) : null;
@@ -661,6 +796,45 @@ export async function POST(request) {
       }
     }
 
+    if (callbackQuery?.data?.startsWith("accessManage:")) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can manage authority users.");
+      }
+      const [, action, rowValue, pageValue] = callbackQuery.data.split(":");
+      const rowNumber = Number(rowValue);
+      const page = Number(pageValue) || 0;
+      if (action === "user") {
+        const response = await authorityManageUserResponse(rowNumber, page);
+        if (callbackQuery.message?.message_id) {
+          return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, response.text, response.replyMarkup);
+        }
+        return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+      }
+      if (action === "del") {
+        await removeAuthorityRowByNumber(rowNumber);
+        clearAuthorityScopeCache();
+        const listing = await authorityManageListResponse(page);
+        const textMessage = `Authority row ${rowNumber} deleted.\n\n${listing.text}`;
+        if (callbackQuery.message?.message_id) {
+          return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, textMessage, listing.replyMarkup);
+        }
+        return sendMessageWebhookResponse(chatId, textMessage, listing.replyMarkup);
+      }
+      if (action === "edit") {
+        const draft = await loadScopeDraftForAuthorityRow(rowNumber);
+        if (!draft) {
+          return sendMessageWebhookResponse(chatId, "Selected user could not be loaded.");
+        }
+        setSession(userId, { accessScopeDraft: draft });
+        const textMessage = scopeDraftPrompt(draft, "office");
+        const replyMarkup = scopeDraftKeyboard(draft, "office");
+        if (callbackQuery.message?.message_id) {
+          return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, textMessage, replyMarkup);
+        }
+        return sendMessageWebhookResponse(chatId, textMessage, replyMarkup);
+      }
+    }
+
     if (callbackQuery?.data?.startsWith("access:")) {
       if (hasTelegramBotToken()) {
         await answerCallbackQuery(callbackQuery.id).catch((error) => {
@@ -686,6 +860,7 @@ export async function POST(request) {
               { text: "Deny", callback_data: `access:deny:${request.id}` },
             ],
             [{ text: "Grant Scoped Access", callback_data: `access:scope:${request.id}` }],
+            [{ text: "Back to Pending Requests", callback_data: "root:access_requests:pending" }],
           ],
         };
         if (callbackQuery.message?.message_id) {
@@ -763,7 +938,15 @@ export async function POST(request) {
 
       if (action === "cancel") {
         setSession(userId, { accessScopeDraft: null });
-        return sendMessageWebhookResponse(chatId, "Scoped access flow cancelled.");
+        if (draft.mode === "authorityEdit") {
+          const response = await authorityManageUserResponse(draft.authorityRowNumber, 0);
+          const textMessage = `Permission edit cancelled.\n\n${response.text}`;
+          if (callbackQuery.message?.message_id) {
+            return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, textMessage, response.replyMarkup);
+          }
+          return sendMessageWebhookResponse(chatId, textMessage, response.replyMarkup);
+        }
+        return sendMessageWebhookResponse(chatId, "Scoped access flow cancelled.", accessRequestsRootKeyboard());
       }
 
       const stageActions = new Set(["page", "toggle", "all", "clear", "done"]);
@@ -806,6 +989,23 @@ export async function POST(request) {
             return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, responseText, responseMarkup);
           }
           return sendMessageWebhookResponse(chatId, responseText, responseMarkup);
+        }
+        if (draft.mode === "authorityEdit") {
+          await upsertAuthorityUserScope({
+            user: draft.targetUser,
+            offices: officesForSelectedCountries(draft),
+            desks: draft.selectedDesks || [],
+            teams: draft.selectedTeams || [],
+            authorityRole: draft.authorityRole || "Manager",
+          });
+          clearAuthorityScopeCache();
+          setSession(userId, { accessScopeDraft: null });
+          const updated = await authorityManageUserResponse(draft.authorityRowNumber, 0);
+          const updatedText = `Permissions updated.\n${scopeSummaryText(draft)}\n\n${updated.text}`;
+          if (callbackQuery.message?.message_id) {
+            return editMessageWebhookResponse(chatId, callbackQuery.message.message_id, updatedText, updated.replyMarkup);
+          }
+          return sendMessageWebhookResponse(chatId, updatedText, updated.replyMarkup);
         }
         const request = approveAccessRequest(requestId);
         if (!request) {
@@ -968,8 +1168,22 @@ export async function POST(request) {
         if (!isAdminTelegramUser(telegramUser)) {
           return sendMessageWebhookResponse(chatId, "Only admins can review access requests.");
         }
+        return sendMessageWebhookResponse(chatId, accessRequestsRootText(), accessRequestsRootKeyboard());
+      }
+      if (callbackQuery.data === "root:access_requests:pending") {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "Only admins can review access requests.");
+        }
         const pending = listPendingAccessRequests();
         return sendMessageWebhookResponse(chatId, pendingAccessRequestsText(pending), pendingAccessRequestsKeyboard(pending));
+      }
+      if (callbackQuery.data?.startsWith("root:access_requests:users")) {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "Only admins can manage registered users.");
+        }
+        const page = Number(callbackQuery.data.split(":")[3]) || 0;
+        const listing = await authorityManageListResponse(page);
+        return sendMessageWebhookResponse(chatId, listing.text, listing.replyMarkup);
       }
 
       if (callbackQuery.data?.startsWith("dbcheck:")) {
