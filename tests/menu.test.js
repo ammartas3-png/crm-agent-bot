@@ -192,7 +192,7 @@ test("isGreeting opens the menu for hello, start and /start", () => {
 test("mainMenuKeyboard follows required hierarchy order", () => {
   const keyboard = mainMenuKeyboard();
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels.slice(0, 5), ["Office", "Team Leader", "Agent", "Country", "Specific Reports"]);
+  assert.deepEqual(labels.slice(0, 5), ["Desk", "Team Leader", "Agent", "Country", "Specific Reports"]);
 });
 
 test("startMenu asks office first for admin users", async () => {
@@ -212,8 +212,8 @@ test("office selection options are alphabetical", async () => {
   });
   const officeLabels = officeSelect.replyMarkup.inline_keyboard
     .flat()
-    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"))
-    .map((button) => String(button.text).replace(/^✅\s*|^⬜\s*/u, "").trim());
+    .filter((button) => button.callback_data?.startsWith("drill:pick:"))
+    .map((button) => String(button.text).trim());
   const sortedLabels = [...officeLabels].sort((left, right) => left.localeCompare(right));
   assert.deepEqual(officeLabels, sortedLabels);
 });
@@ -267,7 +267,7 @@ test("office drilldown shows summary and child hierarchy", async () => {
     readRows,
     now: NOW,
   });
-  assert.match(officeRoot.text, /Office Results/);
+  assert.match(officeRoot.text, /Desk Results/);
   const officePick = officeRoot.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
@@ -389,7 +389,7 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
     readRows,
     now: NOW,
   });
-  assert.match(officeSelect.text, /Office Results/);
+  assert.match(officeSelect.text, /Desk Results/);
   const officePick = officeSelect.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("drill:pick:"));
@@ -737,7 +737,7 @@ test("multi-month selection supports selecting two months", async () => {
   });
   assert.match(done.text, /Selected Months/i);
   const labels = done.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Office"), true);
+  assert.equal(labels.includes("Desk"), true);
   assert.equal(labels.includes("Team Leader"), true);
   assert.equal(labels.includes("Country"), false);
 });
@@ -897,7 +897,7 @@ test("office is single-select and team leader supports multi-select for export f
     readRows,
     now: NOW,
   });
-  assert.match(officeRoot.text, /Office Results/);
+  assert.match(officeRoot.text, /Desk Results/);
   const officePickButtons = officeRoot.replyMarkup.inline_keyboard
     .flat()
     .filter((button) => button.callback_data?.startsWith("drill:pick:"));
@@ -949,12 +949,12 @@ test("office is single-select and team leader supports multi-select for export f
   const filterLine = matrix
     .slice(0, 6)
     .map((row) => String((row || [])[0] || ""))
-    .find((line) => /Office:\s*|Team Leader:\s*/i.test(line)) || "";
-  assert.equal(/Office:\s*/i.test(filterLine), true);
+    .find((line) => /Desk:\s*|Team Leader:\s*/i.test(line)) || "";
+  assert.equal(/Desk:\s*|Office:\s*/i.test(filterLine), true);
   assert.equal(new RegExp(`Team Leader:\\s*${selectedLeader.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(filterLine), true);
   const headerRow = matrix.find((row) => row.includes("Lead"));
   assert.ok(headerRow);
-  assert.equal(headerRow.includes("Office"), true);
+  assert.equal(headerRow.includes("Desk") || headerRow.includes("Office"), true);
   assert.equal(headerRow.includes("Team Leader"), true);
   const flattened = matrix.flat().map((cell) => String(cell || ""));
   assert.equal(flattened.some((cell) => cell === "Summary (all records)"), false);
@@ -1099,7 +1099,7 @@ test("last 4 months sends ALL excel directly and shows office export option", as
   assert.ok(Buffer.isBuffer(response.documentBuffer));
   assert.match(response.documentFilename, /last4-all-.*\.xlsx$/i);
   const labels = response.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Specific Office Excel"), true);
+  assert.equal(labels.includes("Specific Desk Excel"), true);
   assert.equal(labels.includes("Send ALL Excel Again"), true);
 });
 
@@ -1637,7 +1637,7 @@ test("last 4 months office-specific excel export returns filtered payload", asyn
     readRows,
     now: NOW,
   });
-  assert.match(officeList.text, /Select office/i);
+  assert.match(officeList.text, /Select desk/i);
   const officePick = officeList.replyMarkup.inline_keyboard
     .flat()
     .find((button) => button.callback_data?.startsWith("last4:officePick:"));
@@ -1648,7 +1648,7 @@ test("last 4 months office-specific excel export returns filtered payload", asyn
     readRows,
     now: NOW,
   });
-  assert.match(officeExport.text, /Office Excel sent/i);
+  assert.match(officeExport.text, /Desk Excel sent/i);
   assert.ok(Buffer.isBuffer(officeExport.documentBuffer));
   assert.match(officeExport.documentFilename, /last4-.*\.xlsx$/i);
 });
