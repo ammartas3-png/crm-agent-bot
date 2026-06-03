@@ -9,9 +9,6 @@ export default function Home() {
         Configure Telegram, Google Sheets, and allowed users with environment
         variables before using the bot.
       </p>
-      <p>
-        Report mapping screen: <a href="/report-map">/report-map</a>
-      </p>
     </main>
   );
 }
