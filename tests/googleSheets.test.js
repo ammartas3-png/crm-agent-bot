@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getGoogleCredentialConfig, normalizePrivateKey, readSheetRows } from "../lib/googleSheets.js";
+import { hourlyDistribution } from "../lib/calculations.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
@@ -198,10 +199,129 @@ test("readSheetRows aligns headerless Leads rows when Department column is missi
   });
 
   assert.equal(rows.length, 1);
+  assert.equal(rows[0]["Created"], "2026-01-14");
   assert.equal(rows[0]["Status"], "No Answer");
   assert.equal(rows[0]["Country"], "Pakistan");
+  assert.equal(rows[0]["Sub-Campaign"], "Sub 1");
+  assert.equal(rows[0]["Placement"], "Placement 1");
   assert.equal(rows[0]["FTD"], "1");
   assert.equal(rows[0]["FTD MAKER"], "Maker One");
   assert.equal(rows[0]["Desk"], "Pakistan Urdu Desk");
   assert.equal(rows[0]["Lead Date"], "2026-01-14");
+});
+
+test("hourly distribution uses Created from headerless Leads rows", async () => {
+  const rows = await readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "January 26 Pakistan Leads",
+      range: "'January 26 Pakistan Leads'!A:Y",
+      columns: [
+        "Brand",
+        "ID",
+        "Created",
+        "Department",
+        "Status",
+        "Country",
+        "Campaign",
+        "Sub-Campaign",
+        "Placement",
+        "First Call Agent",
+        "Team Leader",
+        "FTD",
+        null,
+        "FTD MAKER",
+        "Desk",
+        "CR TARGET",
+        "FTD DATE",
+        "Selfs",
+        "LATE FTD Difrrence",
+        "LATE FTD +30 Day",
+        "Diffrent Month",
+        "AGENT NAMES",
+        "Agent ID",
+        null,
+        "Lead Date",
+      ],
+      fields: {
+        id: "ID",
+        created: "Created",
+        leadDate: "Lead Date",
+        ftdDate: "FTD DATE",
+        ftd: "FTD",
+        ftdMaker: "FTD MAKER",
+        crTarget: "CR TARGET",
+        differentMonth: "Diffrent Month",
+        selfsIndicator: "Selfs",
+      },
+    },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({
+            data: {
+              values: [
+                [
+                  "Brand A",
+                  "1001",
+                  "2026-01-14T08:10:00Z",
+                  "No Answer",
+                  "Pakistan",
+                  "Camp 1",
+                  "Sub 1",
+                  "Placement 1",
+                  "Agent One",
+                  "Team One",
+                  "1",
+                  "",
+                  "Maker One",
+                  "Pakistan Urdu Desk",
+                  "6%",
+                  "2026-01-20",
+                  "0",
+                  "0",
+                  "0",
+                  "",
+                  "Agent One",
+                  "A-1001",
+                  "",
+                  "2026-01-14",
+                ],
+                [
+                  "Brand A",
+                  "1002",
+                  "2026-01-14T09:40:00Z",
+                  "Callback",
+                  "Pakistan",
+                  "Camp 1",
+                  "Sub 2",
+                  "Placement 2",
+                  "Agent Two",
+                  "Team One",
+                  "0",
+                  "",
+                  "",
+                  "Pakistan Urdu Desk",
+                  "6%",
+                  "",
+                  "0",
+                  "0",
+                  "0",
+                  "",
+                  "Agent Two",
+                  "A-1002",
+                  "",
+                  "2026-01-14",
+                ],
+              ],
+            },
+          }),
+        },
+      },
+    },
+  });
+
+  const distribution = hourlyDistribution(rows, { fields: { created: "Created", id: "ID" } }, {});
+  assert.equal(distribution.some((item) => item.label === "08:00"), true);
+  assert.equal(distribution.some((item) => item.label === "09:00"), true);
 });
