@@ -371,6 +371,69 @@ test("office drilldown shows summary and child hierarchy", async () => {
   assert.match(selectedAgents.text, /Agent in selected Team Leaders|Agent/);
 });
 
+test("desk drill fallback avoids dead-end on stale callback field", async () => {
+  await selectMonthAndTotalDate(137, { telegramUser: { id: 137, username: "regular" } });
+  const deskRoot = await handleMenuCallback(137, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  const staleNext = await handleMenuCallback(137, "drill:listNext:invalid", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  assert.doesNotMatch(staleNext.text, /No deeper breakdown available/);
+  assert.ok(deskRoot);
+});
+
+test("non-last4 reports read only selected month spreadsheet", async () => {
+  const seenLeadSheetIds = [];
+  const readRowsSingleMonth = async (tabKey, options = {}) => {
+    if (tabKey === "leads") {
+      seenLeadSheetIds.push(String(options.spreadsheetId || ""));
+      return leadRows;
+    }
+    if (tabKey === "infoAgents") {
+      return infoAgentsRows;
+    }
+    return [];
+  };
+  await startMenu(138);
+  await handleMenuCallback(138, "month:2026-05", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsSingleMonth,
+    now: NOW,
+  });
+  await handleMenuCallback(138, "date:month", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsSingleMonth,
+    now: NOW,
+  });
+  const deskRoot = await handleMenuCallback(138, "report:office", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsSingleMonth,
+    now: NOW,
+  });
+  const pick = deskRoot.replyMarkup.inline_keyboard
+    .flat()
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(pick);
+  await handleMenuCallback(138, pick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsSingleMonth,
+    now: NOW,
+  });
+  assert.equal(seenLeadSheetIds.length > 0, true);
+  assert.equal(seenLeadSheetIds.every((id) => id === "sheet-may-test"), true);
+});
+
 test("agent flow leads to detailed metrics and back buttons", async () => {
   await selectMonthAndTotalDate(101);
 
