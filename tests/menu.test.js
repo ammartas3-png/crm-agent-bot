@@ -1266,6 +1266,13 @@ test("last 4 months excludes agents not working in current info agents", async (
           Office: "Office A",
           "Team Leader": "Leader A",
         },
+        {
+          "Working Status": "Working",
+          "Agent Name": "Old Agent",
+          "Agent Target": "10",
+          Office: "Office Z",
+          "Team Leader": "Leader Z",
+        },
       ];
     }
     if (tabKey === "leads") {
