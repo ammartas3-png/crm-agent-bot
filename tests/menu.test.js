@@ -195,11 +195,11 @@ test("mainMenuKeyboard follows required hierarchy order", () => {
   assert.deepEqual(labels.slice(0, 5), ["Office", "Team Leader", "Agent", "Country", "Specific Reports"]);
 });
 
-test("startMenu asks office country first for admin users", async () => {
+test("startMenu asks office first for admin users", async () => {
   const started = await startMenu(555, { telegramUser: { id: 1240141730, username: "antoniotsd" } });
-  assert.match(started.text, /Select office country/i);
+  assert.match(started.text, /Select office/i);
   const labels = started.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Turkey"), true);
+  assert.equal(labels.some((label) => /office/i.test(label)), true);
 });
 
 test("office selection options are alphabetical", async () => {

@@ -145,11 +145,12 @@ function buildAccessScopeContext(rows = [], tabConfig) {
   const triples = [];
   const seen = new Set();
   for (const row of rows) {
+    const scopeOfficeName = String(row.__scopeOfficeName || "").trim();
     const office = String(getRowValue(row, officeField) || "").trim();
     const desk = String(getRowValue(row, deskField) || "").trim();
     const teamLeader = String(getRowValue(row, teamLeaderField) || "").trim();
     const team = teamLeader;
-    const country = officeCountryFromOfficeName(office);
+    const country = officeCountryFromOfficeName(scopeOfficeName || office);
     const key = `${country.toLocaleLowerCase("en-US")}::${office.toLocaleLowerCase("en-US")}::${desk.toLocaleLowerCase(
       "en-US",
     )}::${team.toLocaleLowerCase(
@@ -171,37 +172,36 @@ function buildAccessScopeContext(rows = [], tabConfig) {
 }
 
 function officesForSelectedCountries(draft = {}) {
-  const triples = draft.scopeTriples || [];
-  const selectedCountries = new Set(draft.selectedOffices || []);
-  const officeValues = uniqueSorted(
-    triples
-      .filter((item) => (selectedCountries.size ? selectedCountries.has(item.country) : true))
-      .map((item) => item.office),
-  );
-  if (officeValues.length) {
-    return officeValues;
-  }
-  if (selectedCountries.size) {
-    return uniqueSorted([...selectedCountries]);
+  const selectedOffices = uniqueSorted(draft.selectedOffices || []);
+  if (selectedOffices.length) {
+    return selectedOffices;
   }
   return [];
 }
 
+function selectedCountriesFromOfficeOptions(selectedOffices = []) {
+  const countries = selectedOffices
+    .map((officeName) => officeCountryFromOfficeName(officeName))
+    .filter(Boolean);
+  return new Set(countries);
+}
+
 function valuesForScopeStage(draft = {}, stage = "office") {
   const triples = draft.scopeTriples || [];
-  const selectedOffices = new Set(draft.selectedOffices || []);
+  const selectedOffices = uniqueSorted(draft.selectedOffices || []);
+  const selectedCountries = selectedCountriesFromOfficeOptions(selectedOffices);
   const selectedDesks = new Set(draft.selectedDesks || []);
   if (stage === "office") {
     return uniqueSorted(draft.officeOptions || []);
   }
   if (stage === "desk") {
-    const filtered = selectedOffices.size
-      ? triples.filter((item) => selectedOffices.has(item.country))
+    const filtered = selectedCountries.size
+      ? triples.filter((item) => selectedCountries.has(item.country))
       : triples;
     return uniqueSorted(filtered.map((item) => item.desk));
   }
-  const filteredByOffice = selectedOffices.size
-    ? triples.filter((item) => selectedOffices.has(item.country))
+  const filteredByOffice = selectedCountries.size
+    ? triples.filter((item) => selectedCountries.has(item.country))
     : triples;
   const filteredByDesk = selectedDesks.size
     ? filteredByOffice.filter((item) => selectedDesks.has(item.desk))
@@ -296,6 +296,15 @@ async function loadScopeDraftForRequest(requestId) {
   }
   const rows = await loadScopeRowsForDraft();
   const scope = buildAccessScopeContext(rows, getTabConfig("leads"));
+  let officeOptions = scope.countries;
+  try {
+    const officeMap = await getOfficeMonthMap();
+    if (Array.isArray(officeMap.offices) && officeMap.offices.length) {
+      officeOptions = officeMap.offices;
+    }
+  } catch {
+    officeOptions = scope.countries;
+  }
   return {
     requestId,
     mode: "accessRequest",
@@ -303,7 +312,7 @@ async function loadScopeDraftForRequest(requestId) {
     targetId: request.user?.id ? String(request.user.id) : "",
     targetUsername: request.user?.username ? `@${request.user.username}` : "",
     scopeTriples: scope.triples,
-    officeOptions: scope.countries,
+    officeOptions,
     selectedOffices: [],
     selectedDesks: [],
     selectedTeams: [],
@@ -362,10 +371,18 @@ async function loadScopeRowsForDraft() {
   const monthRows = await Promise.all(
     [...uniqueMonthsBySheetId.values()].map(async (month) => {
       try {
-        return await readSheetRows("leads", {
+        const rows = await readSheetRows("leads", {
           tabConfig,
           spreadsheetId: month?.sheet_id,
         });
+        const scopeOfficeName = String(month?.office_name || "").trim();
+        if (!scopeOfficeName) {
+          return rows;
+        }
+        return rows.map((row) => ({
+          ...row,
+          __scopeOfficeName: scopeOfficeName,
+        }));
       } catch (error) {
         console.error("Could not read scope options from month file", month?.key, error);
         return [];
@@ -383,9 +400,16 @@ async function loadScopeDraftForAuthorityRow(rowNumber) {
   }
   const leadsRows = await loadScopeRowsForDraft();
   const scope = buildAccessScopeContext(leadsRows, getTabConfig("leads"));
-  const selectedOfficeCountries = uniqueSorted(
-    parseScopeCellValues(row.office).map((officeName) => officeCountryFromOfficeName(officeName)).filter(Boolean),
-  );
+  const selectedOffices = parseScopeCellValues(row.office);
+  let officeOptions = scope.countries;
+  try {
+    const officeMap = await getOfficeMonthMap();
+    if (Array.isArray(officeMap.offices) && officeMap.offices.length) {
+      officeOptions = officeMap.offices;
+    }
+  } catch {
+    officeOptions = scope.countries;
+  }
   return {
     requestId: `authority-${row.rowNumber}`,
     mode: "authorityEdit",
@@ -394,8 +418,8 @@ async function loadScopeDraftForAuthorityRow(rowNumber) {
     targetId: row.telegramId || "",
     targetUsername: row.telegramUsername || "",
     scopeTriples: scope.triples,
-    officeOptions: scope.countries,
-    selectedOffices: selectedOfficeCountries,
+    officeOptions,
+    selectedOffices,
     selectedDesks: parseScopeCellValues(row.desk),
     selectedTeams: parseScopeCellValues(row.team),
     pageByStage: { office: 0, desk: 0, team: 0 },
@@ -510,12 +534,12 @@ function pendingAccessRequestsText(requests = []) {
 // Legacy command helpers and callbacks below.
 
 function scopeSummaryText(draft = {}) {
-  const officeCountries = draft.selectedOffices?.length ? draft.selectedOffices.join(", ") : "all";
+  const officeScopes = draft.selectedOffices?.length ? draft.selectedOffices.join(", ") : "all";
   const resolvedOffices = officesForSelectedCountries(draft);
   const offices = resolvedOffices.length ? resolvedOffices.join(", ") : "all";
   const desks = draft.selectedDesks?.length ? draft.selectedDesks.join(", ") : "all";
   const teams = draft.selectedTeams?.length ? draft.selectedTeams.join(", ") : "all";
-  return [`Office Country: ${officeCountries}`, `Office: ${offices}`, `Desk: ${desks}`, `Team: ${teams}`].join("\n");
+  return [`Office Scope: ${officeScopes}`, `Office: ${offices}`, `Desk: ${desks}`, `Team: ${teams}`].join("\n");
 }
 
 function setScopeStageSelection(draft = {}, stage = "office", values = []) {
