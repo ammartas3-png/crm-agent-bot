@@ -525,6 +525,39 @@ test("ftd count recognizes apostrophe-prefixed text flags", () => {
   assert.equal(calculateFtdCount(localRows, localTabConfig), 1);
 });
 
+test("different month flag ignores zero values", () => {
+  const localRows = [
+    { ID: "1", "Diffrent Month": "0" },
+    { ID: "2", "Diffrent Month": "" },
+    { ID: "3", "Diffrent Month": "1" },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      differentMonth: "Diffrent Month",
+    },
+  };
+  const result = calculateValidLeads(localRows, localTabConfig);
+  assert.equal(result.rawLeadCount, 3);
+  assert.equal(result.differentMonthCount, 1);
+  assert.equal(result.totalLeads, 2);
+});
+
+test("ftd count sums numeric FTD values from leads rows", () => {
+  const localRows = [
+    { FTD: "2", "FTD MAKER": "" },
+    { FTD: "1", "FTD MAKER": "Closer X" },
+    { FTD: "0", "FTD MAKER": "Closer Y" },
+  ];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 4);
+});
+
 test("summary-layout rows without ID are treated as valid report rows", () => {
   const summaryConfig = {
     fields: {
