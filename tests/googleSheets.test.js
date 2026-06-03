@@ -122,3 +122,86 @@ test("readSheetRows falls back to configured column when header cell is blank", 
   assert.equal(rows[0]["Agent"], "Ahmet");
   assert.equal(rows[0]["Starting Date"], "13/02/2022");
 });
+
+test("readSheetRows aligns headerless Leads rows when Department column is missing", async () => {
+  const rows = await readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "January 26 Pakistan Leads",
+      range: "'January 26 Pakistan Leads'!A:Y",
+      columns: [
+        "Brand",
+        "ID",
+        "Created",
+        "Department",
+        "Status",
+        "Country",
+        "Campaign",
+        "Sub-Campaign",
+        "Placement",
+        "First Call Agent",
+        "Team Leader",
+        "FTD",
+        null,
+        "FTD MAKER",
+        "Desk",
+        "CR TARGET",
+        "FTD DATE",
+        "Selfs",
+        "LATE FTD Difrrence",
+        "LATE FTD +30 Day",
+        "Diffrent Month",
+        "AGENT NAMES",
+        "Agent ID",
+        null,
+        "Lead Date",
+      ],
+    },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({
+            data: {
+              values: [
+                [
+                  "Brand A",
+                  "1001",
+                  "2026-01-14",
+                  "No Answer",
+                  "Pakistan",
+                  "Camp 1",
+                  "Sub 1",
+                  "Placement 1",
+                  "Agent One",
+                  "Team One",
+                  "1",
+                  "",
+                  "Maker One",
+                  "Pakistan Urdu Desk",
+                  "6%",
+                  "2026-01-20",
+                  "0",
+                  "0",
+                  "0",
+                  "",
+                  "Agent One",
+                  "A-1001",
+                  "",
+                  "2026-01-14",
+                ],
+              ],
+            },
+          }),
+        },
+      },
+    },
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]["Status"], "No Answer");
+  assert.equal(rows[0]["Country"], "Pakistan");
+  assert.equal(rows[0]["FTD"], "1");
+  assert.equal(rows[0]["FTD MAKER"], "Maker One");
+  assert.equal(rows[0]["Desk"], "Pakistan Urdu Desk");
+  assert.equal(rows[0]["Lead Date"], "2026-01-14");
+});
