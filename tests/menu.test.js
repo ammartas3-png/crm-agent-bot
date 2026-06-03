@@ -192,7 +192,13 @@ test("isGreeting opens the menu for hello, start and /start", () => {
 test("mainMenuKeyboard follows required hierarchy order", () => {
   const keyboard = mainMenuKeyboard();
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels.slice(0, 5), ["Desk", "Team Leader", "Agent", "Country", "Specific Reports"]);
+  assert.deepEqual(labels.slice(0, 5), [
+    "By Desk Results",
+    "By Team Leader Results",
+    "By Agent Results",
+    "By Country Results",
+    "Specific Reports",
+  ]);
 });
 
 test("startMenu asks office first for admin users", async () => {
@@ -761,9 +767,9 @@ test("multi-month selection supports selecting two months", async () => {
   });
   assert.match(done.text, /Selected Months/i);
   const labels = done.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Desk"), true);
-  assert.equal(labels.includes("Team Leader"), true);
-  assert.equal(labels.includes("Country"), false);
+  assert.equal(labels.includes("By Desk Results"), true);
+  assert.equal(labels.includes("By Team Leader Results"), true);
+  assert.equal(labels.includes("By Country Results"), false);
 });
 
 test("specific reports include hourly and country comparison", async () => {
@@ -776,9 +782,9 @@ test("specific reports include hourly and country comparison", async () => {
   });
   assert.match(specificMenu.text, /Specific Reports/);
   const labels = specificMenu.replyMarkup.inline_keyboard.flat().map((button) => button.text);
-  assert.equal(labels.includes("Hourly Leads"), true);
+  assert.equal(labels.includes("By Hourly"), true);
   assert.equal(labels.includes("Country Comparison"), true);
-  assert.equal(labels.includes("Best Performers"), true);
+  assert.equal(labels.includes("Best Performance"), true);
 
   const hourly = await handleMenuCallback(105, "special:hourly", {
     tabConfig,
@@ -799,7 +805,7 @@ test("best performers drill supports agent to country to placement flow", async 
     readRows,
     now: NOW,
   });
-  assert.match(bestMenu.text, /Best Performers/);
+  assert.match(bestMenu.text, /Best Performance/);
   const bestAgentList = await handleMenuCallback(131, "special:bestAgents", {
     tabConfig,
     infoAgentsTabConfig,
