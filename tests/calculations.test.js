@@ -300,6 +300,34 @@ test("permission filters use normalized dataset values from explicit leads field
   assert.deepEqual(rows.map((row) => row.ID), ["A-1"]);
 });
 
+test("permission office filter uses explicit Office or scoped office, not Desk field", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "C-1",
+      __scopeOfficeName: "Turkey Office",
+      Desk: "Turkey English",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent One",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    office: ["Turkey Office"],
+    desk: ["Turkey English"],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["C-1"]);
+});
+
 test("permission debug identifies unmatched allowed values", () => {
   const permissiveTabConfig = {
     fields: {
