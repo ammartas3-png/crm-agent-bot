@@ -1334,6 +1334,76 @@ test("last 4 months uses latest-month desk assignment for historical rows", asyn
   assert.equal(officeOptions.some((label) => /Old Desk/.test(label)), false);
 });
 
+test("last 4 months keeps no-lead working agents with desk from latest info agents", async () => {
+  const tabConfigDesk = {
+    fields: {
+      ...tabConfig.fields,
+      office: "Desk",
+      desk: "Desk",
+      department: "Department",
+    },
+  };
+  const readRowsNoLeadRoster = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Lead Agent",
+          "Agent Target": "10",
+          Office: "Turkey Office",
+          "Team Leader": "Leader A",
+        },
+        {
+          "Working Status": "Working",
+          "Agent Name": "Ersin K",
+          "Agent Target": "10",
+          Desk: "Turkey Japanese",
+          "Team Leader": "Ersin K",
+        },
+      ];
+    }
+    if (tabKey === "leads") {
+      return [
+        {
+          ID: `L-${options.spreadsheetId || "x"}`,
+          Created: "12/04/2026 10:00:00",
+          "Lead Date": "12/04/2026",
+          Country: "Turkey",
+          Campaign: "Campaign A",
+          Desk: "Turkey Office",
+          "Team Leader": "Leader A",
+          "AGENT NAMES": "Lead Agent",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer 1",
+          "FTD DATE": "12/04/2026 11:00:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+
+  const response = await handleMenuCallback(153, "month:last4", {
+    tabConfig: tabConfigDesk,
+    infoAgentsTabConfig,
+    readRows: readRowsNoLeadRoster,
+    now: NOW,
+  });
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerRowIndex = matrix.findIndex((row) => row.includes("Desk") && row.includes("Agent"));
+  assert.ok(headerRowIndex >= 0);
+  const deskColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Desk");
+  assert.ok(deskColumnIndex >= 0);
+  const ersinRow = matrix.find((row) => row.includes("Ersin K"));
+  assert.ok(ersinRow);
+  assert.equal(String(ersinRow[deskColumnIndex] || ""), "Turkey Japanese");
+});
+
 test("last 4 months uses month-specific targets in monthly breakdown", async () => {
   const leadTemplate = {
     Created: "12/04/2026 10:00:00",
