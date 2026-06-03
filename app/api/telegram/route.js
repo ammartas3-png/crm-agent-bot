@@ -140,13 +140,13 @@ function officeCountryFromOfficeName(office = "") {
 
 function buildAccessScopeContext(rows = [], tabConfig) {
   const officeField = getFieldName(tabConfig, "office");
-  const deskField = getFieldName(tabConfig, "office");
+  const deskField = getFieldName(tabConfig, "desk") || getFieldName(tabConfig, "office");
   const teamLeaderField = getFieldName(tabConfig, "teamLeader");
   const triples = [];
   const seen = new Set();
   for (const row of rows) {
     const scopeOfficeName = String(row.__scopeOfficeName || "").trim();
-    const office = String(getRowValue(row, officeField) || "").trim();
+    const office = String(scopeOfficeName || getRowValue(row, officeField) || "").trim();
     const desk = String(getRowValue(row, deskField) || "").trim();
     const teamLeader = String(getRowValue(row, teamLeaderField) || "").trim();
     const team = teamLeader;
@@ -179,29 +179,22 @@ function officesForSelectedCountries(draft = {}) {
   return [];
 }
 
-function selectedCountriesFromOfficeOptions(selectedOffices = []) {
-  const countries = selectedOffices
-    .map((officeName) => officeCountryFromOfficeName(officeName))
-    .filter(Boolean);
-  return new Set(countries);
-}
-
 function valuesForScopeStage(draft = {}, stage = "office") {
   const triples = draft.scopeTriples || [];
   const selectedOffices = uniqueSorted(draft.selectedOffices || []);
-  const selectedCountries = selectedCountriesFromOfficeOptions(selectedOffices);
+  const selectedOfficeSet = new Set(selectedOffices);
   const selectedDesks = new Set(draft.selectedDesks || []);
   if (stage === "office") {
     return uniqueSorted(draft.officeOptions || []);
   }
   if (stage === "desk") {
-    const filtered = selectedCountries.size
-      ? triples.filter((item) => selectedCountries.has(item.country))
+    const filtered = selectedOfficeSet.size
+      ? triples.filter((item) => selectedOfficeSet.has(item.office))
       : triples;
     return uniqueSorted(filtered.map((item) => item.desk));
   }
-  const filteredByOffice = selectedCountries.size
-    ? triples.filter((item) => selectedCountries.has(item.country))
+  const filteredByOffice = selectedOfficeSet.size
+    ? triples.filter((item) => selectedOfficeSet.has(item.office))
     : triples;
   const filteredByDesk = selectedDesks.size
     ? filteredByOffice.filter((item) => selectedDesks.has(item.desk))
@@ -342,30 +335,35 @@ function authorityUserFromRow(row = {}) {
 }
 
 async function loadScopeRowsForDraft() {
-  const months = listMonthFiles()
-    .filter((item) => item?.active !== false)
-    .sort((left, right) => String(right?.key || "").localeCompare(String(left?.key || "")))
-    .slice(0, 8);
   let officeMonths = [];
   try {
     const officeMap = await getOfficeMonthMap();
-    officeMonths = Object.values(officeMap.byCountry || {})
-      .flatMap((items) =>
-        [...(Array.isArray(items) ? items : [])]
-          .sort((left, right) => String(right?.key || "").localeCompare(String(left?.key || "")))
-          .slice(0, 2),
-      )
+    officeMonths = Object.values(officeMap.byOffice || {})
+      .flatMap((items) => [...(Array.isArray(items) ? items : [])])
       .filter(Boolean);
   } catch {
     officeMonths = [];
   }
   const uniqueMonthsBySheetId = new Map();
-  for (const month of [...months, ...officeMonths]) {
+  for (const month of officeMonths) {
     const sheetId = String(month?.sheet_id || "").trim();
     if (!sheetId || uniqueMonthsBySheetId.has(sheetId)) {
       continue;
     }
     uniqueMonthsBySheetId.set(sheetId, month);
+  }
+  if (!uniqueMonthsBySheetId.size) {
+    const fallbackMonths = listMonthFiles()
+      .filter((item) => item?.active !== false)
+      .sort((left, right) => String(right?.key || "").localeCompare(String(left?.key || "")))
+      .slice(0, 6);
+    for (const month of fallbackMonths) {
+      const sheetId = String(month?.sheet_id || "").trim();
+      if (!sheetId || uniqueMonthsBySheetId.has(sheetId)) {
+        continue;
+      }
+      uniqueMonthsBySheetId.set(sheetId, month);
+    }
   }
   const tabConfig = getTabConfig("leads");
   const monthRows = await Promise.all(
