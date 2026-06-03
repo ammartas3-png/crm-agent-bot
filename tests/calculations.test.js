@@ -404,6 +404,37 @@ test("ftd date filtering falls back to Created when FTD DATE is missing", () => 
   assert.equal(ftdRows.length, 1);
 });
 
+test("ftd date filtering falls back to Created when FTD DATE is invalid text", () => {
+  const localRows = [
+    {
+      ID: "F-3",
+      Created: "12/05/2026 11:00:00",
+      "FTD DATE": "invalid-date",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      created: "Created",
+      ftdDate: "FTD DATE",
+      ftdMaker: "FTD MAKER",
+      ftd: "FTD",
+    },
+  };
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    localTabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+  assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
+});
+
 test("ftd date and count support alternate FTD header names", () => {
   const localRows = [
     {
