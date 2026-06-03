@@ -419,6 +419,17 @@ test("ftd count falls back to FTD flag when FTD MAKER is empty", () => {
   assert.equal(calculateFtdCount(localRows, localTabConfig), 2);
 });
 
+test("ftd count recognizes apostrophe-prefixed text flags", () => {
+  const localRows = [{ FTD: "'1", "FTD MAKER": "" }];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 1);
+});
+
 test("summary-layout rows without ID are treated as valid report rows", () => {
   const summaryConfig = {
     fields: {
