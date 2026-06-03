@@ -1717,6 +1717,85 @@ test("last 4 months all excel includes starting date column at the end", async (
   );
 });
 
+test("last 4 months all excel shows agent Desk instead of scoped office name", async () => {
+  const userId = 151;
+  const tabConfigWithDesk = {
+    fields: {
+      ...tabConfig.fields,
+      office: "Desk",
+      desk: "Desk",
+      department: "Department",
+    },
+  };
+  const deskLeadRows = [
+    {
+      ID: "TR-1",
+      Created: "12/06/2026 10:00:00",
+      "Lead Date": "12/06/2026",
+      Country: "Turkey",
+      Campaign: "Campaign A",
+      "Sub-Campaign": "Sub A1",
+      Placement: "Placement A1",
+      Office: "Turkiye Office",
+      Desk: "Turkey English Desk",
+      "Team Leader": "Aaron Gu",
+      "AGENT NAMES": "Can Be",
+      Status: "Potential",
+      FTD: "1",
+      "FTD MAKER": "Closer 1",
+      "FTD DATE": "12/06/2026 10:30:00",
+      "CR TARGET": "10%",
+      Selfs: "0",
+    },
+  ];
+  const infoRows = [
+    {
+      "Working Status": "Working",
+      "Agent Name": "Can Be",
+      "Agent Target": "10",
+      Office: "Turkiye Office",
+      "Team Leader": "Aaron Gu",
+    },
+  ];
+  const readRowsDeskPriority = async (tabKey) => {
+    if (tabKey === "infoAgents") {
+      return infoRows;
+    }
+    return deskLeadRows;
+  };
+
+  setSession(userId, {
+    officeMonthFiles: [
+      {
+        key: "2026-05",
+        sheet_id: "sheet-may-test",
+        month_label: "May 2026",
+        office_name: "Turkiye Office",
+      },
+    ],
+    last3MonthKeys: ["2026-05"],
+    monthLabel: "May 2026",
+  });
+  const response = await handleMenuCallback(userId, "month:last4", {
+    tabConfig: tabConfigWithDesk,
+    infoAgentsTabConfig,
+    readRows: readRowsDeskPriority,
+    now: NOW,
+  });
+
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerRowIndex = matrix.findIndex((row) => row.includes("Desk"));
+  assert.ok(headerRowIndex >= 0);
+  const deskColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Desk");
+  assert.ok(deskColumnIndex >= 0);
+  const agentRow = matrix.find((row) => row.includes("Can Be"));
+  assert.ok(agentRow);
+  assert.equal(String(agentRow[deskColumnIndex] || ""), "Turkey English Desk");
+});
+
 test("last 4 months office-specific excel export returns filtered payload", async () => {
   await handleMenuCallback(118, "month:last4", {
     tabConfig,
