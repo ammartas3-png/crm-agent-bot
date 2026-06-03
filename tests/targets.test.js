@@ -64,6 +64,12 @@ test("info context drives membership and target aggregation", () => {
   assert.equal(context.duplicateNormalizedAgents.length, 0);
 });
 
+test("office-filtered team leader and agent lists do not fall back to all", () => {
+  const context = buildInfoAgentsContext(infoRows);
+  assert.deepEqual(infoAgentsLabelsForGroup(context, "teamLeader", { office: "argentina office" }), []);
+  assert.deepEqual(infoAgentsLabelsForGroup(context, "agentNames", { office: "argentina office" }), []);
+});
+
 test("summarizeTarget sums unique agents", () => {
   const map = buildAgentTargetsMap(infoRows);
   assert.equal(summarizeTarget(["Ahmet", " ahmet ", "Max"], map), 15);
