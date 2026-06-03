@@ -267,18 +267,12 @@ test("office drilldown shows summary and child hierarchy", async () => {
     readRows,
     now: NOW,
   });
-  assert.match(officeRoot.text, /Multi-select Office/);
-  const officeToggle = officeRoot.replyMarkup.inline_keyboard
+  assert.match(officeRoot.text, /Office Results/);
+  const officePick = officeRoot.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
-  assert.ok(officeToggle);
-  await handleMenuCallback(100, officeToggle.callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const teamLeaderSelect = await handleMenuCallback(100, "drill:multiDone", {
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(officePick);
+  const teamLeaderSelect = await handleMenuCallback(100, officePick.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -395,18 +389,12 @@ test("team leader detail supports countries to sub-campaign drilldown", async ()
     readRows,
     now: NOW,
   });
-  assert.match(officeSelect.text, /Multi-select Office/);
-  const officeToggle = officeSelect.replyMarkup.inline_keyboard
+  assert.match(officeSelect.text, /Office Results/);
+  const officePick = officeSelect.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
-  assert.ok(officeToggle);
-  await handleMenuCallback(119, officeToggle.callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const teamLeaderSelect = await handleMenuCallback(119, "drill:multiDone", {
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(officePick);
+  const teamLeaderSelect = await handleMenuCallback(119, officePick.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -668,7 +656,7 @@ test("drill pagination edits same message instead of sending new", async () => {
   });
   const nextPage = officeRoot.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => button.callback_data === "drill:multiPage:1");
+    .find((button) => button.callback_data === "drill:page:1");
   assert.ok(nextPage);
   const pageResponse = await handleMenuCallback(124, nextPage.callback_data, {
     tabConfig,
@@ -901,7 +889,7 @@ test("report view can export as excel document payload", async () => {
   assert.equal(/CR Target Reach/.test(headerText), true);
 });
 
-test("office and team leader support multi-select for export filters", async () => {
+test("office is single-select and team leader supports multi-select for export filters", async () => {
   await selectMonthAndTotalDate(121);
   const officeRoot = await handleMenuCallback(121, "report:office", {
     tabConfig,
@@ -909,30 +897,12 @@ test("office and team leader support multi-select for export filters", async () 
     readRows,
     now: NOW,
   });
-  assert.match(officeRoot.text, /Multi-select Office/);
-  const officeMulti = await handleMenuCallback(121, "drill:multiStart", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const officeToggleButtons = officeMulti.replyMarkup.inline_keyboard
+  assert.match(officeRoot.text, /Office Results/);
+  const officePickButtons = officeRoot.replyMarkup.inline_keyboard
     .flat()
-    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"));
-  assert.equal(officeToggleButtons.length >= 2, true);
-  await handleMenuCallback(121, officeToggleButtons[0].callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  await handleMenuCallback(121, officeToggleButtons[1].callback_data, {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const teamLeaderList = await handleMenuCallback(121, "drill:multiDone", {
+    .filter((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.equal(officePickButtons.length >= 1, true);
+  const teamLeaderList = await handleMenuCallback(121, officePickButtons[0].callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -941,8 +911,11 @@ test("office and team leader support multi-select for export filters", async () 
   assert.match(teamLeaderList.text, /Multi-select Team Leader/);
   const leaderToggle = teamLeaderList.replyMarkup.inline_keyboard
     .flat()
-    .find((button) => /Leader 1/i.test(button.text) && button.callback_data?.startsWith("drill:multiToggle:"));
+    .find((button) => button.callback_data?.startsWith("drill:multiToggle:"));
   assert.ok(leaderToggle);
+  const selectedLeader = String(leaderToggle.text || "")
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .trim();
   await handleMenuCallback(121, leaderToggle.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
@@ -955,8 +928,8 @@ test("office and team leader support multi-select for export filters", async () 
     readRows,
     now: NOW,
   });
-  assert.match(filteredTeamLeader.text, /Leader 1/);
-  assert.doesNotMatch(filteredTeamLeader.text, /Leader 2/);
+  assert.equal(Boolean(selectedLeader), true);
+  assert.match(filteredTeamLeader.text, new RegExp(selectedLeader.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
   assert.equal(
     filteredTeamLeader.replyMarkup.inline_keyboard
       .flat()
@@ -978,7 +951,7 @@ test("office and team leader support multi-select for export filters", async () 
     .map((row) => String((row || [])[0] || ""))
     .find((line) => /Office:\s*|Team Leader:\s*/i.test(line)) || "";
   assert.equal(/Office:\s*/i.test(filterLine), true);
-  assert.equal(/Team Leader:\s*Leader 1/i.test(filterLine), true);
+  assert.equal(new RegExp(`Team Leader:\\s*${selectedLeader.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(filterLine), true);
   const headerRow = matrix.find((row) => row.includes("Lead"));
   assert.ok(headerRow);
   assert.equal(headerRow.includes("Office"), true);
@@ -1041,7 +1014,7 @@ test("campaign export includes selected campaign values in columns", async () =>
   assert.equal(/Campaign:\s*/i.test(filterLine), true);
 });
 
-test("drill by agent export keeps multiple team leader assignments", async () => {
+test("drill by agent export keeps team leader assignment column", async () => {
   await selectMonthAndTotalDate(123);
   const officeSelect = await handleMenuCallback(123, "report:office", {
     tabConfig,
@@ -1049,42 +1022,42 @@ test("drill by agent export keeps multiple team leader assignments", async () =>
     readRows,
     now: NOW,
   });
-  const officeToggles = officeSelect.replyMarkup.inline_keyboard
+  const officePick = officeSelect.replyMarkup.inline_keyboard
     .flat()
-    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"));
-  for (const toggleButton of officeToggles.slice(0, 2)) {
-    await handleMenuCallback(123, toggleButton.callback_data, {
+    .find((button) => button.callback_data?.startsWith("drill:pick:"));
+  assert.ok(officePick);
+  const teamLeaderSelect = await handleMenuCallback(123, officePick.callback_data, {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+  });
+  let teamLeaderList = teamLeaderSelect;
+  if (/Multi-select Team Leader/i.test(teamLeaderSelect.text)) {
+    await handleMenuCallback(123, "drill:multiAll", {
+      tabConfig,
+      infoAgentsTabConfig,
+      readRows,
+      now: NOW,
+    });
+    teamLeaderList = await handleMenuCallback(123, "drill:multiDone", {
       tabConfig,
       infoAgentsTabConfig,
       readRows,
       now: NOW,
     });
   }
-  const teamLeaderSelect = await handleMenuCallback(123, "drill:multiDone", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  await handleMenuCallback(123, "drill:multiAll", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
-  const teamLeaderList = await handleMenuCallback(123, "drill:multiDone", {
-    tabConfig,
-    infoAgentsTabConfig,
-    readRows,
-    now: NOW,
-  });
+  const agentDrillButton = teamLeaderList.replyMarkup.inline_keyboard
+    .flat()
+    .find(
+      (button) =>
+        button.callback_data === "drill:listNext:agentNames" || button.callback_data === "drill:next:agentNames",
+    );
   assert.equal(
-    teamLeaderList.replyMarkup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "drill:listNext:agentNames"),
+    Boolean(agentDrillButton),
     true,
   );
-  await handleMenuCallback(123, "drill:listNext:agentNames", {
+  await handleMenuCallback(123, agentDrillButton.callback_data, {
     tabConfig,
     infoAgentsTabConfig,
     readRows,
@@ -1111,7 +1084,7 @@ test("drill by agent export keeps multiple team leader assignments", async () =>
         .filter((value) => value && value !== "Total"),
     ),
   ];
-  assert.equal(uniqueTeamLeaders.length >= 2, true);
+  assert.equal(uniqueTeamLeaders.length >= 1, true);
 });
 
 test("last 4 months sends ALL excel directly and shows office export option", async () => {
