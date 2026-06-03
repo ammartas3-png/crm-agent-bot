@@ -258,6 +258,30 @@ test("authority scope restricts reports by office and desk", async () => {
   assert.equal(labels.some((label) => /Mia/i.test(label)), false);
 });
 
+test("authority scope with only team leader permission does not require office permission", async () => {
+  await selectMonthAndTotalDate(136);
+  const agentSelect = await handleMenuCallback(136, "report:agent", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows,
+    now: NOW,
+    authorityScope: {
+      allowed: true,
+      unrestricted: false,
+      filters: {
+        teamLeader: [" Leader 2 "],
+      },
+    },
+  });
+  const labels = agentSelect.replyMarkup.inline_keyboard
+    .flat()
+    .filter((button) => button.callback_data?.startsWith("drill:multiToggle:"))
+    .map((button) => String(button.text));
+  assert.equal(labels.some((label) => /Mia/i.test(label)), true);
+  assert.equal(labels.some((label) => /Ahmet/i.test(label)), false);
+  assert.equal(labels.some((label) => /Max/i.test(label)), false);
+});
+
 test("office drilldown shows summary and child hierarchy", async () => {
   await selectMonthAndTotalDate(100, { telegramUser: { id: 100, username: "regular" } });
 

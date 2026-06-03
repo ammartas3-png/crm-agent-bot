@@ -7,9 +7,12 @@ import {
   calculateLateFtdCount,
   calculateSummary,
   calculateValidLeads,
+  filterRowsByPermission,
   getFtdRowsByDateRange,
   getLeadRowsByDateRange,
   getRowValue,
+  normalizeText,
+  permissionFilterDebug,
   rowMatchesFilters,
 } from "../lib/calculations.js";
 
@@ -247,6 +250,82 @@ test("row filters treat Desk as Office-compatible field", () => {
     ),
     true,
   );
+});
+
+test("normalizeText collapses spacing and hidden unicode characters", () => {
+  const first = normalizeText(" Turkey  French ");
+  const second = normalizeText("turkey french");
+  const third = normalizeText("Turkey\u00A0French");
+  const fourth = normalizeText("Turkey\u200BFrench");
+  assert.equal(first, "turkey french");
+  assert.equal(second, "turkey french");
+  assert.equal(third, "turkey french");
+  assert.equal(fourth, "turkey french");
+});
+
+test("permission filters use normalized dataset values from explicit leads fields", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "A-1",
+      Office: "Turkey French",
+      Desk: "TR Desk 1",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent One",
+      Country: "Turkey",
+    },
+    {
+      ID: "A-2",
+      Office: "Turkey German",
+      Desk: "TR Desk 2",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent Two",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    office: [" turkey  french "],
+    desk: ["TR Desk 1"],
+    teamLeader: [" rafik b "],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["A-1"]);
+});
+
+test("permission debug identifies unmatched allowed values", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "B-1",
+      Office: "Turkey French",
+      Desk: "TR Desk 1",
+      "Team Leader": "Leader A",
+      "AGENT NAMES": "Agent A",
+      Country: "Turkey",
+    },
+  ];
+  const debug = permissionFilterDebug(dataset, permissiveTabConfig, {
+    office: ["Turkey French", "Pakistan Office"],
+  });
+  assert.deepEqual(debug.matchedByField.office, ["turkey french"]);
+  assert.deepEqual(debug.unmatchedByField.office, ["pakistan office"]);
 });
 
 test("getRowValue resolves AGENT NAMES from First Call Agent column", () => {

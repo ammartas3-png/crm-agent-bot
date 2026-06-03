@@ -45,7 +45,14 @@ import {
   shouldAskScopeFollowUp,
 } from "../../../lib/queryRouter.js";
 import { checkSheetsConnection, formatSheetsDiagnostic, safeError } from "../../../lib/diagnostics.js";
-import { filteredRows, getFieldName, getRowValue, normalizeText } from "../../../lib/calculations.js";
+import {
+  filterRowsByPermission,
+  filteredRows,
+  getFieldName,
+  getRowValue,
+  normalizeText,
+  permissionFilterDebug,
+} from "../../../lib/calculations.js";
 import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
 import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
@@ -613,14 +620,8 @@ async function authorityListResponse(page = 0) {
 }
 
 function buildScopedReadRows(authorityScope = {}, now = new Date()) {
-  const scopeFilters = scopeFiltersFromAuthority(authorityScope);
   return async (tabKey, options = {}) => {
-    const rows = await readSheetRows(tabKey, options);
-    if (tabKey !== "leads" || !Object.keys(scopeFilters).length) {
-      return rows;
-    }
-    const tabConfig = options.tabConfig || getTabConfig("leads");
-    return filteredRows(rows, tabConfig, scopeFilters, now);
+    return readSheetRows(tabKey, options);
   };
 }
 
@@ -643,6 +644,10 @@ function isWhoAmICommand(text) {
   return /^\/?(whoami|me)\b/i.test(String(text || "").trim());
 }
 
+function isDebugAccessCommand(text) {
+  return /^\/?debug_access\b/i.test(String(text || "").trim());
+}
+
 function formatUserIdentity(telegramUser) {
   const principals = telegramUserPrincipals(telegramUser);
   return [
@@ -652,12 +657,88 @@ function formatUserIdentity(telegramUser) {
   ].join("\n");
 }
 
+function formatValueList(values = [], limit = 10) {
+  const normalized = [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!normalized.length) {
+    return "-";
+  }
+  if (normalized.length <= limit) {
+    return normalized.join(", ");
+  }
+  return `${normalized.slice(0, limit).join(", ")} (+${normalized.length - limit} more)`;
+}
+
+async function buildDebugAccessReport({ telegramUser, authorityScope, userId, now = new Date() }) {
+  const isAdmin = isAdminTelegramUser(telegramUser) || Boolean(authorityScope?.unrestricted);
+  const authorityFilters = scopeFiltersFromAuthority(authorityScope);
+  const permissionFilters = isAdmin ? {} : authorityFilters;
+  const session = getSession(userId) || {};
+  const month = session?.monthKey ? getMonthFile(session.monthKey, { includeInactive: true }) : null;
+  const selectedSpreadsheetId = session?.spreadsheetId || month?.sheet_id || undefined;
+  const selectedFilters = session?.view?.filters || session?.view?.baseFilters || {};
+  const leadsTabConfig = getTabConfig("leads");
+  const leadsRows = await readSheetRows("leads", {
+    tabConfig: leadsTabConfig,
+    ...(selectedSpreadsheetId ? { spreadsheetId: selectedSpreadsheetId } : {}),
+  });
+  const permissionRows = filterRowsByPermission(leadsRows, leadsTabConfig, permissionFilters);
+  const selectedRows = filteredRows(permissionRows, leadsTabConfig, selectedFilters, now);
+  const permissionDebug = permissionFilterDebug(leadsRows, leadsTabConfig, permissionFilters);
+  const allowedDesks = [
+    ...(Array.isArray(authorityFilters.desk) ? authorityFilters.desk : []),
+    ...(Array.isArray(authorityFilters.officeOrDepartment) ? authorityFilters.officeOrDepartment : []),
+  ];
+  const lines = [
+    "Access Debug",
+    `Telegram username: ${telegramUser?.username ? `@${telegramUser.username}` : "-"}`,
+    `Telegram ID: ${telegramUser?.id ?? "-"}`,
+    `is_admin: ${isAdmin}`,
+    `allowed offices: ${formatValueList(authorityFilters.office || [])}`,
+    `allowed desks: ${formatValueList(allowedDesks)}`,
+    `allowed team leaders: ${formatValueList(authorityFilters.teamLeader || [])}`,
+    `allowed agents: ${formatValueList(authorityFilters.agent || [])}`,
+    `selected month: ${session?.monthLabel || month?.month_label || "-"}`,
+    `selected report type: ${session?.reportType || session?.view?.groupField || "-"}`,
+    `dataset total rows before permission filter: ${leadsRows.length}`,
+    `rows after permission filter: ${permissionRows.length}`,
+    `rows after selected report filter: ${selectedRows.length}`,
+    "",
+    `matched office values: ${formatValueList(permissionDebug.matchedByField.office || [])}`,
+    `unmatched office values: ${formatValueList(permissionDebug.unmatchedByField.office || [])}`,
+    `matched desk values: ${formatValueList(permissionDebug.matchedByField.desk || [])}`,
+    `unmatched desk values: ${formatValueList(permissionDebug.unmatchedByField.desk || [])}`,
+    `matched team leader values: ${formatValueList(permissionDebug.matchedByField.teamLeader || [])}`,
+    `unmatched team leader values: ${formatValueList(permissionDebug.unmatchedByField.teamLeader || [])}`,
+    `matched agent values: ${formatValueList(permissionDebug.matchedByField.agent || [])}`,
+    `unmatched agent values: ${formatValueList(permissionDebug.unmatchedByField.agent || [])}`,
+    `matched country values: ${formatValueList(permissionDebug.matchedByField.country || [])}`,
+    `unmatched country values: ${formatValueList(permissionDebug.unmatchedByField.country || [])}`,
+  ];
+  if (permissionRows.length === 0 && Object.keys(permissionFilters).length > 0) {
+    lines.push(
+      "",
+      `permission filter causing 0: ${permissionDebug.culpritField || "unknown"}`,
+      `available values (${permissionDebug.culpritField || "office"}): ${formatValueList(
+        permissionDebug.availableByField[permissionDebug.culpritField || "office"] || [],
+      )}`,
+      `user allowed values (${permissionDebug.culpritField || "office"}): ${formatValueList(
+        permissionDebug.normalizedFilters[permissionDebug.culpritField || "office"] || [],
+      )}`,
+      `normalized comparison examples: ${formatValueList(
+        (permissionDebug.steps || []).map((step) => `${step.field}:${step.before}->${step.after}`),
+      )}`,
+    );
+  }
+  return lines.join("\n");
+}
+
 function formatAllowHelp() {
   return [
     "Admin access commands:",
     "- /allow <telegram-id-or-username>",
     "- /deny <telegram-id-or-username>",
     "- /allowlist",
+    "- /debug_access",
     "- /authority_users",
     "- /authority_remove <telegram-id-or-username>",
   ].join("\n");
@@ -727,6 +808,11 @@ export async function POST(request) {
 
     if (!callbackQuery && isWhoAmICommand(text)) {
       return sendMessageWebhookResponse(chatId, formatUserIdentity(telegramUser));
+    }
+
+    if (!callbackQuery && isDebugAccessCommand(text)) {
+      const debugText = await buildDebugAccessReport({ telegramUser, authorityScope, userId, now });
+      return sendMessageWebhookResponse(chatId, debugText);
     }
 
     const allowCommand = !callbackQuery ? parseAllowCommand(text) : null;
