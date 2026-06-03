@@ -466,6 +466,39 @@ test("ftd date and count support alternate FTD header names", () => {
   assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
 });
 
+test("ftd rows include created-date fallback when FTD DATE is outside filter month", () => {
+  const localRows = [
+    {
+      ID: "F-4",
+      Created: "12/05/2026 11:00:00",
+      "Lead Date": "12/05/2026",
+      "FTD DATE": "10/04/2026 09:00:00",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      created: "Created",
+      leadDate: "Lead Date",
+      ftdDate: "FTD DATE",
+      ftdMaker: "FTD MAKER",
+      ftd: "FTD",
+    },
+  };
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    localTabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+  assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
+});
+
 test("ftd count falls back to FTD flag when FTD MAKER is empty", () => {
   const localRows = [
     { FTD: "1", "FTD MAKER": "" },
