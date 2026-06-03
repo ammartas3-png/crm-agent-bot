@@ -1272,6 +1272,68 @@ test("last 4 months maps historical agents using current month info agents", asy
   assert.equal(officeOptions.some((label) => /OldOffice/.test(label)), false);
 });
 
+test("last 4 months uses latest-month desk assignment for historical rows", async () => {
+  const tabConfigDesk = {
+    fields: {
+      ...tabConfig.fields,
+      office: "Desk",
+      desk: "Desk",
+      department: "Department",
+    },
+  };
+  const readRowsDeskByMonth = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "Mover",
+          "Agent Target": "20",
+          Office: "Turkey Office",
+          "Team Leader": "Latest Leader",
+        },
+      ];
+    }
+    if (tabKey === "leads") {
+      const isLatestMonth = String(options.spreadsheetId || "") === "sheet-may-test";
+      return [
+        {
+          ID: `D-${options.spreadsheetId || "x"}`,
+          Created: "12/04/2026 10:00:00",
+          "Lead Date": "12/04/2026",
+          Country: "Turkey",
+          Campaign: "Campaign Move",
+          Desk: isLatestMonth ? "New Desk" : "Old Desk",
+          "Team Leader": isLatestMonth ? "New Leader" : "Old Leader",
+          "AGENT NAMES": "Mover",
+          Status: "Potential",
+          FTD: "1",
+          "FTD MAKER": "Closer Move",
+          "FTD DATE": "12/04/2026 11:00:00",
+          "CR TARGET": "10%",
+          Selfs: "0",
+        },
+      ];
+    }
+    return [];
+  };
+
+  await handleMenuCallback(152, "month:last4", {
+    tabConfig: tabConfigDesk,
+    infoAgentsTabConfig,
+    readRows: readRowsDeskByMonth,
+    now: NOW,
+  });
+  const office = await handleMenuCallback(152, "report:office", {
+    tabConfig: tabConfigDesk,
+    infoAgentsTabConfig,
+    readRows: readRowsDeskByMonth,
+    now: NOW,
+  });
+  const officeOptions = office.replyMarkup.inline_keyboard.flat().map((button) => button.text);
+  assert.equal(officeOptions.some((label) => /New Desk/.test(label)), true);
+  assert.equal(officeOptions.some((label) => /Old Desk/.test(label)), false);
+});
+
 test("last 4 months uses month-specific targets in monthly breakdown", async () => {
   const leadTemplate = {
     Created: "12/04/2026 10:00:00",
