@@ -1673,6 +1673,84 @@ test("last 4 months office-specific excel export returns filtered payload", asyn
   assert.match(officeExport.documentFilename, /last4-.*\.xlsx$/i);
 });
 
+test("last 4 months uses Pakistan B-column agent for starting date lookup", async () => {
+  const pakistanLeadRows = [
+    {
+      ID: "PK-1",
+      Created: "12/06/2026 10:00:00",
+      "Lead Date": "12/06/2026",
+      Country: "Pakistan",
+      Desk: "Indian Team - TR",
+      Campaign: "Campaign PK",
+      "Sub-Campaign": "Sub PK",
+      Placement: "Placement PK",
+      Office: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      "AGENT NAMES": "David Ke",
+      Status: "Potential",
+      FTD: "1",
+      "FTD MAKER": "Closer PK",
+      "FTD DATE": "12/06/2026 11:00:00",
+      "CR TARGET": "10%",
+      Selfs: "0",
+    },
+  ];
+  const readRowsPakistanLayout = async (tabKey, options = {}) => {
+    if (tabKey === "infoAgents") {
+      if (String(options.tabConfig?.range || "").includes("!A:L")) {
+        if (Array.isArray(options.tabConfig?.columns) && options.tabConfig.columns.includes("A")) {
+          return [
+            {
+              A: "Working",
+              B: "David Ke",
+              C: "Asad kh",
+              G: "Indian Team - TR",
+              L: "25/09/2023",
+            },
+          ];
+        }
+        return [
+          {
+            "Working Status": "Working",
+            LANG: "David Ke",
+            Agent: "Asad kh",
+            Desk: "Indian Team - TR",
+            "Starting Date": "25/09/2023",
+          },
+        ];
+      }
+      return [
+        {
+          "Working Status": "Working",
+          "Agent Name": "David Ke",
+          Office: "Indian Team - TR",
+          "Team Leader": "Asad kh",
+          "Agent Target": "10",
+        },
+      ];
+    }
+    return pakistanLeadRows;
+  };
+
+  const response = await handleMenuCallback(144, "month:last4", {
+    tabConfig,
+    infoAgentsTabConfig,
+    readRows: readRowsPakistanLayout,
+    now: NOW,
+  });
+  assert.ok(Buffer.isBuffer(response.documentBuffer));
+  const workbook = XLSX.read(response.documentBuffer, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+  const headerRowIndex = matrix.findIndex((row) => row.includes("Starting Date"));
+  assert.ok(headerRowIndex >= 0);
+  const entryColumnIndex = matrix[headerRowIndex].findIndex((cell) => cell === "Starting Date");
+  assert.ok(entryColumnIndex >= 0);
+  const davidRow = matrix.find((row) => row.includes("David Ke"));
+  assert.ok(davidRow);
+  assert.equal(String(davidRow[entryColumnIndex] || ""), "25/09/2023");
+});
+
 test("hourly report accepts custom date range", async () => {
   await selectMonthAndTotalDate(106);
   await handleMenuCallback(106, "special:hourly", {
