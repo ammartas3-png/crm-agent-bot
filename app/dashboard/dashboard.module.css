@@ -12,6 +12,8 @@
     sans-serif;
   display: grid;
   gap: 4px;
+  align-content: start;
+  grid-auto-rows: min-content;
 }
 
 .panel {
@@ -28,10 +30,10 @@
   justify-content: space-between;
   gap: 8px;
   align-items: center;
-  min-height: 46px;
-  height: 46px;
-  max-height: 46px;
-  overflow: hidden;
+  min-height: 44px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   align-content: start;
 }
 
@@ -463,6 +465,85 @@
 
 @media (max-width: 940px) {
   .filterRow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reportModeGrid {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .reportModeCard {
+    min-width: 0;
+    width: calc(50% - 6px);
+  }
+
+  .officeGrid {
+    gap: 8px;
+  }
+
+  .officeCard {
+    min-width: 112px;
+    min-height: 78px;
+    padding: 8px;
+  }
+
+  .topBarTitle {
+    font-size: 16px;
+  }
+
+  .topBarSubtitle {
+    font-size: 9px;
+  }
+
+  .button {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .section {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .filterRow {
+    grid-template-columns: 1fr;
+  }
+
+  .reportModeCard {
+    width: 100%;
+    min-height: 84px;
+  }
+
+  .officeCard {
+    width: 100%;
+    max-width: 180px;
+  }
+
+  .reportHeader {
+    gap: 6px;
+  }
+
+  .reportHeaderTitle {
+    font-size: 16px;
+  }
+
+  .reportHeaderSubtitle {
+    font-size: 12px;
+  }
+
+  .cardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .statusGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
