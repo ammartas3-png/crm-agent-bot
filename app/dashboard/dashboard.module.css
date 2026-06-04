@@ -349,9 +349,29 @@
 }
 
 .chipActive {
-  border-color: #2563eb;
-  color: #1d4ed8;
-  background: #eff6ff;
+  border-color: #16a34a;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.chipInner {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.chipCheck {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
 }
 
 .loadingCard {

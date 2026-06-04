@@ -131,7 +131,10 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
               onClick={() => onToggle(item.key)}
               className={`${styles.chip} ${active ? styles.chipActive : ""}`}
             >
-              {item.label}
+              <span className={styles.chipInner}>
+                {active ? <span className={styles.chipCheck}>✓</span> : null}
+                <span>{item.label}</span>
+              </span>
             </button>
           );
         })}
