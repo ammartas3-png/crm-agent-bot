@@ -773,7 +773,11 @@ export default function DashboardPage() {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
-    setReportState((prev) => ({ ...prev, loading: true, error: "" }));
+    setReportState({
+      loading: true,
+      report: null,
+      error: "",
+    });
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
       const query = buildReportQuery(appliedFilters);
