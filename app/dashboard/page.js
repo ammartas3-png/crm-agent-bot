@@ -41,7 +41,7 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
 
 function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 6, minWidth: 160, flex: 1 }}>
+    <label style={{ display: "grid", gap: 6, minWidth: 150, flex: 1 }}>
       <span style={{ fontSize: 12, color: "#475569", fontWeight: 700 }}>{label}</span>
       <select
         value={value}
@@ -50,9 +50,8 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
         style={{
           border: "1px solid #cbd5e1",
           borderRadius: 8,
-          padding: "9px 11px",
+          padding: "8px 10px",
           background: disabled ? "#f8fafc" : "#fff",
-          color: "#0f172a",
           fontSize: 14,
         }}
       >
@@ -69,52 +68,67 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
 
 function SummaryCards({ summary }) {
   const items = [
-    { label: "Total Leads", value: formatNumber(summary.totalLeads) },
-    { label: "Total FTD", value: formatNumber(summary.totalFtd) },
-    { label: "FTD Target", value: formatNumber(summary.ftdTarget) },
-    { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach) },
-    { label: "CR", value: formatPercent(summary.cr) },
-    { label: "CR Target", value: formatPercent(summary.crTarget) },
-    { label: "CR Target Reach", value: formatPercent(summary.crTargetReach) },
+    ["Total Leads", formatNumber(summary.totalLeads)],
+    ["Total FTD", formatNumber(summary.totalFtd)],
+    ["FTD Target", formatNumber(summary.ftdTarget)],
+    ["FTD Target Reach", formatPercent(summary.ftdTargetReach)],
+    ["CR", formatPercent(summary.cr)],
+    ["CR Target", formatPercent(summary.crTarget)],
+    ["CR Target Reach", formatPercent(summary.crTargetReach)],
   ];
   return (
     <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-      {items.map((item) => (
-        <div
-          key={item.label}
-          style={{
-            border: "1px solid #dbe3ee",
-            borderRadius: 10,
-            background: "#fff",
-            padding: 12,
-          }}
-        >
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>{item.label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>{item.value}</div>
+      {items.map(([label, value]) => (
+        <div key={label} style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12 }}>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>{label}</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>{value}</div>
         </div>
       ))}
     </div>
   );
 }
 
-function ReportTable({ rows }) {
+function StatusCards({ stats = {} }) {
+  const items = [
+    ["Total Agent", formatNumber(stats.totalAgent)],
+    ["Team Leader Total", formatNumber(stats.teamLeaderTotal)],
+    ["Desk Total", formatNumber(stats.deskTotal)],
+    ["Total Target Achieved", formatNumber(stats.totalTargetAchieved)],
+    ["Rate Of Target Achieved", formatPercent(stats.rateOfTargetAchieved)],
+  ];
+  return (
+    <div
+      style={{
+        border: "1px solid #dbe3ee",
+        borderRadius: 10,
+        background: "#fff",
+        padding: 12,
+        display: "grid",
+        gap: 8,
+        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+      }}
+    >
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>{value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SimpleTable({ rows = [] }) {
   return (
     <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 950 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
         <thead>
           <tr style={{ background: "#f8fafc" }}>
             {["Group", "Leads", "FTD", "FTD Target", "FTD Target Reach", "CR", "CR Target", "CR Target Reach", "Selfs", "Late FTD"].map(
               (header) => (
                 <th
                   key={header}
-                  style={{
-                    textAlign: "left",
-                    padding: "10px 12px",
-                    fontSize: 12,
-                    color: "#334155",
-                    borderBottom: "1px solid #dbe3ee",
-                    whiteSpace: "nowrap",
-                  }}
+                  style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}
                 >
                   {header}
                 </th>
@@ -125,22 +139,22 @@ function ReportTable({ rows }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.monthKey || row.label}>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.label}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.ftdTargetReach)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTargetReach)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
-              <td style={{ padding: "9px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.label}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.ftdTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
             </tr>
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={10} style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
-                No data found for selected filters.
+              <td colSpan={10} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+                No rows found.
               </td>
             </tr>
           ) : null}
@@ -150,22 +164,86 @@ function ReportTable({ rows }) {
   );
 }
 
+function PivotTable({ rows = [], summary = {} }) {
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1150 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            {[
+              "Desk",
+              "Team Leader",
+              "Agent",
+              "Leads",
+              "FTD",
+              "Selfs",
+              "Late FTD +30 Day",
+              "CR",
+              "CR Target",
+              "CR Target Reach",
+              "FTD Target",
+              "FTD Target Reach",
+            ].map((header) => (
+              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.desk}-${row.teamLeader}-${row.agent}`}>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.ftdTargetReach)}</td>
+            </tr>
+          ))}
+          <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>Grand total</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalLeads)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalFtd)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.selfs)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.lateFtd)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.cr)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTarget)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTargetReach)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.ftdTarget)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.ftdTargetReach)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const EMPTY_FILTERS = {
-  reportMode: "monthly",
+  officeScope: "",
+  reportMode: "",
   specificType: "hourly",
   monthKey: "",
-  officeScope: "",
   desk: "",
   country: "",
   brand: "",
   campaign: "",
   placement: "",
+  status: "",
   teamLeader: "",
   agent: "",
   groupBy: "agent",
 };
 
-function filterOptions(values = []) {
+function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
 }
 
@@ -203,8 +281,8 @@ export default function DashboardPage() {
       });
       setFilters((prev) => ({
         ...prev,
-        monthKey: prev.monthKey || payload.bootstrap?.defaultMonthKey || "",
         officeScope: prev.officeScope || (officeScopes.length === 1 ? officeScopes[0] : ""),
+        monthKey: prev.monthKey || payload.bootstrap?.defaultMonthKey || "",
       }));
     } catch {
       setSessionState((prev) => ({
@@ -216,8 +294,8 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !filters.officeScope || !filters.monthKey) {
-      setReportState((prev) => ({ ...prev, report: null }));
+    if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
+      setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
     setReportState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -241,24 +319,26 @@ export default function DashboardPage() {
       });
       const options = payload.report?.options || {};
       setFilters((prev) => {
-        const normalized = { ...prev };
-        const checks = [
+        const next = { ...prev };
+        if (!next.monthKey && Array.isArray(options.months) && options.months.length) {
+          next.monthKey = options.months[0].key;
+        }
+        const dependencyChecks = [
           ["desk", options.desks || []],
           ["country", options.countries || []],
           ["brand", options.brands || []],
           ["campaign", options.campaigns || []],
           ["placement", options.placements || []],
+          ["status", options.statuses || []],
           ["teamLeader", options.teamLeaders || []],
           ["agent", options.agents || []],
         ];
-        let changed = false;
-        for (const [key, values] of checks) {
-          if (normalized[key] && !values.includes(normalized[key])) {
-            normalized[key] = "";
-            changed = true;
+        for (const [key, values] of dependencyChecks) {
+          if (next[key] && !values.includes(next[key])) {
+            next[key] = "";
           }
         }
-        return changed ? normalized : prev;
+        return next;
       });
     } catch (error) {
       setReportState({
@@ -311,9 +391,9 @@ export default function DashboardPage() {
 
   const report = reportState.report;
   const options = report?.options || {};
-
+  const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
   const monthOptions = useMemo(() => {
-    const source = (options.months || sessionState.bootstrap.months || []).slice();
+    const source = options.months || sessionState.bootstrap.months || [];
     return source.map((item) => ({
       value: item.key,
       label: item.office_name ? `${item.month_label} — ${item.office_name}` : item.month_label,
@@ -373,9 +453,7 @@ export default function DashboardPage() {
     return (
       <main style={{ fontFamily: "Arial, sans-serif", padding: 24, display: "grid", gap: 12 }}>
         <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
-        <p style={{ margin: 0, color: "#b91c1c" }}>
-          Your Telegram account is logged in but not authorized for this dashboard.
-        </p>
+        <p style={{ margin: 0, color: "#b91c1c" }}>Your Telegram account is logged in but not authorized for this dashboard.</p>
         <button
           type="button"
           onClick={handleLogout}
@@ -387,8 +465,8 @@ export default function DashboardPage() {
     );
   }
 
-  const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
-  const officeStepRequired = !filters.officeScope;
+  const needOfficeSelection = !filters.officeScope;
+  const needReportSelection = !needOfficeSelection && !filters.reportMode;
 
   return (
     <main
@@ -430,10 +508,10 @@ export default function DashboardPage() {
         </button>
       </section>
 
-      {officeStepRequired ? (
+      {needOfficeSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Step 1: Select Office</h2>
-          <p style={{ margin: 0, color: "#64748b" }}>Please choose your office first. Then filters will load for that office.</p>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
+          <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {officeOptions.map((office) => (
               <button
@@ -443,22 +521,19 @@ export default function DashboardPage() {
                   setFilters((prev) => ({
                     ...prev,
                     officeScope: office,
+                    reportMode: "",
+                    monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
                     desk: "",
                     country: "",
                     brand: "",
                     campaign: "",
                     placement: "",
+                    status: "",
                     teamLeader: "",
                     agent: "",
                   }))
                 }
-                style={{
-                  border: "1px solid #cbd5e1",
-                  borderRadius: 999,
-                  padding: "8px 12px",
-                  background: "#fff",
-                  cursor: "pointer",
-                }}
+                style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
               >
                 {office}
               </button>
@@ -467,142 +542,155 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section
-        style={{
-          border: "1px solid #dbe3ee",
-          borderRadius: 10,
-          background: "#fff",
-          padding: 12,
-          display: "grid",
-          gap: 10,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 17 }}>Report Filters</h2>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <SelectFilter
-            label="Report Type"
-            value={filters.reportMode}
-            options={[
-              { value: "monthly", label: "Monthly CRM Report" },
-              { value: "last4", label: "Last 4 Months Report" },
-              { value: "specific", label: "Specific Reports" },
-            ]}
-            onChange={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                reportMode: value,
-                specificType: value === "specific" ? prev.specificType || "hourly" : "",
-              }))
-            }
-            placeholder="Select report type"
-            disabled={officeStepRequired}
-          />
-          {filters.reportMode === "specific" ? (
+      {needReportSelection ? (
+        <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "hourly" }))}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+            >
+              Monthly Report
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "hourly" }))}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+            >
+              Last 4 Months Report
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "hourly" }))}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+            >
+              Specific Reports
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {!needOfficeSelection && !needReportSelection ? (
+        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
+            <button
+              type="button"
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
+              style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+            >
+              Change Report Type
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <SelectFilter
-              label="Specific Report"
-              value={filters.specificType}
-              options={[
-                { value: "hourly", label: "By Hourly FTD" },
-                { value: "best_agents", label: "Best Agents" },
-              ]}
-              onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
-              placeholder="Select specific report"
-              disabled={officeStepRequired}
+              label="Office"
+              value={filters.officeScope}
+              options={officeOptions.map((value) => ({ value, label: value }))}
+              onChange={(value) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  officeScope: value,
+                  reportMode: "",
+                  desk: "",
+                  country: "",
+                  brand: "",
+                  campaign: "",
+                  placement: "",
+                  status: "",
+                  teamLeader: "",
+                  agent: "",
+                }))
+              }
             />
-          ) : null}
-          <SelectFilter
-            label="Office"
-            value={filters.officeScope}
-            options={officeOptions.map((value) => ({ value, label: value }))}
-            onChange={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                officeScope: value,
-                desk: "",
-                country: "",
-                brand: "",
-                campaign: "",
-                placement: "",
-                teamLeader: "",
-                agent: "",
-              }))
-            }
-            disabled={false}
-          />
-          <SelectFilter
-            label="Month"
-            value={filters.monthKey}
-            options={monthOptions}
-            onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
-            placeholder="Select month"
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Desk"
-            value={filters.desk}
-            options={filterOptions(options.desks || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Team Leader"
-            value={filters.teamLeader}
-            options={filterOptions(options.teamLeaders || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Agent"
-            value={filters.agent}
-            options={filterOptions(options.agents || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Country"
-            value={filters.country}
-            options={filterOptions(options.countries || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Brand"
-            value={filters.brand}
-            options={filterOptions(options.brands || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Campaign"
-            value={filters.campaign}
-            options={filterOptions(options.campaigns || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Placement"
-            value={filters.placement}
-            options={filterOptions(options.placements || [])}
-            onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
-            disabled={officeStepRequired}
-          />
-          <SelectFilter
-            label="Table Group"
-            value={filters.groupBy}
-            options={[
-              { value: "agent", label: "Agent" },
-              { value: "teamLeader", label: "Team Leader" },
-              { value: "desk", label: "Desk" },
-              { value: "country", label: "Country" },
-              { value: "brand", label: "Brand" },
-              { value: "campaign", label: "Campaign" },
-              { value: "placement", label: "Placement" },
-            ]}
-            onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
-            disabled={officeStepRequired || filters.reportMode === "last4"}
-          />
-        </div>
-      </section>
+            {filters.reportMode !== "last4" ? (
+              <SelectFilter
+                label="Month"
+                value={filters.monthKey}
+                options={monthOptions}
+                onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
+                placeholder="Select month"
+              />
+            ) : null}
+            {filters.reportMode === "specific" ? (
+              <SelectFilter
+                label="Specific Report"
+                value={filters.specificType}
+                options={[
+                  { value: "hourly", label: "By Hourly FTD" },
+                  { value: "best_agents", label: "Best Agents" },
+                ]}
+                onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
+                placeholder="Select specific report"
+              />
+            ) : null}
+            <SelectFilter
+              label="Desk"
+              value={filters.desk}
+              options={asOptions(options.desks || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
+            />
+            <SelectFilter
+              label="Team Leader"
+              value={filters.teamLeader}
+              options={asOptions(options.teamLeaders || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
+            />
+            <SelectFilter
+              label="Agent"
+              value={filters.agent}
+              options={asOptions(options.agents || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
+            />
+            <SelectFilter
+              label="Country"
+              value={filters.country}
+              options={asOptions(options.countries || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
+            />
+            <SelectFilter
+              label="Brand"
+              value={filters.brand}
+              options={asOptions(options.brands || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
+            />
+            <SelectFilter
+              label="Campaign"
+              value={filters.campaign}
+              options={asOptions(options.campaigns || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
+            />
+            <SelectFilter
+              label="Placement"
+              value={filters.placement}
+              options={asOptions(options.placements || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
+            />
+            <SelectFilter
+              label="Working Status"
+              value={filters.status}
+              options={asOptions(options.statuses || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+            />
+            <SelectFilter
+              label="Table Group"
+              value={filters.groupBy}
+              options={[
+                { value: "agent", label: "Agent" },
+                { value: "teamLeader", label: "Team Leader" },
+                { value: "desk", label: "Desk" },
+                { value: "country", label: "Country" },
+                { value: "brand", label: "Brand" },
+                { value: "campaign", label: "Campaign" },
+                { value: "placement", label: "Placement" },
+              ]}
+              onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
+              disabled={filters.reportMode === "last4"}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
       {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
@@ -616,7 +704,12 @@ export default function DashboardPage() {
             <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
           </div>
           <SummaryCards summary={report.summary || {}} />
-          <ReportTable rows={report.table || []} />
+          <StatusCards stats={report.stats || {}} />
+          {report.tableType === "pivot" ? (
+            <PivotTable rows={report.table || []} summary={report.summary || {}} />
+          ) : (
+            <SimpleTable rows={report.table || []} />
+          )}
         </section>
       ) : null}
     </main>

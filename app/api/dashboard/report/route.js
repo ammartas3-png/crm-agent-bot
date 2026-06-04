@@ -14,6 +14,7 @@ function queryParams(searchParams) {
     brand: String(searchParams.get("brand") || "").trim(),
     campaign: String(searchParams.get("campaign") || "").trim(),
     placement: String(searchParams.get("placement") || "").trim(),
+    status: String(searchParams.get("status") || "").trim(),
     teamLeader: String(searchParams.get("teamLeader") || "").trim(),
     agent: String(searchParams.get("agent") || "").trim(),
     groupBy: String(searchParams.get("groupBy") || "").trim(),
