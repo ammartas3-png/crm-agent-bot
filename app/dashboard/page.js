@@ -78,6 +78,37 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
+function ToggleGroup({ label, items, selectedItems, onToggle }) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>{label}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {items.map((item) => {
+          const active = selectedItems.includes(item.key);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onToggle(item.key)}
+              style={{
+                border: active ? "1px solid #2563eb" : "1px solid #cbd5e1",
+                borderRadius: 999,
+                padding: "6px 10px",
+                background: active ? "#eff6ff" : "#fff",
+                color: active ? "#1d4ed8" : "#0f172a",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SummaryCards({ summary }) {
   const items = [
     { label: "Total Leads", value: formatNumber(summary.totalLeads) },
@@ -344,10 +375,161 @@ function FragmentMetricCells({ metric = {} }) {
   );
 }
 
+function formatBuilderCell(value, type) {
+  if (type === "number") {
+    return formatNumber(value);
+  }
+  if (type === "percent") {
+    return formatPercent(value);
+  }
+  return String(value ?? "-");
+}
+
+function compareBuilderValues(left, right, type) {
+  if (type === "number" || type === "percent") {
+    return Number(left || 0) - Number(right || 0);
+  }
+  return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
+}
+
+function toCsv(columns = [], rows = []) {
+  const escapeCell = (value) => {
+    const cell = String(value ?? "");
+    if (cell.includes('"') || cell.includes(",") || cell.includes("\n")) {
+      return `"${cell.replace(/"/g, '""')}"`;
+    }
+    return cell;
+  };
+  const header = columns.map((column) => escapeCell(column.label)).join(",");
+  const lines = rows.map((row) =>
+    columns
+      .map((column) => {
+        const value = row[column.key];
+        if (column.type === "percent") {
+          return escapeCell(formatPercent(value));
+        }
+        return escapeCell(value);
+      })
+      .join(","),
+  );
+  return [header, ...lines].join("\n");
+}
+
+function exportCsvFile(filename, columns, rows) {
+  if (!columns.length) {
+    return;
+  }
+  const content = toCsv(columns, rows);
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", maxHeight: "70vh" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            {columns.map((column) => {
+              const active = sortState.key === column.key;
+              const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+              return (
+                <th
+                  key={column.key}
+                  onClick={() => onSort(column.key)}
+                  style={{
+                    textAlign: "left",
+                    padding: "9px 12px",
+                    borderBottom: "1px solid #dbe3ee",
+                    borderTop: "1px solid #dbe3ee",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    position: "sticky",
+                    top: 0,
+                    background: "#f8fafc",
+                    zIndex: 2,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {column.label}
+                  {suffix}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`builder-${index}`}>
+              {columns.map((column) => {
+                const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                const value = row[column.key];
+                return (
+                  <td
+                    key={`${index}-${column.key}`}
+                    style={{
+                      padding: "8px 12px",
+                      borderBottom: "1px solid #eef2f7",
+                      color: isReach ? reachColor(value) : "#0f172a",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatBuilderCell(value, column.type)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          {!rows.length ? (
+            <tr>
+              <td colSpan={columns.length || 1} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+                No data found for current filters.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const DEFAULT_BUILDER_DIMENSIONS = [
+  { key: "date", label: "Date", type: "date" },
+  { key: "hour", label: "Hour", type: "hour" },
+  { key: "desk", label: "Desk", type: "text" },
+  { key: "teamLeader", label: "Team Leader", type: "text" },
+  { key: "agent", label: "Agent", type: "text" },
+  { key: "country", label: "Country", type: "text" },
+  { key: "campaign", label: "Campaign", type: "text" },
+  { key: "subCampaign", label: "Sub Campaign", type: "text" },
+  { key: "placement", label: "Placement", type: "text" },
+];
+
+const DEFAULT_BUILDER_METRICS = [
+  { key: "leads", label: "Leads", type: "number" },
+  { key: "ftd", label: "FTD", type: "number" },
+  { key: "ftdTarget", label: "FTD Target", type: "number" },
+  { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
+  { key: "cr", label: "CR", type: "percent" },
+  { key: "crTarget", label: "CR Target", type: "percent" },
+  { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
+  { key: "selfs", label: "Selfs", type: "number" },
+  { key: "lateFtd", label: "Late FTD", type: "number" },
+  { key: "ftdTargetByCr", label: "FTD Target by CR", type: "number" },
+  { key: "missingFtd", label: "Missing FTD", type: "number" },
+];
+
 const EMPTY_FILTERS = {
   officeScope: "",
   reportMode: "",
-  specificType: "hourly",
+  specificType: "builder",
   monthKey: "",
   desk: "",
   country: "",
@@ -358,6 +540,8 @@ const EMPTY_FILTERS = {
   teamLeader: "",
   agent: "",
   groupBy: "agent",
+  rowDimensions: ["date", "desk", "teamLeader", "agent"],
+  metricFields: ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"],
 };
 
 function asOptions(values = []) {
@@ -380,6 +564,7 @@ export default function DashboardPage() {
     report: null,
     error: "",
   });
+  const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -419,7 +604,12 @@ export default function DashboardPage() {
     try {
       const query = new URLSearchParams();
       for (const [key, value] of Object.entries(filters)) {
-        const normalized = String(value || "").trim();
+        const normalized = Array.isArray(value)
+          ? value
+              .map((item) => String(item || "").trim())
+              .filter(Boolean)
+              .join(",")
+          : String(value || "").trim();
         if (normalized) {
           query.set(key, normalized);
         }
@@ -509,6 +699,15 @@ export default function DashboardPage() {
     await fetchSession();
   }, [fetchSession]);
 
+  const handleBuilderSort = useCallback((columnKey) => {
+    setBuilderSort((prev) => {
+      if (prev.key !== columnKey) {
+        return { key: columnKey, direction: "asc" };
+      }
+      return { key: columnKey, direction: prev.direction === "asc" ? "desc" : "asc" };
+    });
+  }, []);
+
   const report = reportState.report;
   const options = report?.options || {};
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -519,6 +718,36 @@ export default function DashboardPage() {
       label: item.office_name ? `${item.month_label} — ${item.office_name}` : item.month_label,
     }));
   }, [options.months, sessionState.bootstrap.months]);
+  const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
+  const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
+  const builderColumns = report?.builder?.columns || [];
+  const sortedBuilderRows = useMemo(() => {
+    if (report?.tableType !== "builder") {
+      return [];
+    }
+    const rows = Array.isArray(report?.table) ? [...report.table] : [];
+    const activeColumn = builderColumns.find((column) => column.key === builderSort.key);
+    if (!activeColumn) {
+      return rows;
+    }
+    rows.sort((left, right) => {
+      const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
+      return builderSort.direction === "desc" ? -compare : compare;
+    });
+    return rows;
+  }, [builderColumns, builderSort.direction, builderSort.key, report?.table, report?.tableType]);
+
+  useEffect(() => {
+    if (report?.tableType !== "builder") {
+      if (builderSort.key) {
+        setBuilderSort({ key: "", direction: "asc" });
+      }
+      return;
+    }
+    if (builderColumns.length && !builderColumns.some((column) => column.key === builderSort.key)) {
+      setBuilderSort({ key: builderColumns[0].key, direction: "asc" });
+    }
+  }, [builderColumns, builderSort.key, report?.tableType]);
 
   if (sessionState.loading) {
     return (
@@ -642,6 +871,7 @@ export default function DashboardPage() {
                     ...prev,
                     officeScope: office,
                     reportMode: "",
+                    specificType: "builder",
                     monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
                     desk: "",
                     country: "",
@@ -668,21 +898,29 @@ export default function DashboardPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "hourly" }))}
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder" }))}
               style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
             >
               Monthly Report
             </button>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "hourly" }))}
+              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "builder" }))}
               style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
             >
               Last 4 Months Report
             </button>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "hourly" }))}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  reportMode: "specific",
+                  specificType: "builder",
+                  rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
+                  metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
+                }))
+              }
               style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
             >
               Specific Reports
@@ -713,6 +951,7 @@ export default function DashboardPage() {
                   ...prev,
                   officeScope: value,
                   reportMode: "",
+                    specificType: "builder",
                   desk: "",
                   country: "",
                   brand: "",
@@ -738,6 +977,7 @@ export default function DashboardPage() {
                 label="Specific Report"
                 value={filters.specificType}
                 options={[
+                  { value: "builder", label: "Custom Report Builder" },
                   { value: "hourly", label: "By Hourly FTD" },
                   { value: "best_agents", label: "Best Agents" },
                 ]}
@@ -812,6 +1052,42 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
+      {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
+        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 17 }}>Report Builder</h2>
+          <ToggleGroup
+            label="Row / Group Dimensions"
+            items={builderDimensionOptions}
+            selectedItems={filters.rowDimensions || []}
+            onToggle={(key) =>
+              setFilters((prev) => {
+                const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                if (!next.length) {
+                  return prev;
+                }
+                return { ...prev, rowDimensions: next };
+              })
+            }
+          />
+          <ToggleGroup
+            label="Metrics / Data Fields"
+            items={builderMetricOptions}
+            selectedItems={filters.metricFields || []}
+            onToggle={(key) =>
+              setFilters((prev) => {
+                const current = Array.isArray(prev.metricFields) ? prev.metricFields : [];
+                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                if (!next.length) {
+                  return prev;
+                }
+                return { ...prev, metricFields: next };
+              })
+            }
+          />
+        </section>
+      ) : null}
+
       {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
       {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
 
@@ -829,7 +1105,34 @@ export default function DashboardPage() {
           {report.tableType === "last4_matrix" ? (
             <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
           ) : null}
-          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" ? (
+          {report.tableType === "builder" ? (
+            <section style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <h3 style={{ margin: 0, fontSize: 16 }}>Results Table</h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    exportCsvFile(
+                      `specific-report-${report.month?.key || "export"}.csv`,
+                      builderColumns,
+                      sortedBuilderRows,
+                    )
+                  }
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: "7px 10px",
+                    background: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  Export CSV
+                </button>
+              </div>
+              <BuilderTable columns={builderColumns} rows={sortedBuilderRows} sortState={builderSort} onSort={handleBuilderSort} />
+            </section>
+          ) : null}
+          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>

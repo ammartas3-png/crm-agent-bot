@@ -18,6 +18,8 @@ function queryParams(searchParams) {
     teamLeader: String(searchParams.get("teamLeader") || "").trim(),
     agent: String(searchParams.get("agent") || "").trim(),
     groupBy: String(searchParams.get("groupBy") || "").trim(),
+    rowDimensions: String(searchParams.get("rowDimensions") || "").trim(),
+    metricFields: String(searchParams.get("metricFields") || "").trim(),
   };
 }
 
