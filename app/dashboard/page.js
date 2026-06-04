@@ -94,6 +94,32 @@ function buildReportQuery(filters = {}) {
   return query;
 }
 
+function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
+  const next = { ...sourceFilters };
+  if (Array.isArray(options.months) && options.months.length) {
+    const monthExists = options.months.some((month) => month.key === next.monthKey);
+    if (!monthExists) {
+      next.monthKey = options.months[0].key;
+    }
+  }
+  const dependencyChecks = [
+    ["desk", options.desks || []],
+    ["country", options.countries || []],
+    ["brand", options.brands || []],
+    ["campaign", options.campaigns || []],
+    ["placement", options.placements || []],
+    ["status", options.statuses || []],
+    ["teamLeader", options.teamLeaders || []],
+    ["agent", options.agents || []],
+  ];
+  for (const [key, values] of dependencyChecks) {
+    if (next[key] && !values.includes(next[key])) {
+      next[key] = "";
+    }
+  }
+  return next;
+}
+
 function ToggleGroup({ label, items, selectedItems, onToggle }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
@@ -590,6 +616,7 @@ export default function DashboardPage() {
     error: "",
   });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
@@ -628,14 +655,14 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
+    if (!sessionState.authorized || !appliedFilters.officeScope || !appliedFilters.reportMode) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
     setReportState((prev) => ({ ...prev, loading: true, error: "" }));
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
-      const query = buildReportQuery(filters);
+      const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
@@ -647,30 +674,18 @@ export default function DashboardPage() {
         error: "",
       });
       const options = payload.report?.options || {};
+      const sanitizedApplied = sanitizeFiltersWithOptions(appliedFilters, options);
+      const sanitizedKey = buildReportQuery(sanitizedApplied).toString();
+      const appliedKey = buildReportQuery(appliedFilters).toString();
+      if (sanitizedKey !== appliedKey) {
+        setAppliedFilters(sanitizedApplied);
+      }
       setFilters((prev) => {
-        const next = { ...prev };
-        if (Array.isArray(options.months) && options.months.length) {
-          const monthExists = options.months.some((month) => month.key === next.monthKey);
-          if (!monthExists) {
-            next.monthKey = options.months[0].key;
-          }
+        const prevKey = buildReportQuery(prev).toString();
+        if (prevKey !== appliedKey) {
+          return prev;
         }
-        const dependencyChecks = [
-          ["desk", options.desks || []],
-          ["country", options.countries || []],
-          ["brand", options.brands || []],
-          ["campaign", options.campaigns || []],
-          ["placement", options.placements || []],
-          ["status", options.statuses || []],
-          ["teamLeader", options.teamLeaders || []],
-          ["agent", options.agents || []],
-        ];
-        for (const [key, values] of dependencyChecks) {
-          if (next[key] && !values.includes(next[key])) {
-            next[key] = "";
-          }
-        }
-        return next;
+        return sanitizedApplied;
       });
     } catch (error) {
       setReportState({
@@ -679,7 +694,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [filters, sessionState.authorized]);
+  }, [appliedFilters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -719,6 +734,7 @@ export default function DashboardPage() {
     setReportState({ loading: false, report: null, error: "" });
     setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
+    setAppliedFilters(EMPTY_FILTERS);
     await fetchSession();
   }, [fetchSession]);
 
@@ -731,10 +747,17 @@ export default function DashboardPage() {
     });
   }, []);
 
+  const handleApplyFilters = useCallback(() => {
+    if (!filters.officeScope || !filters.reportMode) {
+      return;
+    }
+    setAppliedFilters({ ...filters });
+  }, [filters]);
+
   const handleExportXlsx = useCallback(async () => {
     setExportState({ loading: true, error: "" });
     try {
-      const query = buildReportQuery(filters);
+      const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -756,7 +779,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [filters]);
+  }, [appliedFilters]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -770,6 +793,9 @@ export default function DashboardPage() {
   }, [options.months, sessionState.bootstrap.months]);
   const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
   const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
+  const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
+  const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
+  const hasPendingChanges = draftQueryKey !== appliedQueryKey;
   const builderColumns = report?.builder?.columns || [];
   const sortedBuilderRows = useMemo(() => {
     if (report?.tableType !== "builder") {
@@ -983,14 +1009,37 @@ export default function DashboardPage() {
         <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
-            <button
-              type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
-            >
-              Change Report Type
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleApplyFilters}
+                disabled={reportState.loading || !hasPendingChanges}
+                style={{
+                  border: "1px solid #2563eb",
+                  borderRadius: 8,
+                  padding: "7px 12px",
+                  background: reportState.loading || !hasPendingChanges ? "#dbeafe" : "#2563eb",
+                  color: reportState.loading || !hasPendingChanges ? "#1e3a8a" : "#fff",
+                  cursor: reportState.loading || !hasPendingChanges ? "default" : "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                {reportState.loading ? "Loading..." : "Load Report"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
+                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+              >
+                Change Report Type
+              </button>
+            </div>
           </div>
+          {hasPendingChanges ? (
+            <p style={{ margin: 0, color: "#1d4ed8", fontSize: 12 }}>
+              You changed filters. Click <strong>Load Report</strong> to apply.
+            </p>
+          ) : null}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <SelectFilter
               label="Office"
@@ -1147,25 +1196,25 @@ export default function DashboardPage() {
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "grid", gap: 4 }}>
               <h2 style={{ margin: 0, fontSize: 18 }}>
-                {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
+                {report.month?.label || "Selected month"} — {report.month?.office_name || appliedFilters.officeScope}
               </h2>
               <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
             </div>
             <button
               type="button"
               onClick={handleExportXlsx}
-              disabled={exportState.loading}
+              disabled={exportState.loading || hasPendingChanges}
               style={{
                 border: "1px solid #cbd5e1",
                 borderRadius: 8,
                 padding: "8px 12px",
-                background: exportState.loading ? "#f8fafc" : "#fff",
+                background: exportState.loading || hasPendingChanges ? "#f8fafc" : "#fff",
                 color: "#0f172a",
-                cursor: exportState.loading ? "default" : "pointer",
+                cursor: exportState.loading || hasPendingChanges ? "default" : "pointer",
                 fontWeight: 600,
               }}
             >
-              {exportState.loading ? "Preparing XLSX..." : "Export XLSX"}
+              {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Apply changes to export" : "Export XLSX"}
             </button>
           </div>
           <SummaryCards summary={report.summary || {}} />
