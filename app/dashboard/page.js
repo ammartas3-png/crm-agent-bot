@@ -329,34 +329,115 @@ function PivotTable({ rows = [], summary = {} }) {
   );
 }
 
+const LAST4_MONTH_THEMES = [
+  { dark: "#1d4ed8", light: "#dbeafe", line: "#1e3a8a" },
+  { dark: "#7c3aed", light: "#ede9fe", line: "#4c1d95" },
+  { dark: "#c2410c", light: "#ffedd5", line: "#9a3412" },
+  { dark: "#0f766e", light: "#ccfbf1", line: "#134e4a" },
+  { dark: "#be123c", light: "#ffe4e6", line: "#881337" },
+  { dark: "#475569", light: "#e2e8f0", line: "#334155" },
+];
+
+function last4MonthTheme(index) {
+  return LAST4_MONTH_THEMES[index % LAST4_MONTH_THEMES.length];
+}
+
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   return (
     <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1700 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1880 }}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+          <tr>
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
               Desk
             </th>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
               Team Leader
             </th>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
               Agent
             </th>
-            {monthBlocks.map((month) => (
+            {monthBlocks.map((month, index) => {
+              const theme = last4MonthTheme(index);
+              return (
               <th
                 key={month.key}
                 colSpan={6}
-                style={{ textAlign: "center", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}
+                style={{
+                  textAlign: "center",
+                  padding: "9px 12px",
+                  borderBottom: "1px solid #dbe3ee",
+                  fontSize: 12,
+                  background: theme.dark,
+                  color: "#fff",
+                  borderLeft: `3px solid ${theme.line}`,
+                  borderRight: `3px solid ${theme.line}`,
+                }}
               >
                 {month.label}
               </th>
-            ))}
+              );
+            })}
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
+              Starting Date
+            </th>
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
+              Months Worked
+            </th>
           </tr>
-          <tr style={{ background: "#f8fafc" }}>
-            {monthBlocks.map((month) => (
-              <FragmentMetricHeaders key={month.key} />
+          <tr>
+            {monthBlocks.map((month, index) => (
+              <FragmentMetricHeaders key={month.key} theme={last4MonthTheme(index)} />
             ))}
           </tr>
         </thead>
@@ -366,17 +447,22 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
-              {monthBlocks.map((month) => {
+              {monthBlocks.map((month, index) => {
                 const metric = row.months?.[month.key] || {};
+                const theme = last4MonthTheme(index);
                 return (
-                  <FragmentMetricCells key={`${row.key || row.agent}-${month.key}`} metric={metric} />
+                  <FragmentMetricCells key={`${row.key || row.agent}-${month.key}`} metric={metric} theme={theme} />
                 );
               })}
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.startDate || "-"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>
+                {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
+              </td>
             </tr>
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={3 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={5 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
                 No rows found.
               </td>
             </tr>
@@ -387,30 +473,58 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   );
 }
 
-function FragmentMetricHeaders() {
+function FragmentMetricHeaders({ theme }) {
+  const baseStyle = {
+    textAlign: "left",
+    padding: "7px 10px",
+    borderBottom: "1px solid #dbe3ee",
+    fontSize: 11,
+    background: theme?.light || "#f8fafc",
+    color: "#0f172a",
+  };
   return (
     <>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>Target</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Target</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Reach</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD Reach</th>
+      <th style={{ ...baseStyle, borderLeft: `3px solid ${theme?.line || "#334155"}` }}>Target</th>
+      <th style={baseStyle}>FTD</th>
+      <th style={baseStyle}>CR</th>
+      <th style={baseStyle}>CR Target</th>
+      <th style={baseStyle}>CR Reach</th>
+      <th style={{ ...baseStyle, borderRight: `3px solid ${theme?.line || "#334155"}` }}>FTD Reach</th>
     </>
   );
 }
 
-function FragmentMetricCells({ metric = {} }) {
+function FragmentMetricCells({ metric = {}, theme }) {
+  const crReach = Number(metric.crTargetReach || 0);
+  const ftdReach = Number(metric.ftdTargetReach || 0);
+  const baseStyle = {
+    padding: "8px 10px",
+    borderBottom: "1px solid #eef2f7",
+    background: theme?.light || "#fff",
+  };
   return (
     <>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.target)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.ftd)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.cr)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.crTarget)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.crTargetReach) }}>
+      <td style={{ ...baseStyle, borderLeft: `3px solid ${theme?.line || "#334155"}` }}>{formatNumber(metric.target)}</td>
+      <td style={baseStyle}>{formatNumber(metric.ftd)}</td>
+      <td style={baseStyle}>{formatPercent(metric.cr)}</td>
+      <td style={baseStyle}>{formatPercent(metric.crTarget)}</td>
+      <td
+        style={{
+          ...baseStyle,
+          color: reachColor(crReach),
+          fontWeight: crReach >= 100 ? 700 : 400,
+        }}
+      >
         {formatPercent(metric.crTargetReach)}
       </td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.ftdTargetReach) }}>
+      <td
+        style={{
+          ...baseStyle,
+          borderRight: `3px solid ${theme?.line || "#334155"}`,
+          color: reachColor(ftdReach),
+          fontWeight: ftdReach >= 100 ? 700 : 400,
+        }}
+      >
         {formatPercent(metric.ftdTargetReach)}
       </td>
     </>
