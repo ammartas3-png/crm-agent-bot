@@ -956,6 +956,7 @@ export default function DashboardPage() {
 
   const needOfficeSelection = !filters.officeScope;
   const needReportSelection = !needOfficeSelection && !filters.reportMode;
+  const isLast4Mode = filters.reportMode === "last4";
 
   return (
     <main className={styles.page}>
@@ -1031,7 +1032,22 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "builder" }))}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  reportMode: "last4",
+                  specificType: "builder",
+                  date: "",
+                  hour: "",
+                  country: "",
+                  brand: "",
+                  campaign: "",
+                  subCampaign: "",
+                  placement: "",
+                  status: "",
+                  groupBy: "agent",
+                }))
+              }
               className={styles.reportModeCard}
             >
               <span className={styles.reportModeTitle}>{reportModeMeta("last4").title}</span>
@@ -1111,7 +1127,7 @@ export default function DashboardPage() {
                   }))
                 }
               />
-              {filters.reportMode !== "last4" ? (
+              {!isLast4Mode ? (
                 <SelectFilter
                   label="Month"
                   value={filters.monthKey}
@@ -1120,34 +1136,39 @@ export default function DashboardPage() {
                   placeholder="Select month"
                 />
               ) : null}
-              <SelectFilter
-                label="Date"
-                value={filters.date}
-                options={asOptions(options.dates || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))}
-              />
-              <SelectFilter
-                label="Hour"
-                value={filters.hour}
-                options={asOptions(options.hours || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
-              />
-              <SelectFilter
-                label="Table Group"
-                value={filters.groupBy}
-                options={[
-                  { value: "agent", label: "Agent" },
-                  { value: "teamLeader", label: "Team Leader" },
-                  { value: "desk", label: "Desk" },
-                  { value: "country", label: "Country" },
-                  { value: "brand", label: "Brand" },
-                  { value: "campaign", label: "Campaign" },
-                  { value: "subCampaign", label: "Sub Campaign" },
-                  { value: "placement", label: "Placement" },
-                ]}
-                onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
-                disabled={filters.reportMode === "last4"}
-              />
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Date"
+                  value={filters.date}
+                  options={asOptions(options.dates || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))}
+                />
+              ) : null}
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Hour"
+                  value={filters.hour}
+                  options={asOptions(options.hours || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
+                />
+              ) : null}
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Table Group"
+                  value={filters.groupBy}
+                  options={[
+                    { value: "agent", label: "Agent" },
+                    { value: "teamLeader", label: "Team Leader" },
+                    { value: "desk", label: "Desk" },
+                    { value: "country", label: "Country" },
+                    { value: "brand", label: "Brand" },
+                    { value: "campaign", label: "Campaign" },
+                    { value: "subCampaign", label: "Sub Campaign" },
+                    { value: "placement", label: "Placement" },
+                  ]}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
+                />
+              ) : null}
             </div>
 
             <div className={styles.filterRow}>
@@ -1169,46 +1190,54 @@ export default function DashboardPage() {
                 options={asOptions(options.agents || [])}
                 onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
               />
-              <SelectFilter
-                label="Country"
-                value={filters.country}
-                options={asOptions(options.countries || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
-              />
-              <SelectFilter
-                label="Brand"
-                value={filters.brand}
-                options={asOptions(options.brands || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
-              />
-              <SelectFilter
-                label="Campaign"
-                value={filters.campaign}
-                options={asOptions(options.campaigns || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
-              />
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Country"
+                  value={filters.country}
+                  options={asOptions(options.countries || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
+                />
+              ) : null}
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Brand"
+                  value={filters.brand}
+                  options={asOptions(options.brands || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
+                />
+              ) : null}
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Campaign"
+                  value={filters.campaign}
+                  options={asOptions(options.campaigns || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
+                />
+              ) : null}
             </div>
 
-            <div className={styles.filterRow}>
-              <SelectFilter
-                label="Sub Campaign"
-                value={filters.subCampaign}
-                options={asOptions(options.subCampaigns || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, subCampaign: value }))}
-              />
-              <SelectFilter
-                label="Placement"
-                value={filters.placement}
-                options={asOptions(options.placements || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
-              />
-              <SelectFilter
-                label="Working Status"
-                value={filters.status}
-                options={asOptions(options.statuses || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-              />
-            </div>
+            {!isLast4Mode ? (
+              <div className={styles.filterRow}>
+                <SelectFilter
+                  label="Sub Campaign"
+                  value={filters.subCampaign}
+                  options={asOptions(options.subCampaigns || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, subCampaign: value }))}
+                />
+                <SelectFilter
+                  label="Placement"
+                  value={filters.placement}
+                  options={asOptions(options.placements || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
+                />
+                <SelectFilter
+                  label="Working Status"
+                  value={filters.status}
+                  options={asOptions(options.statuses || [])}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+                />
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
