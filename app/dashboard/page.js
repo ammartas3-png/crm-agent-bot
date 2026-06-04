@@ -145,12 +145,16 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
 }
 
 function ToggleGroup({ label, items, selectedItems, onToggle }) {
+  const selectedLabels = selectedItems
+    .map((key) => items.find((item) => item.key === key)?.label || "")
+    .filter(Boolean);
   return (
     <div className={styles.chipSection}>
       <div className={styles.chipTitle}>{label}</div>
       <div className={styles.chipList}>
         {items.map((item) => {
           const active = selectedItems.includes(item.key);
+          const orderIndex = selectedItems.indexOf(item.key);
           return (
             <button
               key={item.key}
@@ -160,11 +164,18 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
             >
               <span className={styles.chipInner}>
                 {active ? <span className={styles.chipCheck}>✓</span> : null}
+                {active && orderIndex >= 0 ? <span className={styles.chipOrder}>{orderIndex + 1}</span> : null}
                 <span>{item.label}</span>
               </span>
             </button>
           );
         })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label} Order</div>
+        <div className={styles.orderValue}>
+          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : "No selection"}
+        </div>
       </div>
     </div>
   );
