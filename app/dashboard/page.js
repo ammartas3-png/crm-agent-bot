@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+const LOOKER_CARD = {
+  background: "#ffffff",
+  border: "1px solid #dce3ea",
+  borderRadius: 10,
+  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+};
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
@@ -52,19 +59,20 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
 
 function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 5, minWidth: 145, flex: 1 }}>
-      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>{label}</span>
+    <label style={{ display: "grid", gap: 6, minWidth: 145 }}>
+      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700, letterSpacing: 0.1 }}>{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         style={{
-          border: "1px solid #cbd5e1",
-          borderRadius: 8,
-          padding: "8px 10px",
-          background: disabled ? "#f8fafc" : "#fff",
+          border: "1px solid #c9d1dc",
+          borderRadius: 6,
+          padding: "7px 9px",
+          background: disabled ? "#f7f9fc" : "#fff",
           color: "#0f172a",
           fontSize: 13,
+          minHeight: 32,
         }}
       >
         <option value="">{placeholder}</option>
@@ -103,10 +111,13 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
     }
   }
   const dependencyChecks = [
+    ["date", options.dates || []],
+    ["hour", options.hours || []],
     ["desk", options.desks || []],
     ["country", options.countries || []],
     ["brand", options.brands || []],
     ["campaign", options.campaigns || []],
+    ["subCampaign", options.subCampaigns || []],
     ["placement", options.placements || []],
     ["status", options.statuses || []],
     ["teamLeader", options.teamLeaders || []],
@@ -172,7 +183,7 @@ function SummaryCards({ summary }) {
   return (
     <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
       {items.map((item) => (
-        <div key={item.label} style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 10 }}>
+        <div key={item.label} style={{ ...LOOKER_CARD, padding: 10 }}>
           <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: item.color || "#0f172a" }}>{item.value}</div>
         </div>
@@ -192,9 +203,7 @@ function StatusCards({ stats = {} }) {
   return (
     <div
       style={{
-        border: "1px solid #dbe3ee",
-        borderRadius: 10,
-        background: "#fff",
+        ...LOOKER_CARD,
         padding: 10,
         display: "grid",
         gap: 6,
@@ -702,10 +711,13 @@ const EMPTY_FILTERS = {
   reportMode: "",
   specificType: "builder",
   monthKey: "",
+  date: "",
+  hour: "",
   desk: "",
   country: "",
   brand: "",
   campaign: "",
+  subCampaign: "",
   placement: "",
   status: "",
   teamLeader: "",
@@ -1017,7 +1029,7 @@ export default function DashboardPage() {
         minHeight: "100vh",
         fontFamily: "Arial, sans-serif",
         padding: 16,
-        background: "#f1f5f9",
+        background: "#eef2f7",
         color: "#0f172a",
         display: "grid",
         gap: 14,
@@ -1030,9 +1042,7 @@ export default function DashboardPage() {
           justifyContent: "space-between",
           gap: 10,
           alignItems: "center",
-          background: "#fff",
-          border: "1px solid #dbe3ee",
-          borderRadius: 10,
+          ...LOOKER_CARD,
           padding: 14,
         }}
       >
@@ -1052,7 +1062,7 @@ export default function DashboardPage() {
       </section>
 
       {needOfficeSelection ? (
-        <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
+        <section style={{ ...LOOKER_CARD, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
           <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1067,10 +1077,13 @@ export default function DashboardPage() {
                     reportMode: "",
                     specificType: "builder",
                     monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
+                    date: "",
+                    hour: "",
                     desk: "",
                     country: "",
                     brand: "",
                     campaign: "",
+                    subCampaign: "",
                     placement: "",
                     status: "",
                     teamLeader: "",
@@ -1087,7 +1100,7 @@ export default function DashboardPage() {
       ) : null}
 
       {needReportSelection ? (
-        <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
+        <section style={{ ...LOOKER_CARD, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button
@@ -1124,7 +1137,7 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && !needReportSelection ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
+        <section style={{ ...LOOKER_CARD, padding: 12, display: "grid", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1158,7 +1171,7 @@ export default function DashboardPage() {
               You changed filters. Click <strong>Load Report</strong> to apply.
             </p>
           ) : null}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))" }}>
             <SelectFilter
               label="Office"
               value={filters.officeScope}
@@ -1168,11 +1181,14 @@ export default function DashboardPage() {
                   ...prev,
                   officeScope: value,
                   reportMode: "",
-                    specificType: "builder",
+                  specificType: "builder",
+                  date: "",
+                  hour: "",
                   desk: "",
                   country: "",
                   brand: "",
                   campaign: "",
+                  subCampaign: "",
                   placement: "",
                   status: "",
                   teamLeader: "",
@@ -1189,6 +1205,18 @@ export default function DashboardPage() {
                 placeholder="Select month"
               />
             ) : null}
+            <SelectFilter
+              label="Date"
+              value={filters.date}
+              options={asOptions(options.dates || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))}
+            />
+            <SelectFilter
+              label="Hour"
+              value={filters.hour}
+              options={asOptions(options.hours || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
+            />
             {filters.reportMode === "specific" ? (
               <SelectFilter
                 label="Specific Report"
@@ -1239,6 +1267,12 @@ export default function DashboardPage() {
               onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
             />
             <SelectFilter
+              label="Sub Campaign"
+              value={filters.subCampaign}
+              options={asOptions(options.subCampaigns || [])}
+              onChange={(value) => setFilters((prev) => ({ ...prev, subCampaign: value }))}
+            />
+            <SelectFilter
               label="Placement"
               value={filters.placement}
               options={asOptions(options.placements || [])}
@@ -1260,6 +1294,7 @@ export default function DashboardPage() {
                 { value: "country", label: "Country" },
                 { value: "brand", label: "Brand" },
                 { value: "campaign", label: "Campaign" },
+                { value: "subCampaign", label: "Sub Campaign" },
                 { value: "placement", label: "Placement" },
               ]}
               onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
@@ -1270,7 +1305,7 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 12 }}>
+        <section style={{ ...LOOKER_CARD, padding: 12, display: "grid", gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 17 }}>Report Builder</h2>
           <ToggleGroup
             label="Row / Group Dimensions"
