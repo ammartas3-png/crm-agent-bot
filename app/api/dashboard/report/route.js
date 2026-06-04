@@ -7,12 +7,15 @@ function queryParams(searchParams) {
   return {
     monthKey: String(searchParams.get("monthKey") || "").trim(),
     officeScope: String(searchParams.get("officeScope") || "").trim(),
+    reportMode: String(searchParams.get("reportMode") || "").trim(),
+    specificType: String(searchParams.get("specificType") || "").trim(),
     desk: String(searchParams.get("desk") || "").trim(),
     country: String(searchParams.get("country") || "").trim(),
     brand: String(searchParams.get("brand") || "").trim(),
+    campaign: String(searchParams.get("campaign") || "").trim(),
+    placement: String(searchParams.get("placement") || "").trim(),
     teamLeader: String(searchParams.get("teamLeader") || "").trim(),
     agent: String(searchParams.get("agent") || "").trim(),
-    campaign: String(searchParams.get("campaign") || "").trim(),
     groupBy: String(searchParams.get("groupBy") || "").trim(),
   };
 }
