@@ -1,0 +1,72 @@
+import { NextResponse } from "next/server";
+
+import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
+import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
+
+function queryParams(searchParams) {
+  return {
+    monthKey: String(searchParams.get("monthKey") || "").trim(),
+    officeScope: String(searchParams.get("officeScope") || "").trim(),
+    reportMode: String(searchParams.get("reportMode") || "").trim(),
+    specificType: String(searchParams.get("specificType") || "").trim(),
+    desk: String(searchParams.get("desk") || "").trim(),
+    country: String(searchParams.get("country") || "").trim(),
+    brand: String(searchParams.get("brand") || "").trim(),
+    campaign: String(searchParams.get("campaign") || "").trim(),
+    placement: String(searchParams.get("placement") || "").trim(),
+    status: String(searchParams.get("status") || "").trim(),
+    teamLeader: String(searchParams.get("teamLeader") || "").trim(),
+    agent: String(searchParams.get("agent") || "").trim(),
+    groupBy: String(searchParams.get("groupBy") || "").trim(),
+    rowDimensions: String(searchParams.get("rowDimensions") || "").trim(),
+    metricFields: String(searchParams.get("metricFields") || "").trim(),
+  };
+}
+
+function safeName(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+}
+
+export async function GET(request) {
+  const resolved = await dashboardAccessFromRequest(request);
+  if (!resolved.authenticated) {
+    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+  }
+  if (!resolved.access?.authorized) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
+  }
+
+  const query = queryParams(new URL(request.url).searchParams);
+  try {
+    const report = await loadDashboardReport(resolved.access, query);
+    const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
+    const office = safeName(report?.month?.office_name || query.officeScope || "office");
+    const month = safeName(report?.month?.key || query.monthKey || "month");
+    const mode = safeName(report?.reportMode || "report");
+    const filename = `crm-${mode}-${office}-${month}.xlsx`;
+    return new NextResponse(workbookBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "report_export_failed",
+        message: error?.message || "Could not export report.",
+      },
+      { status: 500 },
+    );
+  }
+}
+

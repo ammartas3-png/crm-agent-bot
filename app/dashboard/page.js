@@ -78,6 +78,22 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
+function buildReportQuery(filters = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters || {})) {
+    const normalized = Array.isArray(value)
+      ? value
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .join(",")
+      : String(value || "").trim();
+    if (normalized) {
+      query.set(key, normalized);
+    }
+  }
+  return query;
+}
+
 function ToggleGroup({ label, items, selectedItems, onToggle }) {
   return (
     <div style={{ display: "grid", gap: 8 }}>
@@ -375,6 +391,60 @@ function FragmentMetricCells({ metric = {} }) {
   );
 }
 
+function LoadingReportIndicator() {
+  return (
+    <section
+      style={{
+        border: "1px solid #dbe3ee",
+        borderRadius: 10,
+        background: "#fff",
+        padding: 14,
+        display: "grid",
+        gap: 10,
+      }}
+    >
+      <style>{`
+        @keyframes crmBarMove {
+          0% { transform: translateX(-120%); }
+          100% { transform: translateX(320%); }
+        }
+        @keyframes crmBounce {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-4px) rotate(-6deg); }
+        }
+      `}</style>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "#1e293b" }}>
+        <span style={{ animation: "crmBounce 0.7s ease-in-out infinite", display: "inline-block" }}>🤖</span>
+        <span>Building your report...</span>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          height: 12,
+          borderRadius: 999,
+          overflow: "hidden",
+          background: "linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 100%)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "35%",
+            height: "100%",
+            borderRadius: 999,
+            background: "linear-gradient(90deg, #38bdf8 0%, #2563eb 60%, #1d4ed8 100%)",
+            animation: "crmBarMove 1.2s linear infinite",
+            boxShadow: "0 0 12px rgba(37, 99, 235, 0.45)",
+          }}
+        />
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>Please wait, data is being fetched and calculated.</p>
+    </section>
+  );
+}
+
 function formatBuilderCell(value, type) {
   if (type === "number") {
     return formatNumber(value);
@@ -390,45 +460,6 @@ function compareBuilderValues(left, right, type) {
     return Number(left || 0) - Number(right || 0);
   }
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
-}
-
-function toCsv(columns = [], rows = []) {
-  const escapeCell = (value) => {
-    const cell = String(value ?? "");
-    if (cell.includes('"') || cell.includes(",") || cell.includes("\n")) {
-      return `"${cell.replace(/"/g, '""')}"`;
-    }
-    return cell;
-  };
-  const header = columns.map((column) => escapeCell(column.label)).join(",");
-  const lines = rows.map((row) =>
-    columns
-      .map((column) => {
-        const value = row[column.key];
-        if (column.type === "percent") {
-          return escapeCell(formatPercent(value));
-        }
-        return escapeCell(value);
-      })
-      .join(","),
-  );
-  return [header, ...lines].join("\n");
-}
-
-function exportCsvFile(filename, columns, rows) {
-  if (!columns.length) {
-    return;
-  }
-  const content = toCsv(columns, rows);
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
@@ -565,6 +596,7 @@ export default function DashboardPage() {
     error: "",
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
+  const [exportState, setExportState] = useState({ loading: false, error: "" });
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -601,19 +633,9 @@ export default function DashboardPage() {
       return;
     }
     setReportState((prev) => ({ ...prev, loading: true, error: "" }));
+    setExportState((prev) => ({ ...prev, error: "" }));
     try {
-      const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(filters)) {
-        const normalized = Array.isArray(value)
-          ? value
-              .map((item) => String(item || "").trim())
-              .filter(Boolean)
-              .join(",")
-          : String(value || "").trim();
-        if (normalized) {
-          query.set(key, normalized);
-        }
-      }
+      const query = buildReportQuery(filters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
@@ -695,6 +717,7 @@ export default function DashboardPage() {
   const handleLogout = useCallback(async () => {
     await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
     setReportState({ loading: false, report: null, error: "" });
+    setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
     await fetchSession();
   }, [fetchSession]);
@@ -707,6 +730,33 @@ export default function DashboardPage() {
       return { key: columnKey, direction: prev.direction === "asc" ? "desc" : "asc" };
     });
   }, []);
+
+  const handleExportXlsx = useCallback(async () => {
+    setExportState({ loading: true, error: "" });
+    try {
+      const query = buildReportQuery(filters);
+      const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message || payload?.error || "Could not export report.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/i);
+      const filename = match?.[1] || `crm-report-${Date.now()}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setExportState({ loading: false, error: "" });
+    } catch (error) {
+      setExportState({ loading: false, error: error?.message || "Could not export report." });
+    }
+  }, [filters]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -1088,16 +1138,35 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
+      {reportState.loading ? <LoadingReportIndicator /> : null}
       {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
+      {exportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{exportState.error}</p> : null}
 
       {report ? (
         <section style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>
-              {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
-            </h2>
-            <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "grid", gap: 4 }}>
+              <h2 style={{ margin: 0, fontSize: 18 }}>
+                {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
+              </h2>
+              <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportXlsx}
+              disabled={exportState.loading}
+              style={{
+                border: "1px solid #cbd5e1",
+                borderRadius: 8,
+                padding: "8px 12px",
+                background: exportState.loading ? "#f8fafc" : "#fff",
+                color: "#0f172a",
+                cursor: exportState.loading ? "default" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {exportState.loading ? "Preparing XLSX..." : "Export XLSX"}
+            </button>
           </div>
           <SummaryCards summary={report.summary || {}} />
           <StatusCards stats={report.stats || {}} />
@@ -1107,28 +1176,7 @@ export default function DashboardPage() {
           ) : null}
           {report.tableType === "builder" ? (
             <section style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}>Results Table</h3>
-                <button
-                  type="button"
-                  onClick={() =>
-                    exportCsvFile(
-                      `specific-report-${report.month?.key || "export"}.csv`,
-                      builderColumns,
-                      sortedBuilderRows,
-                    )
-                  }
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
-                    padding: "7px 10px",
-                    background: "#fff",
-                    cursor: "pointer",
-                  }}
-                >
-                  Export CSV
-                </button>
-              </div>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Results Table</h3>
               <BuilderTable columns={builderColumns} rows={sortedBuilderRows} sortState={builderSort} onSort={handleBuilderSort} />
             </section>
           ) : null}
