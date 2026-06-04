@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  padding: 18px;
+  padding: 10px;
   background: #edf2f7;
   color: #0f172a;
   font-family:
@@ -11,7 +11,7 @@
     Arial,
     sans-serif;
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .panel {
@@ -22,15 +22,17 @@
 }
 
 .topBar {
-  padding: 6px 12px;
+  padding: 4px 10px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
   align-items: center;
-  min-height: 56px;
-  max-height: 72px;
+  min-height: 48px;
+  max-height: 56px;
+  height: auto;
   overflow: hidden;
+  align-content: start;
 }
 
 .title {
@@ -46,11 +48,11 @@
 }
 
 .topBarTitle {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .topBarSubtitle {
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .button {
@@ -103,6 +105,7 @@
   justify-content: center;
   gap: 10px;
   margin-top: 0;
+  align-content: start;
 }
 
 .officeCard {
@@ -208,6 +211,7 @@
   padding: 12px;
   display: grid;
   gap: 10px;
+  align-content: start;
 }
 
 .sectionFancy {

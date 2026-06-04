@@ -25,18 +25,18 @@ function reachColor(value) {
 function officeFlagForName(officeName = "") {
   const normalized = String(officeName || "").toLowerCase();
   if (normalized.includes("argentina")) {
-    return { emoji: "🇦🇷", url: "https://flagcdn.com/w40/ar.png", code: "AR" };
+    return "🇦🇷";
   }
   if (normalized.includes("dubai") || normalized.includes("uae")) {
-    return { emoji: "🇦🇪", url: "https://flagcdn.com/w40/ae.png", code: "AE" };
+    return "🇦🇪";
   }
   if (normalized.includes("pakistan")) {
-    return { emoji: "🇵🇰", url: "https://flagcdn.com/w40/pk.png", code: "PK" };
+    return "🇵🇰";
   }
   if (normalized.includes("turkiye") || normalized.includes("turkey")) {
-    return { emoji: "🇹🇷", url: "https://flagcdn.com/w40/tr.png", code: "TR" };
+    return "🇹🇷";
   }
-  return { emoji: "🌍", url: "", code: "GLOBAL" };
+  return "🌍";
 }
 
 function reportModeMeta(mode = "") {
@@ -1017,11 +1017,7 @@ export default function DashboardPage() {
                   className={styles.officeCard}
                 >
                   <span className={styles.officeName}>{office}</span>
-                  {flag.url ? (
-                    <img className={styles.officeFlagImg} src={flag.url} alt={`${office} flag`} loading="lazy" />
-                  ) : (
-                    <span className={styles.officeFlag}>{flag.emoji}</span>
-                  )}
+                  <span className={styles.officeFlag}>{flag}</span>
                 </button>
               );
             })}
