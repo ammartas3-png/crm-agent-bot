@@ -39,6 +39,16 @@ function officeFlagForName(officeName = "") {
   return "🌍";
 }
 
+function reportModeMeta(mode = "") {
+  if (mode === "monthly") {
+    return { title: "Monthly Report", icon: "📊" };
+  }
+  if (mode === "last4") {
+    return { title: "Last 4 Months Report", icon: "📅" };
+  }
+  return { title: "Custom Report Builder", icon: "🧩" };
+}
+
 function TelegramLoginWidget({ botUsername, onAuth }) {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -1001,22 +1011,24 @@ export default function DashboardPage() {
       ) : null}
 
       {needReportSelection ? (
-        <section className={`${styles.panel} ${styles.section}`}>
+        <section className={`${styles.panel} ${styles.section} ${styles.stepCenter}`}>
           <h2 className={styles.sectionTitle}>Step 2 — Select Report</h2>
-          <div className={styles.pillRow}>
+          <div className={styles.reportModeGrid}>
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder" }))}
-              className={styles.pillButton}
+              className={styles.reportModeCard}
             >
-              Monthly Report
+              <span className={styles.reportModeTitle}>{reportModeMeta("monthly").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("monthly").icon}</span>
             </button>
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "builder" }))}
-              className={styles.pillButton}
+              className={styles.reportModeCard}
             >
-              Last 4 Months Report
+              <span className={styles.reportModeTitle}>{reportModeMeta("last4").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
             </button>
             <button
               type="button"
@@ -1029,9 +1041,10 @@ export default function DashboardPage() {
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
                 }))
               }
-              className={styles.pillButton}
+              className={styles.reportModeCard}
             >
-              Specific Reports
+              <span className={styles.reportModeTitle}>{reportModeMeta("specific").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("specific").icon}</span>
             </button>
           </div>
         </section>
@@ -1112,19 +1125,6 @@ export default function DashboardPage() {
                 options={asOptions(options.hours || [])}
                 onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
               />
-              {filters.reportMode === "specific" ? (
-                <SelectFilter
-                  label="Specific Report"
-                  value={filters.specificType}
-                  options={[
-                    { value: "builder", label: "Custom Report Builder" },
-                    { value: "hourly", label: "By Hourly FTD" },
-                    { value: "best_agents", label: "Best Agents" },
-                  ]}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
-                  placeholder="Select specific report"
-                />
-              ) : null}
               <SelectFilter
                 label="Table Group"
                 value={filters.groupBy}
