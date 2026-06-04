@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-const LOOKER_CARD = {
-  background: "#ffffff",
-  border: "1px solid #dce3ea",
-  borderRadius: 10,
-  boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
-};
+import styles from "./dashboard.module.css";
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
@@ -59,21 +53,13 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
 
 function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 6, minWidth: 145 }}>
-      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700, letterSpacing: 0.1 }}>{label}</span>
+    <label className={styles.selectWrap}>
+      <span className={styles.selectLabel}>{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        style={{
-          border: "1px solid #c9d1dc",
-          borderRadius: 6,
-          padding: "7px 9px",
-          background: disabled ? "#f7f9fc" : "#fff",
-          color: "#0f172a",
-          fontSize: 13,
-          minHeight: 32,
-        }}
+        className={styles.selectInput}
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
@@ -133,9 +119,9 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
 
 function ToggleGroup({ label, items, selectedItems, onToggle }) {
   return (
-    <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+    <div className={styles.chipSection}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
         {items.map((item) => {
           const active = selectedItems.includes(item.key);
           return (
@@ -143,15 +129,7 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
               key={item.key}
               type="button"
               onClick={() => onToggle(item.key)}
-              style={{
-                border: active ? "1px solid #2563eb" : "1px solid #cbd5e1",
-                borderRadius: 999,
-                padding: "6px 10px",
-                background: active ? "#eff6ff" : "#fff",
-                color: active ? "#1d4ed8" : "#0f172a",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
+              className={`${styles.chip} ${active ? styles.chipActive : ""}`}
             >
               {item.label}
             </button>
@@ -181,11 +159,13 @@ function SummaryCards({ summary }) {
     },
   ];
   return (
-    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+    <div className={styles.cardGrid}>
       {items.map((item) => (
-        <div key={item.label} style={{ ...LOOKER_CARD, padding: 10 }}>
-          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: item.color || "#0f172a" }}>{item.value}</div>
+        <div key={item.label} className={`${styles.panel} ${styles.metricCard}`}>
+          <div className={styles.metricLabel}>{item.label}</div>
+          <div className={styles.metricValue} style={{ color: item.color || "#0f172a" }}>
+            {item.value}
+          </div>
         </div>
       ))}
     </div>
@@ -201,19 +181,11 @@ function StatusCards({ stats = {} }) {
     ["Rate Of Target Achieved", formatPercent(stats.rateOfTargetAchieved)],
   ];
   return (
-    <div
-      style={{
-        ...LOOKER_CARD,
-        padding: 10,
-        display: "grid",
-        gap: 6,
-        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-      }}
-    >
+    <div className={`${styles.panel} ${styles.statusGrid}`}>
       {items.map(([label, value]) => (
         <div key={label}>
-          <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
-          <div style={{ fontSize: 29, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+          <div className={styles.statusLabel}>{label}</div>
+          <div className={styles.statusValue}>{value}</div>
         </div>
       ))}
     </div>
@@ -222,13 +194,14 @@ function StatusCards({ stats = {} }) {
 
 function SimpleTable({ rows = [] }) {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table className={styles.table}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
+          <tr>
             {["Group", "Leads", "FTD", "FTD Target", "FTD Target Reach", "CR", "CR Target", "CR Target Reach", "Selfs", "Late FTD"].map(
               (header) => (
-                <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+                <th key={header}>
                   {header}
                 </th>
               ),
@@ -238,41 +211,43 @@ function SimpleTable({ rows = [] }) {
         <tbody>
           {rows.map((row) => (
             <tr key={row.monthKey || row.label}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.label}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
+              <td className={styles.tableStrong}>{row.label}</td>
+              <td>{formatNumber(row.totalLeads)}</td>
+              <td>{formatNumber(row.totalFtd)}</td>
+              <td>{formatNumber(row.ftdTarget)}</td>
+              <td style={{ color: reachColor(row.ftdTargetReach) }}>
                 {formatPercent(row.ftdTargetReach)}
               </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
+              <td>{formatPercent(row.cr)}</td>
+              <td>{formatPercent(row.crTarget)}</td>
+              <td style={{ color: reachColor(row.crTargetReach) }}>
                 {formatPercent(row.crTargetReach)}
               </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
+              <td>{formatNumber(row.selfs)}</td>
+              <td>{formatNumber(row.lateFtd)}</td>
             </tr>
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={10} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={10} className={styles.tableEmpty}>
                 No rows found.
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
 function PivotTable({ rows = [], summary = {} }) {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1150 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table className={styles.table} style={{ minWidth: 1150 }}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
+          <tr>
             {[
               "Desk",
               "Team Leader",
@@ -287,7 +262,7 @@ function PivotTable({ rows = [], summary = {} }) {
               "FTD Target",
               "FTD Target Reach",
             ].map((header) => (
-              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+              <th key={header}>
                 {header}
               </th>
             ))}
@@ -296,44 +271,45 @@ function PivotTable({ rows = [], summary = {} }) {
         <tbody>
           {rows.map((row) => (
             <tr key={`${row.desk}-${row.teamLeader}-${row.agent}`}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
+              <td>{row.desk}</td>
+              <td>{row.teamLeader}</td>
+              <td className={styles.tableStrong}>{row.agent}</td>
+              <td>{formatNumber(row.totalLeads)}</td>
+              <td>{formatNumber(row.totalFtd)}</td>
+              <td>{formatNumber(row.selfs)}</td>
+              <td>{formatNumber(row.lateFtd)}</td>
+              <td>{formatPercent(row.cr)}</td>
+              <td>{formatPercent(row.crTarget)}</td>
+              <td style={{ color: reachColor(row.crTargetReach) }}>
                 {formatPercent(row.crTargetReach)}
               </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
+              <td>{formatNumber(row.ftdTarget)}</td>
+              <td style={{ color: reachColor(row.ftdTargetReach) }}>
                 {formatPercent(row.ftdTargetReach)}
               </td>
             </tr>
           ))}
-          <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>Grand total</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalLeads)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalFtd)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.selfs)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.lateFtd)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.cr)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.crTargetReach) }}>
+          <tr>
+            <td className={styles.tableStrong}>Grand total</td>
+            <td />
+            <td />
+            <td className={styles.tableStrong}>{formatNumber(summary.totalLeads)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.totalFtd)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.selfs)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.lateFtd)}</td>
+            <td className={styles.tableStrong}>{formatPercent(summary.cr)}</td>
+            <td className={styles.tableStrong}>{formatPercent(summary.crTarget)}</td>
+            <td className={styles.tableStrong} style={{ color: reachColor(summary.crTargetReach) }}>
               {formatPercent(summary.crTargetReach)}
             </td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.ftdTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.ftdTargetReach) }}>
+            <td className={styles.tableStrong}>{formatNumber(summary.ftdTarget)}</td>
+            <td className={styles.tableStrong} style={{ color: reachColor(summary.ftdTargetReach) }}>
               {formatPercent(summary.ftdTargetReach)}
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -353,8 +329,9 @@ function last4MonthTheme(index) {
 
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1880 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table className={styles.table} style={{ minWidth: 1880 }}>
         <thead>
           <tr>
             <th
@@ -478,6 +455,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -542,54 +520,15 @@ function FragmentMetricCells({ metric = {}, theme }) {
 
 function LoadingReportIndicator() {
   return (
-    <section
-      style={{
-        border: "1px solid #dbe3ee",
-        borderRadius: 10,
-        background: "#fff",
-        padding: 14,
-        display: "grid",
-        gap: 10,
-      }}
-    >
-      <style>{`
-        @keyframes crmBarMove {
-          0% { transform: translateX(-120%); }
-          100% { transform: translateX(320%); }
-        }
-        @keyframes crmBounce {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-4px) rotate(-6deg); }
-        }
-      `}</style>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, color: "#1e293b" }}>
-        <span style={{ animation: "crmBounce 0.7s ease-in-out infinite", display: "inline-block" }}>🤖</span>
+    <section className={`${styles.panel} ${styles.loadingCard}`}>
+      <div className={styles.loadingTitle}>
+        <span className={styles.loadingIcon}>🤖</span>
         <span>Building your report...</span>
       </div>
-      <div
-        style={{
-          position: "relative",
-          height: 12,
-          borderRadius: 999,
-          overflow: "hidden",
-          background: "linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 100%)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "35%",
-            height: "100%",
-            borderRadius: 999,
-            background: "linear-gradient(90deg, #38bdf8 0%, #2563eb 60%, #1d4ed8 100%)",
-            animation: "crmBarMove 1.2s linear infinite",
-            boxShadow: "0 0 12px rgba(37, 99, 235, 0.45)",
-          }}
-        />
+      <div className={styles.loadingTrack}>
+        <div className={styles.loadingBar} />
       </div>
-      <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>Please wait, data is being fetched and calculated.</p>
+      <p className={styles.loadingHint}>Please wait, data is being fetched and calculated.</p>
     </section>
   );
 }
@@ -613,10 +552,11 @@ function compareBuilderValues(left, right, type) {
 
 function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", maxHeight: "70vh" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
+      <div className={styles.tableScroll}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
+          <tr>
             {columns.map((column) => {
               const active = sortState.key === column.key;
               const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
@@ -625,17 +565,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
                   key={column.key}
                   onClick={() => onSort(column.key)}
                   style={{
-                    textAlign: "left",
-                    padding: "9px 12px",
-                    borderBottom: "1px solid #dbe3ee",
-                    borderTop: "1px solid #dbe3ee",
-                    fontSize: 12,
                     cursor: "pointer",
-                    position: "sticky",
-                    top: 0,
-                    background: "#f8fafc",
-                    zIndex: 2,
-                    whiteSpace: "nowrap",
                   }}
                 >
                   {column.label}
@@ -655,10 +585,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
                   <td
                     key={`${index}-${column.key}`}
                     style={{
-                      padding: "8px 12px",
-                      borderBottom: "1px solid #eef2f7",
                       color: isReach ? reachColor(value) : "#0f172a",
-                      whiteSpace: "nowrap",
                     }}
                   >
                     {formatBuilderCell(value, column.type)}
@@ -669,13 +596,14 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={columns.length || 1} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={columns.length || 1} className={styles.tableEmpty}>
                 No data found for current filters.
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -957,7 +885,7 @@ export default function DashboardPage() {
 
   if (sessionState.loading) {
     return (
-      <main style={{ fontFamily: "Arial, sans-serif", padding: 24 }}>
+      <main className={styles.unauthorizedPage}>
         <p>Loading dashboard...</p>
       </main>
     );
@@ -965,40 +893,20 @@ export default function DashboardPage() {
 
   if (!sessionState.authenticated) {
     return (
-      <main
-        style={{
-          minHeight: "100vh",
-          padding: 24,
-          fontFamily: "Arial, sans-serif",
-          background: "#f1f5f9",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        <section
-          style={{
-            width: "100%",
-            maxWidth: 560,
-            background: "#fff",
-            border: "1px solid #dbe3ee",
-            borderRadius: 12,
-            padding: 20,
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: 24 }}>CRM Dashboard Login</h1>
-          <p style={{ margin: 0, color: "#475569" }}>
+      <main className={styles.loginPage}>
+        <section className={`${styles.panel} ${styles.loginCard}`}>
+          <h1 className={styles.title}>CRM Dashboard Login</h1>
+          <p className={styles.sectionHint}>
             Log in with your Telegram account. Access permissions are shared with the Telegram bot.
           </p>
           {sessionState.auth.enabled ? (
             <TelegramLoginWidget botUsername={sessionState.auth.botUsername} onAuth={handleTelegramAuth} />
           ) : (
-            <p style={{ margin: 0, color: "#b91c1c" }}>
+            <p className={styles.errorText}>
               Telegram login widget is unavailable. Check TELEGRAM_BOT_TOKEN and bot connectivity.
             </p>
           )}
-          {sessionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{sessionState.error}</p> : null}
+          {sessionState.error ? <p className={styles.errorText}>{sessionState.error}</p> : null}
         </section>
       </main>
     );
@@ -1006,14 +914,10 @@ export default function DashboardPage() {
 
   if (!sessionState.authorized) {
     return (
-      <main style={{ fontFamily: "Arial, sans-serif", padding: 24, display: "grid", gap: 12 }}>
-        <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
-        <p style={{ margin: 0, color: "#b91c1c" }}>Your Telegram account is logged in but not authorized for this dashboard.</p>
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{ width: 140, padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-        >
+      <main className={styles.unauthorizedPage}>
+        <h1 className={styles.title}>CRM Dashboard</h1>
+        <p className={styles.errorText}>Your Telegram account is logged in but not authorized for this dashboard.</p>
+        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`} style={{ width: 140 }}>
           Log out
         </button>
       </main>
@@ -1024,48 +928,24 @@ export default function DashboardPage() {
   const needReportSelection = !needOfficeSelection && !filters.reportMode;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        fontFamily: "Arial, sans-serif",
-        padding: 16,
-        background: "#eef2f7",
-        color: "#0f172a",
-        display: "grid",
-        gap: 14,
-      }}
-    >
-      <section
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "center",
-          ...LOOKER_CARD,
-          padding: 14,
-        }}
-      >
+    <main className={styles.page}>
+      <section className={`${styles.panel} ${styles.topBar}`}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24 }}>CRM Dashboard</h1>
-          <p style={{ margin: "6px 0 0", color: "#475569", fontSize: 14 }}>
+          <h1 className={styles.title}>CRM Dashboard</h1>
+          <p className={styles.subtitle}>
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}
-        >
+        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
           Log out
         </button>
       </section>
 
       {needOfficeSelection ? (
-        <section style={{ ...LOOKER_CARD, padding: 16, display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
-          <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <section className={`${styles.panel} ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
+          <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
+          <div className={styles.pillRow}>
             {officeOptions.map((office) => (
               <button
                 key={office}
@@ -1090,7 +970,7 @@ export default function DashboardPage() {
                     agent: "",
                   }))
                 }
-                style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+                className={styles.pillButton}
               >
                 {office}
               </button>
@@ -1100,20 +980,20 @@ export default function DashboardPage() {
       ) : null}
 
       {needReportSelection ? (
-        <section style={{ ...LOOKER_CARD, padding: 16, display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <section className={`${styles.panel} ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Step 2 — Select Report</h2>
+          <div className={styles.pillRow}>
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              className={styles.pillButton}
             >
               Monthly Report
             </button>
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "builder" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              className={styles.pillButton}
             >
               Last 4 Months Report
             </button>
@@ -1128,7 +1008,7 @@ export default function DashboardPage() {
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
                 }))
               }
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              className={styles.pillButton}
             >
               Specific Reports
             </button>
@@ -1137,41 +1017,34 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && !needReportSelection ? (
-        <section style={{ ...LOOKER_CARD, padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <section className={`${styles.panel} ${styles.section}`}>
+          <div className={styles.toolbar}>
+            <h2 className={styles.sectionTitle}>Filters</h2>
+            <div className={styles.pillRow}>
               <button
                 type="button"
                 onClick={handleApplyFilters}
                 disabled={reportState.loading || !hasPendingChanges}
-                style={{
-                  border: "1px solid #2563eb",
-                  borderRadius: 8,
-                  padding: "7px 12px",
-                  background: reportState.loading || !hasPendingChanges ? "#dbeafe" : "#2563eb",
-                  color: reportState.loading || !hasPendingChanges ? "#1e3a8a" : "#fff",
-                  cursor: reportState.loading || !hasPendingChanges ? "default" : "pointer",
-                  fontWeight: 700,
-                }}
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                style={reportState.loading || !hasPendingChanges ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
               >
                 {reportState.loading ? "Loading..." : "Load Report"}
               </button>
               <button
                 type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
-                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+                className={`${styles.button} ${styles.buttonSecondary}`}
               >
                 Change Report Type
               </button>
             </div>
           </div>
           {hasPendingChanges ? (
-            <p style={{ margin: 0, color: "#1d4ed8", fontSize: 12 }}>
+            <p className={styles.inlineInfo}>
               You changed filters. Click <strong>Load Report</strong> to apply.
             </p>
           ) : null}
-          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))" }}>
+          <div className={styles.filterGrid}>
             <SelectFilter
               label="Office"
               value={filters.officeScope}
@@ -1305,8 +1178,8 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
-        <section style={{ ...LOOKER_CARD, padding: 12, display: "grid", gap: 12 }}>
-          <h2 style={{ margin: 0, fontSize: 17 }}>Report Builder</h2>
+        <section className={`${styles.panel} ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Report Builder</h2>
           <ToggleGroup
             label="Row / Group Dimensions"
             items={builderDimensionOptions}
@@ -1341,31 +1214,23 @@ export default function DashboardPage() {
       ) : null}
 
       {reportState.loading ? <LoadingReportIndicator /> : null}
-      {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
-      {exportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{exportState.error}</p> : null}
+      {reportState.error ? <p className={styles.errorText}>{reportState.error}</p> : null}
+      {exportState.error ? <p className={styles.errorText}>{exportState.error}</p> : null}
 
       {report ? (
-        <section style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "grid", gap: 4 }}>
-              <h2 style={{ margin: 0, fontSize: 18 }}>
+        <section className={styles.section} style={{ padding: 0 }}>
+          <div className={styles.reportHeader}>
+            <div>
+              <h2 className={styles.reportHeaderTitle}>
                 {report.month?.label || "Selected month"} — {report.month?.office_name || appliedFilters.officeScope}
               </h2>
-              <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
+              <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
             </div>
             <button
               type="button"
               onClick={handleExportXlsx}
               disabled={exportState.loading || hasPendingChanges}
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                padding: "8px 12px",
-                background: exportState.loading || hasPendingChanges ? "#f8fafc" : "#fff",
-                color: "#0f172a",
-                cursor: exportState.loading || hasPendingChanges ? "default" : "pointer",
-                fontWeight: 600,
-              }}
+              className={`${styles.button} ${styles.buttonSecondary}`}
             >
               {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Apply changes to export" : "Export XLSX"}
             </button>
@@ -1377,8 +1242,8 @@ export default function DashboardPage() {
             <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
           ) : null}
           {report.tableType === "builder" ? (
-            <section style={{ display: "grid", gap: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 16 }}>Results Table</h3>
+            <section className={styles.section} style={{ padding: 0 }}>
+              <h3 className={styles.sectionTitle}>Results Table</h3>
               <BuilderTable columns={builderColumns} rows={sortedBuilderRows} sortState={builderSort} onSort={handleBuilderSort} />
             </section>
           ) : null}
