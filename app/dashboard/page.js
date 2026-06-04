@@ -22,21 +22,41 @@ function reachColor(value) {
   return "#b91c1c";
 }
 
-function officeFlagForName(officeName = "") {
+function officeThemeForName(officeName = "") {
   const normalized = String(officeName || "").toLowerCase();
   if (normalized.includes("argentina")) {
-    return "🇦🇷";
+    return {
+      background: "linear-gradient(180deg, #ecfeff 0%, #e0f2fe 100%)",
+      borderColor: "#7dd3fc",
+      color: "#0c4a6e",
+    };
   }
   if (normalized.includes("dubai") || normalized.includes("uae")) {
-    return "🇦🇪";
+    return {
+      background: "linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%)",
+      borderColor: "#86efac",
+      color: "#14532d",
+    };
   }
   if (normalized.includes("pakistan")) {
-    return "🇵🇰";
+    return {
+      background: "linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)",
+      borderColor: "#86efac",
+      color: "#14532d",
+    };
   }
   if (normalized.includes("turkiye") || normalized.includes("turkey")) {
-    return "🇹🇷";
+    return {
+      background: "linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%)",
+      borderColor: "#fca5a5",
+      color: "#7f1d1d",
+    };
   }
-  return "🌍";
+  return {
+    background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+    borderColor: "#c9d5e4",
+    color: "#0f172a",
+  };
 }
 
 function reportModeMeta(mode = "") {
@@ -974,7 +994,7 @@ export default function DashboardPage() {
           <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
           <div className={styles.officeGrid}>
             {officeOptions.map((office) => {
-              const flag = officeFlagForName(office);
+              const officeTheme = officeThemeForName(office);
               return (
                 <button
                   key={office}
@@ -1000,9 +1020,9 @@ export default function DashboardPage() {
                     }))
                   }
                   className={styles.officeCard}
+                  style={officeTheme}
                 >
                   <span className={styles.officeName}>{office}</span>
-                  <span className={styles.officeFlag}>{flag}</span>
                 </button>
               );
             })}

@@ -1,6 +1,6 @@
 .page {
   min-height: 100vh;
-  padding: 10px;
+  padding: 8px;
   background: #edf2f7;
   color: #0f172a;
   font-family:
@@ -11,7 +11,7 @@
     Arial,
     sans-serif;
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .panel {
@@ -28,9 +28,9 @@
   justify-content: space-between;
   gap: 8px;
   align-items: center;
-  min-height: 48px;
-  max-height: 56px;
-  height: auto;
+  min-height: 46px;
+  height: 46px;
+  max-height: 46px;
   overflow: hidden;
   align-content: start;
 }
@@ -208,9 +208,9 @@
 }
 
 .section {
-  padding: 12px;
+  padding: 10px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
   align-content: start;
 }
 
