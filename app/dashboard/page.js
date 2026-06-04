@@ -22,6 +22,23 @@ function reachColor(value) {
   return "#b91c1c";
 }
 
+function officeFlagForName(officeName = "") {
+  const normalized = String(officeName || "").toLowerCase();
+  if (normalized.includes("argentina")) {
+    return "🇦🇷";
+  }
+  if (normalized.includes("dubai") || normalized.includes("uae")) {
+    return "🇦🇪";
+  }
+  if (normalized.includes("pakistan")) {
+    return "🇵🇰";
+  }
+  if (normalized.includes("turkiye") || normalized.includes("turkey")) {
+    return "🇹🇷";
+  }
+  return "🌍";
+}
+
 function TelegramLoginWidget({ botUsername, onAuth }) {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -934,8 +951,8 @@ export default function DashboardPage() {
     <main className={styles.page}>
       <section className={`${styles.panel} ${styles.topBar}`}>
         <div>
-          <h1 className={styles.title}>CRM Dashboard</h1>
-          <p className={styles.subtitle}>
+          <h1 className={`${styles.title} ${styles.topBarTitle}`}>CRM Dashboard</h1>
+          <p className={`${styles.subtitle} ${styles.topBarSubtitle}`}>
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
@@ -948,7 +965,7 @@ export default function DashboardPage() {
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
           <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
-          <div className={styles.pillRow}>
+          <div className={styles.officeGrid}>
             {officeOptions.map((office) => (
               <button
                 key={office}
@@ -973,9 +990,10 @@ export default function DashboardPage() {
                     agent: "",
                   }))
                 }
-                className={styles.pillButton}
+                className={styles.officeCard}
               >
-                {office}
+                <span className={styles.officeName}>{office}</span>
+                <span className={styles.officeFlag}>{officeFlagForName(office)}</span>
               </button>
             ))}
           </div>

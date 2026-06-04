@@ -22,24 +22,33 @@
 }
 
 .topBar {
-  padding: 14px 16px;
+  padding: 8px 14px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
   align-items: center;
+  min-height: 64px;
 }
 
 .title {
   margin: 0;
-  font-size: 24px;
+  font-size: 28px;
   letter-spacing: -0.02em;
 }
 
 .subtitle {
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.topBarTitle {
+  font-size: 22px;
+}
+
+.topBarSubtitle {
+  font-size: 11px;
 }
 
 .button {
@@ -84,6 +93,48 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.officeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.officeCard {
+  border: 1px solid #c9d5e4;
+  border-radius: 14px;
+  min-width: 128px;
+  min-height: 96px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  color: #0f172a;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  transition: transform 0.14s ease;
+}
+
+.officeCard:hover {
+  transform: translateY(-1px);
+  border-color: #3b82f6;
+}
+
+.officeName {
+  text-align: center;
+  line-height: 1.25;
+}
+
+.officeFlag {
+  font-size: 22px;
+  line-height: 1;
 }
 
 .pillButton {
