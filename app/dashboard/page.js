@@ -10,6 +10,17 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
 
+function reachColor(value) {
+  const number = Number(value || 0);
+  if (number >= 100) {
+    return "#15803d";
+  }
+  if (number >= 80) {
+    return "#b45309";
+  }
+  return "#b91c1c";
+}
+
 function TelegramLoginWidget({ botUsername, onAuth }) {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -41,8 +52,8 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
 
 function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 6, minWidth: 150, flex: 1 }}>
-      <span style={{ fontSize: 12, color: "#475569", fontWeight: 700 }}>{label}</span>
+    <label style={{ display: "grid", gap: 5, minWidth: 145, flex: 1 }}>
+      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>{label}</span>
       <select
         value={value}
         disabled={disabled}
@@ -52,7 +63,8 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
           borderRadius: 8,
           padding: "8px 10px",
           background: disabled ? "#f8fafc" : "#fff",
-          fontSize: 14,
+          color: "#0f172a",
+          fontSize: 13,
         }}
       >
         <option value="">{placeholder}</option>
@@ -68,20 +80,28 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
 
 function SummaryCards({ summary }) {
   const items = [
-    ["Total Leads", formatNumber(summary.totalLeads)],
-    ["Total FTD", formatNumber(summary.totalFtd)],
-    ["FTD Target", formatNumber(summary.ftdTarget)],
-    ["FTD Target Reach", formatPercent(summary.ftdTargetReach)],
-    ["CR", formatPercent(summary.cr)],
-    ["CR Target", formatPercent(summary.crTarget)],
-    ["CR Target Reach", formatPercent(summary.crTargetReach)],
+    { label: "Total Leads", value: formatNumber(summary.totalLeads) },
+    { label: "Total FTD", value: formatNumber(summary.totalFtd) },
+    { label: "FTD Target", value: formatNumber(summary.ftdTarget) },
+    {
+      label: "FTD Target Reach",
+      value: formatPercent(summary.ftdTargetReach),
+      color: reachColor(summary.ftdTargetReach),
+    },
+    { label: "CR", value: formatPercent(summary.cr) },
+    { label: "CR Target", value: formatPercent(summary.crTarget) },
+    {
+      label: "CR Target Reach",
+      value: formatPercent(summary.crTargetReach),
+      color: reachColor(summary.crTargetReach),
+    },
   ];
   return (
-    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-      {items.map(([label, value]) => (
-        <div key={label} style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12 }}>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>{label}</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>{value}</div>
+    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+      {items.map((item) => (
+        <div key={item.label} style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 10 }}>
+          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: item.color || "#0f172a" }}>{item.value}</div>
         </div>
       ))}
     </div>
@@ -102,16 +122,16 @@ function StatusCards({ stats = {} }) {
         border: "1px solid #dbe3ee",
         borderRadius: 10,
         background: "#fff",
-        padding: 12,
+        padding: 10,
         display: "grid",
-        gap: 8,
-        gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+        gap: 6,
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
       }}
     >
       {items.map(([label, value]) => (
         <div key={label}>
-          <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2 }}>{value}</div>
+          <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
+          <div style={{ fontSize: 29, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
         </div>
       ))}
     </div>
@@ -121,15 +141,12 @@ function StatusCards({ stats = {} }) {
 function SimpleTable({ rows = [] }) {
   return (
     <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
         <thead>
           <tr style={{ background: "#f8fafc" }}>
             {["Group", "Leads", "FTD", "FTD Target", "FTD Target Reach", "CR", "CR Target", "CR Target Reach", "Selfs", "Late FTD"].map(
               (header) => (
-                <th
-                  key={header}
-                  style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}
-                >
+                <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
                   {header}
                 </th>
               ),
@@ -143,10 +160,14 @@ function SimpleTable({ rows = [] }) {
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.ftdTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
+                {formatPercent(row.ftdTargetReach)}
+              </td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
+                {formatPercent(row.crTargetReach)}
+              </td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
             </tr>
@@ -202,9 +223,13 @@ function PivotTable({ rows = [], summary = {} }) {
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
+                {formatPercent(row.crTargetReach)}
+              </td>
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.ftdTargetReach)}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
+                {formatPercent(row.ftdTargetReach)}
+              </td>
             </tr>
           ))}
           <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
@@ -217,13 +242,105 @@ function PivotTable({ rows = [], summary = {} }) {
             <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.lateFtd)}</td>
             <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.cr)}</td>
             <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTargetReach)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.crTargetReach) }}>
+              {formatPercent(summary.crTargetReach)}
+            </td>
             <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.ftdTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.ftdTargetReach)}</td>
+            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.ftdTargetReach) }}>
+              {formatPercent(summary.ftdTargetReach)}
+            </td>
           </tr>
         </tbody>
       </table>
     </div>
+  );
+}
+
+function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1700 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+              Desk
+            </th>
+            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+              Team Leader
+            </th>
+            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+              Agent
+            </th>
+            {monthBlocks.map((month) => (
+              <th
+                key={month.key}
+                colSpan={6}
+                style={{ textAlign: "center", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}
+              >
+                {month.label}
+              </th>
+            ))}
+          </tr>
+          <tr style={{ background: "#f8fafc" }}>
+            {monthBlocks.map((month) => (
+              <FragmentMetricHeaders key={month.key} />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key || row.agent}>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
+              {monthBlocks.map((month) => {
+                const metric = row.months?.[month.key] || {};
+                return (
+                  <FragmentMetricCells key={`${row.key || row.agent}-${month.key}`} metric={metric} />
+                );
+              })}
+            </tr>
+          ))}
+          {!rows.length ? (
+            <tr>
+              <td colSpan={3 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+                No rows found.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FragmentMetricHeaders() {
+  return (
+    <>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>Target</th>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD</th>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR</th>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Target</th>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Reach</th>
+      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD Reach</th>
+    </>
+  );
+}
+
+function FragmentMetricCells({ metric = {} }) {
+  return (
+    <>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.target)}</td>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.ftd)}</td>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.cr)}</td>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.crTarget)}</td>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.crTargetReach) }}>
+        {formatPercent(metric.crTargetReach)}
+      </td>
+      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.ftdTargetReach) }}>
+        {formatPercent(metric.ftdTargetReach)}
+      </td>
+    </>
   );
 }
 
@@ -320,8 +437,11 @@ export default function DashboardPage() {
       const options = payload.report?.options || {};
       setFilters((prev) => {
         const next = { ...prev };
-        if (!next.monthKey && Array.isArray(options.months) && options.months.length) {
-          next.monthKey = options.months[0].key;
+        if (Array.isArray(options.months) && options.months.length) {
+          const monthExists = options.months.some((month) => month.key === next.monthKey);
+          if (!monthExists) {
+            next.monthKey = options.months[0].key;
+          }
         }
         const dependencyChecks = [
           ["desk", options.desks || []],
@@ -705,11 +825,13 @@ export default function DashboardPage() {
           </div>
           <SummaryCards summary={report.summary || {}} />
           <StatusCards stats={report.stats || {}} />
-          {report.tableType === "pivot" ? (
-            <PivotTable rows={report.table || []} summary={report.summary || {}} />
-          ) : (
+          {report.tableType === "pivot" ? <PivotTable rows={report.table || []} summary={report.summary || {}} /> : null}
+          {report.tableType === "last4_matrix" ? (
+            <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
+          ) : null}
+          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" ? (
             <SimpleTable rows={report.table || []} />
-          )}
+          ) : null}
         </section>
       ) : null}
     </main>
