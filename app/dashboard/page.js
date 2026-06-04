@@ -78,10 +78,13 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
   return <div ref={containerRef} />;
 }
 
-function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
+function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false, loading = false }) {
   return (
     <label className={styles.selectWrap}>
-      <span className={styles.selectLabel}>{label}</span>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
+      </span>
       <select
         value={value}
         disabled={disabled}
@@ -655,6 +658,7 @@ const DEFAULT_BUILDER_DIMENSIONS = [
   { key: "desk", label: "Desk", type: "text" },
   { key: "teamLeader", label: "Team Leader", type: "text" },
   { key: "agent", label: "Agent", type: "text" },
+  { key: "status", label: "Working Status", type: "text" },
   { key: "country", label: "Country", type: "text" },
   { key: "campaign", label: "Campaign", type: "text" },
   { key: "subCampaign", label: "Sub Campaign", type: "text" },
@@ -711,7 +715,6 @@ export default function DashboardPage() {
     error: "",
   });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
@@ -750,7 +753,7 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !appliedFilters.officeScope || !appliedFilters.reportMode) {
+    if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
@@ -761,7 +764,7 @@ export default function DashboardPage() {
     });
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
-      const query = buildReportQuery(appliedFilters);
+      const query = buildReportQuery(filters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
@@ -773,18 +776,11 @@ export default function DashboardPage() {
         error: "",
       });
       const options = payload.report?.options || {};
-      const sanitizedApplied = sanitizeFiltersWithOptions(appliedFilters, options);
-      const sanitizedKey = buildReportQuery(sanitizedApplied).toString();
-      const appliedKey = buildReportQuery(appliedFilters).toString();
-      if (sanitizedKey !== appliedKey) {
-        setAppliedFilters(sanitizedApplied);
-      }
       setFilters((prev) => {
+        const sanitized = sanitizeFiltersWithOptions(prev, options);
         const prevKey = buildReportQuery(prev).toString();
-        if (prevKey !== appliedKey) {
-          return prev;
-        }
-        return sanitizedApplied;
+        const sanitizedKey = buildReportQuery(sanitized).toString();
+        return prevKey === sanitizedKey ? prev : sanitized;
       });
     } catch (error) {
       setReportState({
@@ -793,7 +789,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [appliedFilters, sessionState.authorized]);
+  }, [filters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -833,7 +829,6 @@ export default function DashboardPage() {
     setReportState({ loading: false, report: null, error: "" });
     setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
     await fetchSession();
   }, [fetchSession]);
 
@@ -846,17 +841,10 @@ export default function DashboardPage() {
     });
   }, []);
 
-  const handleApplyFilters = useCallback(() => {
-    if (!filters.officeScope || !filters.reportMode) {
-      return;
-    }
-    setAppliedFilters({ ...filters });
-  }, [filters]);
-
   const handleExportXlsx = useCallback(async () => {
     setExportState({ loading: true, error: "" });
     try {
-      const query = buildReportQuery(appliedFilters);
+      const query = buildReportQuery(filters);
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -878,7 +866,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [filters]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -892,9 +880,6 @@ export default function DashboardPage() {
   }, [options.months, sessionState.bootstrap.months]);
   const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
   const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
-  const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
-  const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
-  const hasPendingChanges = draftQueryKey !== appliedQueryKey;
   const builderColumns = report?.builder?.columns || [];
   const sortedBuilderRows = useMemo(() => {
     if (report?.tableType !== "builder") {
@@ -1085,15 +1070,7 @@ export default function DashboardPage() {
           <div className={styles.toolbar}>
             <h2 className={styles.sectionTitle}>Filters</h2>
             <div className={styles.pillRow}>
-              <button
-                type="button"
-                onClick={handleApplyFilters}
-                disabled={reportState.loading || !hasPendingChanges}
-                className={`${styles.button} ${styles.buttonPrimary}`}
-                style={reportState.loading || !hasPendingChanges ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
-              >
-                {reportState.loading ? "Loading..." : "Load Report"}
-              </button>
+              {reportState.loading ? <span className={styles.loadingInline}>Updating filters...</span> : null}
               <button
                 type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
@@ -1103,17 +1080,13 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-          {hasPendingChanges ? (
-            <p className={styles.inlineInfo}>
-              You changed filters. Click <strong>Load Report</strong> to apply.
-            </p>
-          ) : null}
           <div className={styles.filterRows}>
             <div className={styles.filterRow}>
               <SelectFilter
                 label="Office"
                 value={filters.officeScope}
                 options={officeOptions.map((value) => ({ value, label: value }))}
+                loading={reportState.loading}
                 onChange={(value) =>
                   setFilters((prev) => ({
                     ...prev,
@@ -1139,6 +1112,7 @@ export default function DashboardPage() {
                   label="Month"
                   value={filters.monthKey}
                   options={monthOptions}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
                   placeholder="Select month"
                 />
@@ -1148,6 +1122,7 @@ export default function DashboardPage() {
                   label="Date"
                   value={filters.date}
                   options={asOptions(options.dates || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))}
                 />
               ) : null}
@@ -1156,24 +1131,8 @@ export default function DashboardPage() {
                   label="Hour"
                   value={filters.hour}
                   options={asOptions(options.hours || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
-                />
-              ) : null}
-              {!isLast4Mode ? (
-                <SelectFilter
-                  label="Table Group"
-                  value={filters.groupBy}
-                  options={[
-                    { value: "agent", label: "Agent" },
-                    { value: "teamLeader", label: "Team Leader" },
-                    { value: "desk", label: "Desk" },
-                    { value: "country", label: "Country" },
-                    { value: "brand", label: "Brand" },
-                    { value: "campaign", label: "Campaign" },
-                    { value: "subCampaign", label: "Sub Campaign" },
-                    { value: "placement", label: "Placement" },
-                  ]}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
                 />
               ) : null}
             </div>
@@ -1183,18 +1142,21 @@ export default function DashboardPage() {
                 label="Desk"
                 value={filters.desk}
                 options={asOptions(options.desks || [])}
+                loading={reportState.loading}
                 onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
               />
               <SelectFilter
                 label="Team Leader"
                 value={filters.teamLeader}
                 options={asOptions(options.teamLeaders || [])}
+                loading={reportState.loading}
                 onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
               />
               <SelectFilter
                 label="Agent"
                 value={filters.agent}
                 options={asOptions(options.agents || [])}
+                loading={reportState.loading}
                 onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
               />
               {!isLast4Mode ? (
@@ -1202,6 +1164,7 @@ export default function DashboardPage() {
                   label="Country"
                   value={filters.country}
                   options={asOptions(options.countries || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
                 />
               ) : null}
@@ -1210,6 +1173,7 @@ export default function DashboardPage() {
                   label="Brand"
                   value={filters.brand}
                   options={asOptions(options.brands || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
                 />
               ) : null}
@@ -1218,6 +1182,7 @@ export default function DashboardPage() {
                   label="Campaign"
                   value={filters.campaign}
                   options={asOptions(options.campaigns || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
                 />
               ) : null}
@@ -1229,19 +1194,15 @@ export default function DashboardPage() {
                   label="Sub Campaign"
                   value={filters.subCampaign}
                   options={asOptions(options.subCampaigns || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, subCampaign: value }))}
                 />
                 <SelectFilter
                   label="Placement"
                   value={filters.placement}
                   options={asOptions(options.placements || [])}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
-                />
-                <SelectFilter
-                  label="Working Status"
-                  value={filters.status}
-                  options={asOptions(options.statuses || [])}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
                 />
               </div>
             ) : null}
@@ -1294,17 +1255,17 @@ export default function DashboardPage() {
           <div className={styles.reportHeader}>
             <div>
               <h2 className={styles.reportHeaderTitle}>
-                {report.month?.label || "Selected month"} — {report.month?.office_name || appliedFilters.officeScope}
+                {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
             </div>
             <button
               type="button"
               onClick={handleExportXlsx}
-              disabled={exportState.loading || hasPendingChanges}
+              disabled={exportState.loading || reportState.loading}
               className={`${styles.button} ${styles.buttonSecondary}`}
             >
-              {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Apply changes to export" : "Export XLSX"}
+              {exportState.loading ? "Preparing XLSX..." : "Export XLSX"}
             </button>
           </div>
           <SummaryCards summary={report.summary || {}} />
