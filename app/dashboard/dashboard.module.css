@@ -11,7 +11,7 @@
     Arial,
     sans-serif;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .panel {
@@ -22,13 +22,15 @@
 }
 
 .topBar {
-  padding: 8px 14px;
+  padding: 6px 12px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  min-height: 64px;
+  min-height: 56px;
+  max-height: 72px;
+  overflow: hidden;
 }
 
 .title {
@@ -44,11 +46,11 @@
 }
 
 .topBarTitle {
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .topBarSubtitle {
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .button {
@@ -99,16 +101,16 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 14px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 0;
 }
 
 .officeCard {
   border: 1px solid #c9d5e4;
   border-radius: 14px;
-  min-width: 128px;
-  min-height: 96px;
-  padding: 10px 12px;
+  min-width: 124px;
+  min-height: 84px;
+  padding: 9px 10px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   color: #0f172a;
   display: grid;
@@ -133,8 +135,16 @@
 }
 
 .officeFlag {
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
+}
+
+.officeFlagImg {
+  width: 26px;
+  height: 18px;
+  object-fit: cover;
+  border-radius: 2px;
+  border: 1px solid #cbd5e1;
 }
 
 .pillButton {
@@ -195,9 +205,9 @@
 }
 
 .section {
-  padding: 14px;
+  padding: 12px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .sectionFancy {

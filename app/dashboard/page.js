@@ -25,18 +25,18 @@ function reachColor(value) {
 function officeFlagForName(officeName = "") {
   const normalized = String(officeName || "").toLowerCase();
   if (normalized.includes("argentina")) {
-    return "🇦🇷";
+    return { emoji: "🇦🇷", url: "https://flagcdn.com/w40/ar.png", code: "AR" };
   }
   if (normalized.includes("dubai") || normalized.includes("uae")) {
-    return "🇦🇪";
+    return { emoji: "🇦🇪", url: "https://flagcdn.com/w40/ae.png", code: "AE" };
   }
   if (normalized.includes("pakistan")) {
-    return "🇵🇰";
+    return { emoji: "🇵🇰", url: "https://flagcdn.com/w40/pk.png", code: "PK" };
   }
   if (normalized.includes("turkiye") || normalized.includes("turkey")) {
-    return "🇹🇷";
+    return { emoji: "🇹🇷", url: "https://flagcdn.com/w40/tr.png", code: "TR" };
   }
-  return "🌍";
+  return { emoji: "🌍", url: "", code: "GLOBAL" };
 }
 
 function reportModeMeta(mode = "") {
@@ -976,36 +976,43 @@ export default function DashboardPage() {
           <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
           <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
           <div className={styles.officeGrid}>
-            {officeOptions.map((office) => (
-              <button
-                key={office}
-                type="button"
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    officeScope: office,
-                    reportMode: "",
-                    specificType: "builder",
-                    monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
-                    date: "",
-                    hour: "",
-                    desk: "",
-                    country: "",
-                    brand: "",
-                    campaign: "",
-                    subCampaign: "",
-                    placement: "",
-                    status: "",
-                    teamLeader: "",
-                    agent: "",
-                  }))
-                }
-                className={styles.officeCard}
-              >
-                <span className={styles.officeName}>{office}</span>
-                <span className={styles.officeFlag}>{officeFlagForName(office)}</span>
-              </button>
-            ))}
+            {officeOptions.map((office) => {
+              const flag = officeFlagForName(office);
+              return (
+                <button
+                  key={office}
+                  type="button"
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      officeScope: office,
+                      reportMode: "",
+                      specificType: "builder",
+                      monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
+                      date: "",
+                      hour: "",
+                      desk: "",
+                      country: "",
+                      brand: "",
+                      campaign: "",
+                      subCampaign: "",
+                      placement: "",
+                      status: "",
+                      teamLeader: "",
+                      agent: "",
+                    }))
+                  }
+                  className={styles.officeCard}
+                >
+                  <span className={styles.officeName}>{office}</span>
+                  {flag.url ? (
+                    <img className={styles.officeFlagImg} src={flag.url} alt={`${office} flag`} loading="lazy" />
+                  ) : (
+                    <span className={styles.officeFlag}>{flag.emoji}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </section>
       ) : null}
