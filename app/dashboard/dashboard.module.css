@@ -245,12 +245,11 @@
 .filterRows {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .filterRow {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: contents;
 }
 
 .selectWrap {
@@ -452,19 +451,19 @@
 }
 
 @media (max-width: 1500px) {
-  .filterRow {
+  .filterRows {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 1220px) {
-  .filterRow {
+  .filterRows {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 940px) {
-  .filterRow {
+  .filterRows {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -513,7 +512,7 @@
     gap: 8px;
   }
 
-  .filterRow {
+  .filterRows {
     grid-template-columns: 1fr;
   }
 

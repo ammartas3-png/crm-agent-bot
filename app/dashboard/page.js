@@ -735,6 +735,7 @@ export default function DashboardPage() {
     error: "",
   });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
@@ -758,10 +759,17 @@ export default function DashboardPage() {
         bootstrap: payload.bootstrap || { defaultMonthKey: "", months: [], officeScopes: [] },
         error: "",
       });
+      const officeScopeDefault = officeScopes.length === 1 ? officeScopes[0] : "";
+      const monthDefault = payload.bootstrap?.defaultMonthKey || "";
       setFilters((prev) => ({
         ...prev,
-        officeScope: prev.officeScope || (officeScopes.length === 1 ? officeScopes[0] : ""),
-        monthKey: prev.monthKey || payload.bootstrap?.defaultMonthKey || "",
+        officeScope: prev.officeScope || officeScopeDefault,
+        monthKey: prev.monthKey || monthDefault,
+      }));
+      setAppliedFilters((prev) => ({
+        ...prev,
+        officeScope: prev.officeScope || officeScopeDefault,
+        monthKey: prev.monthKey || monthDefault,
       }));
     } catch {
       setSessionState((prev) => ({
@@ -773,7 +781,7 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
+    if (!sessionState.authorized || !appliedFilters.officeScope || !appliedFilters.reportMode) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
@@ -784,7 +792,7 @@ export default function DashboardPage() {
     });
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
-      const query = buildReportQuery(filters);
+      const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
@@ -802,6 +810,12 @@ export default function DashboardPage() {
         const sanitizedKey = buildReportQuery(sanitized).toString();
         return prevKey === sanitizedKey ? prev : sanitized;
       });
+      setAppliedFilters((prev) => {
+        const sanitized = sanitizeFiltersWithOptions(prev, options);
+        const prevKey = buildReportQuery(prev).toString();
+        const sanitizedKey = buildReportQuery(sanitized).toString();
+        return prevKey === sanitizedKey ? prev : sanitized;
+      });
     } catch (error) {
       setReportState({
         loading: false,
@@ -809,7 +823,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [filters, sessionState.authorized]);
+  }, [appliedFilters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -849,6 +863,7 @@ export default function DashboardPage() {
     setReportState({ loading: false, report: null, error: "" });
     setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
+    setAppliedFilters(EMPTY_FILTERS);
     await fetchSession();
   }, [fetchSession]);
 
@@ -861,10 +876,31 @@ export default function DashboardPage() {
     });
   }, []);
 
+  const handleCascadingFilterChange = useCallback((key, value) => {
+    const chain = ["desk", "teamLeader", "agent", "country", "brand", "campaign", "subCampaign", "placement"];
+    setFilters((prev) => {
+      const next = { ...prev, [key]: value };
+      const index = chain.indexOf(key);
+      if (index >= 0) {
+        for (let i = index + 1; i < chain.length; i += 1) {
+          next[chain[i]] = "";
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleApplyFilters = useCallback(() => {
+    if (!filters.officeScope || !filters.reportMode) {
+      return;
+    }
+    setAppliedFilters({ ...filters });
+  }, [filters]);
+
   const handleExportXlsx = useCallback(async () => {
     setExportState({ loading: true, error: "" });
     try {
-      const query = buildReportQuery(filters);
+      const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -886,7 +922,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [filters]);
+  }, [appliedFilters]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -898,6 +934,9 @@ export default function DashboardPage() {
       label: item.office_name ? `${item.month_label} — ${item.office_name}` : item.month_label,
     }));
   }, [options.months, sessionState.bootstrap.months]);
+  const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
+  const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
+  const hasPendingChanges = draftQueryKey !== appliedQueryKey;
   const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
   const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
   const builderColumns = report?.builder?.columns || [];
@@ -1093,6 +1132,15 @@ export default function DashboardPage() {
               {reportState.loading ? <span className={styles.loadingInline}>Updating filters...</span> : null}
               <button
                 type="button"
+                onClick={handleApplyFilters}
+                disabled={reportState.loading || !hasPendingChanges}
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                style={reportState.loading || !hasPendingChanges ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
+              >
+                {reportState.loading ? "Loading..." : "Load Report"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
                 className={`${styles.button} ${styles.buttonSecondary}`}
               >
@@ -1100,6 +1148,11 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+          {hasPendingChanges ? (
+            <p className={styles.inlineInfo}>
+              You changed filters. Click <strong>Load Report</strong> to apply.
+            </p>
+          ) : null}
           <div className={styles.filterRows}>
             <div className={styles.filterRow}>
               <SelectFilter
@@ -1163,21 +1216,21 @@ export default function DashboardPage() {
                 value={filters.desk}
                 options={asOptions(options.desks || [])}
                 loading={reportState.loading}
-                onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
+                onChange={(value) => handleCascadingFilterChange("desk", value)}
               />
               <SelectFilter
                 label="Team Leader"
                 value={filters.teamLeader}
                 options={asOptions(options.teamLeaders || [])}
                 loading={reportState.loading}
-                onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
+                onChange={(value) => handleCascadingFilterChange("teamLeader", value)}
               />
               <SelectFilter
                 label="Agent"
                 value={filters.agent}
                 options={asOptions(options.agents || [])}
                 loading={reportState.loading}
-                onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
+                onChange={(value) => handleCascadingFilterChange("agent", value)}
               />
               {!isLast4Mode ? (
                 <SelectFilter
@@ -1185,7 +1238,7 @@ export default function DashboardPage() {
                   value={filters.country}
                   options={asOptions(options.countries || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
+                  onChange={(value) => handleCascadingFilterChange("country", value)}
                 />
               ) : null}
               {!isLast4Mode ? (
@@ -1194,7 +1247,7 @@ export default function DashboardPage() {
                   value={filters.brand}
                   options={asOptions(options.brands || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
+                  onChange={(value) => handleCascadingFilterChange("brand", value)}
                 />
               ) : null}
               {!isLast4Mode ? (
@@ -1203,7 +1256,7 @@ export default function DashboardPage() {
                   value={filters.campaign}
                   options={asOptions(options.campaigns || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
+                  onChange={(value) => handleCascadingFilterChange("campaign", value)}
                 />
               ) : null}
             </div>
@@ -1215,14 +1268,14 @@ export default function DashboardPage() {
                   value={filters.subCampaign}
                   options={asOptions(options.subCampaigns || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, subCampaign: value }))}
+                  onChange={(value) => handleCascadingFilterChange("subCampaign", value)}
                 />
                 <SelectFilter
                   label="Placement"
                   value={filters.placement}
                   options={asOptions(options.placements || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
+                  onChange={(value) => handleCascadingFilterChange("placement", value)}
                 />
               </div>
             ) : null}
@@ -1275,17 +1328,17 @@ export default function DashboardPage() {
           <div className={styles.reportHeader}>
             <div>
               <h2 className={styles.reportHeaderTitle}>
-                {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
+                {report.month?.label || "Selected month"} — {report.month?.office_name || appliedFilters.officeScope}
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
             </div>
             <button
               type="button"
               onClick={handleExportXlsx}
-              disabled={exportState.loading || reportState.loading}
+              disabled={exportState.loading || reportState.loading || hasPendingChanges}
               className={`${styles.button} ${styles.buttonSecondary}`}
             >
-              {exportState.loading ? "Preparing XLSX..." : "Export XLSX"}
+              {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}
             </button>
           </div>
           <SummaryCards summary={report.summary || {}} />
