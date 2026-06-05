@@ -255,11 +255,24 @@ function buildReportQuery(filters = {}) {
 
 function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
   const next = { ...sourceFilters };
+  if (Array.isArray(options.officeScopes) && options.officeScopes.length) {
+    const officeValues = Array.isArray(next.officeScope)
+      ? next.officeScope
+      : String(next.officeScope || "").trim()
+        ? [String(next.officeScope || "").trim()]
+        : [];
+    const filteredOffices = officeValues.filter((value) => options.officeScopes.includes(value));
+    next.officeScope = filteredOffices.length ? filteredOffices : [options.officeScopes[0]];
+  }
   if (Array.isArray(options.months) && options.months.length) {
-    const monthExists = options.months.some((month) => month.key === next.monthKey);
-    if (!monthExists) {
-      next.monthKey = options.months[0].key;
-    }
+    const monthValues = Array.isArray(next.monthKey)
+      ? next.monthKey
+      : String(next.monthKey || "").trim()
+        ? [String(next.monthKey || "").trim()]
+        : [];
+    const validMonthKeys = new Set(options.months.map((month) => month.key));
+    const filteredMonths = monthValues.filter((value) => validMonthKeys.has(value));
+    next.monthKey = filteredMonths.length ? filteredMonths : [options.months[0].key];
   }
   const dependencyChecks = [
     ["date", options.dates || []],
@@ -895,10 +908,10 @@ const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
 ];
 
 const EMPTY_FILTERS = {
-  officeScope: "",
+  officeScope: [],
   reportMode: "",
   specificType: "builder",
-  monthKey: "",
+  monthKey: [],
   date: [],
   hour: [],
   desk: [],
@@ -970,17 +983,17 @@ export default function DashboardPage() {
         bootstrap: payload.bootstrap || { defaultMonthKey: "", months: [], officeScopes: [] },
         error: "",
       });
-      const officeScopeDefault = officeScopes.length === 1 ? officeScopes[0] : "";
-      const monthDefault = payload.bootstrap?.defaultMonthKey || "";
+      const officeScopeDefault = officeScopes.length === 1 ? [officeScopes[0]] : [];
+      const monthDefault = payload.bootstrap?.defaultMonthKey ? [payload.bootstrap.defaultMonthKey] : [];
       setFilters((prev) => ({
         ...prev,
-        officeScope: prev.officeScope || officeScopeDefault,
-        monthKey: prev.monthKey || monthDefault,
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
       }));
       setAppliedFilters((prev) => ({
         ...prev,
-        officeScope: prev.officeScope || officeScopeDefault,
-        monthKey: prev.monthKey || monthDefault,
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
       }));
     } catch {
       setSessionState((prev) => ({
@@ -992,7 +1005,12 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !appliedFilters.officeScope || !appliedFilters.reportMode) {
+    if (
+      !sessionState.authorized ||
+      !Array.isArray(appliedFilters.officeScope) ||
+      !appliedFilters.officeScope.length ||
+      !appliedFilters.reportMode
+    ) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
@@ -1105,7 +1123,7 @@ export default function DashboardPage() {
   }, []);
 
   const handleApplyFilters = useCallback(() => {
-    if (!filters.officeScope || !filters.reportMode) {
+    if (!Array.isArray(filters.officeScope) || !filters.officeScope.length || !filters.reportMode) {
       return;
     }
     setAppliedFilters({ ...filters });
@@ -1332,7 +1350,7 @@ export default function DashboardPage() {
     );
   }
 
-  const needOfficeSelection = !filters.officeScope;
+  const needOfficeSelection = !Array.isArray(filters.officeScope) || filters.officeScope.length === 0;
   const needReportSelection = !needOfficeSelection && !filters.reportMode;
   const isLast4Mode = filters.reportMode === "last4";
 
@@ -1364,10 +1382,15 @@ export default function DashboardPage() {
                   onClick={() =>
                     setFilters((prev) => ({
                       ...prev,
-                      officeScope: office,
+                      officeScope: [office],
                       reportMode: "",
                       specificType: "builder",
-                      monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
+                      monthKey:
+                        Array.isArray(prev.monthKey) && prev.monthKey.length
+                          ? prev.monthKey
+                          : sessionState.bootstrap.defaultMonthKey
+                            ? [sessionState.bootstrap.defaultMonthKey]
+                            : [],
                       date: [],
                       hour: [],
                       desk: [],
@@ -1488,9 +1511,9 @@ export default function DashboardPage() {
           ) : null}
           <div className={styles.filterRows}>
             <div className={styles.filterRow}>
-              <SelectFilter
+              <MultiSelectFilter
                 label="Office"
-                value={filters.officeScope}
+                values={filters.officeScope}
                 options={officeOptions.map((value) => ({ value, label: value }))}
                 loading={reportState.loading}
                 onChange={(value) =>
@@ -1515,9 +1538,9 @@ export default function DashboardPage() {
                 }
               />
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Month"
-                  value={filters.monthKey}
+                  values={filters.monthKey}
                   options={monthOptions}
                   loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
@@ -1688,7 +1711,9 @@ export default function DashboardPage() {
           <div className={styles.reportHeader}>
             <div>
               <h2 className={styles.reportHeaderTitle}>
-                {report.month?.label || "Selected month"} — {report.month?.office_name || appliedFilters.officeScope}
+                {report.month?.label || "Selected month"} —{" "}
+                {report.month?.office_name ||
+                  (Array.isArray(appliedFilters.officeScope) ? appliedFilters.officeScope.join(", ") : appliedFilters.officeScope)}
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
             </div>
