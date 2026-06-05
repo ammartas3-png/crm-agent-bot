@@ -25,6 +25,7 @@ function queryParams(searchParams) {
     rowDimensions: String(searchParams.get("rowDimensions") || "").trim(),
     metricFields: String(searchParams.get("metricFields") || "").trim(),
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
+    columnDimension: String(searchParams.get("columnDimension") || "").trim(),
   };
 }
 

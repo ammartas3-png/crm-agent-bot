@@ -887,6 +887,13 @@ const DEFAULT_BUILDER_METRICS = [
   { key: "missingFtd", label: "Missing FTD", type: "number" },
 ];
 
+const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
+  { key: "", label: "Rows Only", type: "text" },
+  { key: "month", label: "Months", type: "text" },
+  { key: "date", label: "Date", type: "date" },
+  { key: "hour", label: "Hour", type: "hour" },
+];
+
 const EMPTY_FILTERS = {
   officeScope: "",
   reportMode: "",
@@ -903,6 +910,7 @@ const EMPTY_FILTERS = {
   status: [],
   teamLeader: [],
   agent: [],
+  columnDimension: "",
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: [
@@ -1145,6 +1153,7 @@ export default function DashboardPage() {
   const hasPendingChanges = draftQueryKey !== appliedQueryKey;
   const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
   const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
+  const builderColumnDimensionOptions = options.builderColumnDimensions || DEFAULT_BUILDER_COLUMN_DIMENSIONS;
   const builderColumns = report?.builder?.columns || [];
   const sortedBuilderRows = useMemo(() => {
     if (report?.tableType !== "builder") {
@@ -1370,6 +1379,7 @@ export default function DashboardPage() {
                       status: [],
                       teamLeader: [],
                       agent: [],
+                      columnDimension: "",
                     }))
                   }
                   className={styles.officeCard}
@@ -1410,6 +1420,7 @@ export default function DashboardPage() {
                   subCampaign: [],
                   placement: [],
                   status: [],
+                  columnDimension: "",
                   groupBy: "agent",
                 }))
               }
@@ -1425,6 +1436,7 @@ export default function DashboardPage() {
                   ...prev,
                   reportMode: "specific",
                   specificType: "builder",
+                  columnDimension: prev.columnDimension || "",
                   rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
                   totalDimensions: Array.isArray(prev.totalDimensions)
@@ -1498,6 +1510,7 @@ export default function DashboardPage() {
                     status: [],
                     teamLeader: [],
                     agent: [],
+                    columnDimension: "",
                   }))
                 }
               />
@@ -1607,6 +1620,13 @@ export default function DashboardPage() {
       {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Report Builder</h2>
+          <SelectFilter
+            label="Column"
+            value={filters.columnDimension}
+            options={builderColumnDimensionOptions.map((item) => ({ value: item.key, label: item.label }))}
+            onChange={(value) => setFilters((prev) => ({ ...prev, columnDimension: value }))}
+            placeholder="Rows Only"
+          />
           <RowDimensionGroup
             label="Row / Group Dimensions"
             items={builderDimensionOptions}
