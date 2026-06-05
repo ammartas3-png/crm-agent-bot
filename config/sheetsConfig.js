@@ -35,15 +35,17 @@ const DEFAULT_TRANSACTION_COLUMNS = [
   "Type",
   "Country",
 ];
-const DEFAULT_INFO_AGENTS_COLUMNS = [
-  "Working Status",
-  null,
-  "Agent Name",
-  "Agent Target",
-  null,
-  "Office",
-  "Team Leader",
-];
+const DEFAULT_INFO_AGENTS_COLUMNS = (() => {
+  const columns = new Array(42).fill(null);
+  columns[0] = "Working Status";
+  columns[2] = "Agent Name";
+  columns[3] = "Agent Target";
+  columns[5] = "Office";
+  columns[6] = "Team Leader";
+  columns[11] = "Starting Date";
+  columns[41] = "Job Entry";
+  return columns;
+})();
 const DEFAULT_AGENT_DIRECTORY_COLUMNS = ["Agent Name", "Agent ID"];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
