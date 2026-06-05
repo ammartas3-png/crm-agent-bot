@@ -128,7 +128,7 @@ export const sheetsConfig = {
     infoAgents: {
       key: "infoAgents",
       name: infoAgentsTabName,
-      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:G"),
+      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:AP"),
       columns: DEFAULT_INFO_AGENTS_COLUMNS,
       fields: {
         workingStatus: "Working Status",
