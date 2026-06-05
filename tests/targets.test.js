@@ -127,6 +127,20 @@ test("info agent context reads start date from L-style column fallback", () => {
   assert.equal(record?.start_date, "25/09/2023");
 });
 
+test("info agent context keeps start date map for rows with blank status", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      L: "25/09/2023",
+    },
+  ]);
+  assert.equal(context.byAgent.get(normalizeAgentName("Asad kh")), undefined);
+  assert.equal(context.startDateByAgent.get(normalizeAgentName("Asad kh")), "25/09/2023");
+});
+
 test("info agent context keeps earliest valid start date for duplicate agent rows", () => {
   const context = buildInfoAgentsContext([
     {

@@ -835,9 +835,17 @@ function LoadingReportIndicator() {
 
 function formatBuilderCell(value, type) {
   if (type === "number") {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "-";
+    }
     return formatNumber(value);
   }
   if (type === "percent") {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "-";
+    }
     return formatPercent(value);
   }
   return String(value ?? "-");
