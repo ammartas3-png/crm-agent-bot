@@ -476,7 +476,8 @@
 }
 
 .tableScroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 58vh;
 }
 
 .table {
@@ -540,6 +541,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .tableScroll {
+    max-height: 52vh;
+  }
+
   .reportModeGrid {
     width: 100%;
     gap: 10px;
@@ -587,6 +592,10 @@
 
   .filterRows {
     grid-template-columns: 1fr;
+  }
+
+  .tableScroll {
+    max-height: 50vh;
   }
 
   .reportModeCard {
