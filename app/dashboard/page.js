@@ -942,7 +942,7 @@ export default function DashboardPage() {
   }, []);
 
   const handleCascadingFilterChange = useCallback((key, value) => {
-    const chain = ["desk", "teamLeader", "agent", "country", "brand", "campaign", "subCampaign", "placement"];
+    const chain = ["desk", "brand", "agent", "country", "teamLeader", "campaign", "subCampaign", "placement"];
     setFilters((prev) => {
       const next = { ...prev, [key]: value };
       const index = chain.indexOf(key);
@@ -1290,13 +1290,15 @@ export default function DashboardPage() {
                 loading={reportState.loading}
                 onChange={(value) => handleCascadingFilterChange("desk", value)}
               />
-              <SelectFilter
-                label="Team Leader"
-                value={filters.teamLeader}
-                options={asOptions(options.teamLeaders || [])}
-                loading={reportState.loading}
-                onChange={(value) => handleCascadingFilterChange("teamLeader", value)}
-              />
+              {!isLast4Mode ? (
+                <SelectFilter
+                  label="Brand"
+                  value={filters.brand}
+                  options={asOptions(options.brands || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("brand", value)}
+                />
+              ) : null}
               <SelectFilter
                 label="Agent"
                 value={filters.agent}
@@ -1313,15 +1315,13 @@ export default function DashboardPage() {
                   onChange={(value) => handleCascadingFilterChange("country", value)}
                 />
               ) : null}
-              {!isLast4Mode ? (
-                <SelectFilter
-                  label="Brand"
-                  value={filters.brand}
-                  options={asOptions(options.brands || [])}
-                  loading={reportState.loading}
-                  onChange={(value) => handleCascadingFilterChange("brand", value)}
-                />
-              ) : null}
+              <SelectFilter
+                label="Team Leader"
+                value={filters.teamLeader}
+                options={asOptions(options.teamLeaders || [])}
+                loading={reportState.loading}
+                onChange={(value) => handleCascadingFilterChange("teamLeader", value)}
+              />
               {!isLast4Mode ? (
                 <SelectFilter
                   label="Campaign"
