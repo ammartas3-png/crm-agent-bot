@@ -204,6 +204,41 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
   );
 }
 
+function TotalDimensionSwitches({ items, selectedDimensions, selectedTotals, onToggle }) {
+  const selectedSet = new Set(selectedDimensions || []);
+  const totalSet = new Set(selectedTotals || []);
+  return (
+    <div className={styles.totalSwitchSection}>
+      <div className={styles.chipTitle}>Total Rows</div>
+      <div className={styles.totalSwitchGrid}>
+        {items.map((item) => {
+          const enabled = selectedSet.has(item.key);
+          const active = enabled && totalSet.has(item.key);
+          return (
+            <div key={`total-switch-${item.key}`} className={styles.totalSwitchCard}>
+              <span className={styles.totalSwitchLabel}>{item.label}</span>
+              <button
+                type="button"
+                aria-pressed={active}
+                disabled={!enabled}
+                onClick={() => onToggle(item.key)}
+                className={`${styles.totalSwitch} ${
+                  !enabled ? styles.totalSwitchDisabled : active ? styles.totalSwitchOn : styles.totalSwitchOff
+                }`}
+                title={!enabled ? "Select this row dimension first" : active ? "Total enabled" : "Total disabled"}
+              >
+                <span
+                  className={`${styles.totalSwitchThumb} ${active ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
+                />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SummaryCards({ summary }) {
   const items = [
     { label: "Total Leads", value: formatNumber(summary.totalLeads) },
@@ -641,7 +676,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={`builder-${index}`}>
+            <tr key={`builder-${index}`} className={row.__rowKind === "total" ? styles.tableTotalRow : ""}>
               {columns.map((column) => {
                 const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                 const value = row[column.key];
@@ -719,6 +754,7 @@ const EMPTY_FILTERS = {
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: ["leads", "leadShare", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"],
+  totalDimensions: [],
 };
 
 function asOptions(values = []) {
@@ -1114,6 +1150,11 @@ export default function DashboardPage() {
                   specificType: "builder",
                   rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
+                  totalDimensions: Array.isArray(prev.totalDimensions)
+                    ? prev.totalDimensions.filter((item) =>
+                        (prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions).includes(item),
+                      )
+                    : EMPTY_FILTERS.totalDimensions,
                 }))
               }
               className={styles.reportModeCard}
@@ -1298,7 +1339,28 @@ export default function DashboardPage() {
                 if (!next.length) {
                   return prev;
                 }
-                return { ...prev, rowDimensions: next };
+                const nextTotals = Array.isArray(prev.totalDimensions)
+                  ? prev.totalDimensions.filter((item) => next.includes(item))
+                  : [];
+                return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
+              })
+            }
+          />
+          <TotalDimensionSwitches
+            items={builderDimensionOptions}
+            selectedDimensions={filters.rowDimensions || []}
+            selectedTotals={filters.totalDimensions || []}
+            onToggle={(key) =>
+              setFilters((prev) => {
+                const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                if (!selectedDimensions.includes(key)) {
+                  return prev;
+                }
+                const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
+                const nextTotals = currentTotals.includes(key)
+                  ? currentTotals.filter((item) => item !== key)
+                  : [...currentTotals, key];
+                return { ...prev, totalDimensions: nextTotals };
               })
             }
           />

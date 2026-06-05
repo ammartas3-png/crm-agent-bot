@@ -24,6 +24,7 @@ function queryParams(searchParams) {
     groupBy: String(searchParams.get("groupBy") || "").trim(),
     rowDimensions: String(searchParams.get("rowDimensions") || "").trim(),
     metricFields: String(searchParams.get("metricFields") || "").trim(),
+    totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
   };
 }
 
