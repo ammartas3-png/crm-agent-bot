@@ -204,35 +204,64 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
   );
 }
 
-function TotalDimensionSwitches({ items, selectedDimensions, selectedTotals, onToggle }) {
-  const selectedSet = new Set(selectedDimensions || []);
+function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onToggleDimension, onToggleTotal }) {
+  const selectedSet = new Set(selectedItems || []);
   const totalSet = new Set(selectedTotals || []);
+  const lastSelectedKey = selectedItems?.[selectedItems.length - 1] || "";
+  const selectedLabels = selectedItems
+    .map((key) => items.find((item) => item.key === key)?.label || "")
+    .filter(Boolean);
   return (
     <div className={styles.totalSwitchSection}>
-      <div className={styles.totalSwitchTitle}>Total Rows</div>
-      <div className={styles.totalSwitchGrid}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
         {items.map((item) => {
-          const enabled = selectedSet.has(item.key);
-          const active = enabled && totalSet.has(item.key);
+          const activeDimension = selectedSet.has(item.key);
+          const totalEnabled = activeDimension && item.key !== lastSelectedKey;
+          const totalActive = totalEnabled && totalSet.has(item.key);
           return (
-            <button
-              key={`total-switch-${item.key}`}
-              type="button"
-              aria-label={`${item.label} total`}
-              aria-pressed={active}
-              disabled={!enabled}
-              onClick={() => onToggle(item.key)}
-              className={`${styles.totalSwitch} ${
-                !enabled ? styles.totalSwitchDisabled : active ? styles.totalSwitchOn : styles.totalSwitchOff
-              }`}
-              title={!enabled ? "Select this row dimension first" : active ? `${item.label} total enabled` : `${item.label} total disabled`}
-            >
-              <span
-                className={`${styles.totalSwitchThumb} ${active ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
-              />
-            </button>
+            <div key={`row-dim-${item.key}`} className={styles.chipWithSwitch}>
+              <button
+                type="button"
+                onClick={() => onToggleDimension(item.key)}
+                className={`${styles.chip} ${activeDimension ? styles.chipActive : ""}`}
+              >
+                <span className={styles.chipInner}>
+                  {activeDimension ? <span className={styles.chipCheck}>✓</span> : null}
+                  {activeDimension ? <span className={styles.chipOrder}>{selectedItems.indexOf(item.key) + 1}</span> : null}
+                  <span>{item.label}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={`${item.label} total`}
+                aria-pressed={totalActive}
+                disabled={!totalEnabled}
+                onClick={() => onToggleTotal(item.key)}
+                className={`${styles.totalSwitch} ${
+                  !totalEnabled ? styles.totalSwitchDisabled : totalActive ? styles.totalSwitchOn : styles.totalSwitchOff
+                }`}
+                title={
+                  !totalEnabled
+                    ? "Subtotal not available for last selected row"
+                    : totalActive
+                      ? `${item.label} subtotal enabled`
+                      : `${item.label} subtotal disabled`
+                }
+              >
+                <span
+                  className={`${styles.totalSwitchThumb} ${totalActive ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
+                />
+              </button>
+            </div>
           );
         })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label} Order</div>
+        <div className={styles.orderValue}>
+          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : "No selection"}
+        </div>
       </div>
     </div>
   );
@@ -1150,9 +1179,11 @@ export default function DashboardPage() {
                   rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
                   totalDimensions: Array.isArray(prev.totalDimensions)
-                    ? prev.totalDimensions.filter((item) =>
-                        (prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions).includes(item),
-                      )
+                    ? prev.totalDimensions.filter((item) => {
+                        const selectedDimensions = prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions;
+                        const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                        return selectedDimensions.includes(item) && item !== lastSelected;
+                      })
                     : EMPTY_FILTERS.totalDimensions,
                 }))
               }
@@ -1327,32 +1358,30 @@ export default function DashboardPage() {
       {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Report Builder</h2>
-          <ToggleGroup
+          <RowDimensionGroup
             label="Row / Group Dimensions"
             items={builderDimensionOptions}
             selectedItems={filters.rowDimensions || []}
-            onToggle={(key) =>
+            selectedTotals={filters.totalDimensions || []}
+            onToggleDimension={(key) =>
               setFilters((prev) => {
                 const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
                 const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
                 if (!next.length) {
                   return prev;
                 }
+                const lastSelected = next[next.length - 1];
                 const nextTotals = Array.isArray(prev.totalDimensions)
-                  ? prev.totalDimensions.filter((item) => next.includes(item))
+                  ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
                   : [];
                 return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
               })
             }
-          />
-          <TotalDimensionSwitches
-            items={builderDimensionOptions}
-            selectedDimensions={filters.rowDimensions || []}
-            selectedTotals={filters.totalDimensions || []}
-            onToggle={(key) =>
+            onToggleTotal={(key) =>
               setFilters((prev) => {
                 const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                if (!selectedDimensions.includes(key)) {
+                const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                if (!selectedDimensions.includes(key) || key === lastSelected) {
                   return prev;
                 }
                 const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
