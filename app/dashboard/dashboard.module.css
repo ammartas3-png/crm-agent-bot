@@ -798,6 +798,49 @@
   cursor: not-allowed;
 }
 
+.workTimeToggleRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workTimeToggleLabel {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.workTimeToggle {
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 4px;
+  cursor: pointer;
+}
+
+.workTimeToggleOn {
+  border-color: #15803d;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.workTimeToggleThumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.95;
+}
+
 .loadingCard {
   padding: 14px;
   display: grid;

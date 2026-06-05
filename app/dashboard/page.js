@@ -240,6 +240,12 @@ function MultiSelectFilter({
 function buildReportQuery(filters = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters || {})) {
+    if (typeof value === "boolean") {
+      if (value) {
+        query.set(key, "1");
+      }
+      continue;
+    }
     const normalized = Array.isArray(value)
       ? value
           .map((item) => String(item || "").trim())
@@ -859,6 +865,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           .filter(Boolean),
       )
     : [];
+  const pivotMetricKeySet = new Set(pivotMetricColumns.map((column) => column.key));
+  const pivotTailColumns = isColumnPivot
+    ? columns.filter((column) => !pivotMetricKeySet.has(column.key) && column.kind !== "dimension")
+    : [];
+  const perGroupMetricCount = builder.columnMetrics?.length || 0;
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
       <div className={styles.tableScroll}>
@@ -878,10 +889,20 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   );
                 })}
                 {builder.columnValues.map((value) => (
-                  <th key={`group-${value}`} colSpan={builder.columnMetrics.length} className={styles.tableGroupHeader}>
+                  <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
                     {value}
                   </th>
                 ))}
+                {pivotTailColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th key={column.key} rowSpan={2} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }}>
+                      {column.label}
+                      {suffix}
+                    </th>
+                  );
+                })}
               </tr>
               <tr>
                 {pivotMetricColumns.map((column) => {
@@ -973,7 +994,6 @@ const DEFAULT_BUILDER_METRICS = [
   { key: "ftd", label: "FTD", type: "number" },
   { key: "avgFtdByAgent", label: "Desk Avg FTD per Agent", type: "number" },
   { key: "avgFtdByAgentDaily", label: "Desk Avg FTD per Agent Daily", type: "number" },
-  { key: "agentStartDate", label: "Agent Starting Date", type: "text" },
   { key: "ftdTarget", label: "FTD Target", type: "number" },
   { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
   { key: "cr", label: "CR", type: "percent" },
@@ -1008,6 +1028,7 @@ const EMPTY_FILTERS = {
   teamLeader: [],
   agent: [],
   columnDimension: "",
+  includeWorkTime: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: [
@@ -1019,7 +1040,6 @@ const EMPTY_FILTERS = {
     "ftd",
     "avgFtdByAgent",
     "avgFtdByAgentDaily",
-    "agentStartDate",
     "ftdTarget",
     "ftdTargetReach",
     "cr",
@@ -1488,6 +1508,7 @@ export default function DashboardPage() {
                       teamLeader: [],
                       agent: [],
                       columnDimension: "",
+                      includeWorkTime: false,
                     }))
                   }
                   className={styles.officeCard}
@@ -1507,7 +1528,9 @@ export default function DashboardPage() {
           <div className={styles.reportModeGrid}>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder" }))}
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder", includeWorkTime: false }))
+              }
               className={styles.reportModeCard}
             >
               <span className={styles.reportModeTitle}>{reportModeMeta("monthly").title}</span>
@@ -1529,6 +1552,7 @@ export default function DashboardPage() {
                   placement: [],
                   status: [],
                   columnDimension: "",
+                  includeWorkTime: false,
                   groupBy: "agent",
                 }))
               }
@@ -1545,6 +1569,7 @@ export default function DashboardPage() {
                   reportMode: "specific",
                   specificType: "builder",
                   columnDimension: prev.columnDimension || "",
+                  includeWorkTime: Boolean(prev.includeWorkTime),
                   rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
                   metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
                   totalDimensions: Array.isArray(prev.totalDimensions)
@@ -1769,6 +1794,17 @@ export default function DashboardPage() {
               })
             }
           />
+          <div className={styles.workTimeToggleRow}>
+            <span className={styles.workTimeToggleLabel}>Work Time</span>
+            <button
+              type="button"
+              className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
+              onClick={() => setFilters((prev) => ({ ...prev, includeWorkTime: !prev.includeWorkTime }))}
+            >
+              <span className={styles.workTimeToggleThumb} />
+              <span>{filters.includeWorkTime ? "ON" : "OFF"}</span>
+            </button>
+          </div>
           <ToggleGroup
             label="Metrics / Data Fields"
             items={builderMetricOptions}
