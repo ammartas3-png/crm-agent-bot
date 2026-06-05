@@ -112,3 +112,38 @@ test("info agent context supports Active status and Desk column", () => {
   assert.deepEqual(infoAgentsLabelsForGroup(context, "office"), ["Indian Team - TR"]);
   assert.equal(targetForOffice(context, "Indian Team - TR"), 42);
 });
+
+test("info agent context reads start date from L-style column fallback", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      L: "25/09/2023",
+    },
+  ]);
+  const record = context.byAgent.get(normalizeAgentName("Asad kh"));
+  assert.equal(record?.start_date, "25/09/2023");
+});
+
+test("info agent context keeps earliest valid start date for duplicate agent rows", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      "Starting Date": "03/01/2024",
+    },
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      "Starting Date": "25/09/2023",
+    },
+  ]);
+  const record = context.byAgent.get(normalizeAgentName("Asad kh"));
+  assert.equal(record?.start_date, "25/09/2023");
+});
