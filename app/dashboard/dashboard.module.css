@@ -524,6 +524,26 @@
   z-index: 2;
 }
 
+.tableSticky thead tr:first-child th {
+  top: 0;
+  z-index: 4;
+}
+
+.tableSticky thead tr:nth-child(2) th {
+  top: 34px;
+  z-index: 3;
+}
+
+.tableGroupHeader {
+  text-align: center !important;
+  background: #1d4ed8 !important;
+  color: #fff !important;
+}
+
+.tableSubHeader {
+  text-align: center !important;
+}
+
 @media (max-width: 1500px) {
   .filterRows {
     grid-template-columns: repeat(5, minmax(0, 1fr));

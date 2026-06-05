@@ -399,6 +399,42 @@ function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onTogg
   );
 }
 
+function RowSingleSelectGroup({ label, items, selectedItems, onSelect }) {
+  const selectedKey = Array.isArray(selectedItems) && selectedItems.length ? selectedItems[0] : "";
+  return (
+    <div className={styles.chipSection}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
+        <button
+          type="button"
+          onClick={() => onSelect("")}
+          className={`${styles.chip} ${!selectedKey ? styles.chipActive : ""}`}
+        >
+          <span className={styles.chipInner}>
+            {!selectedKey ? <span className={styles.chipCheck}>✓</span> : null}
+            <span>No</span>
+          </span>
+        </button>
+        {items.map((item) => {
+          const active = selectedKey === item.key;
+          return (
+            <button key={item.key} type="button" onClick={() => onSelect(item.key)} className={`${styles.chip} ${active ? styles.chipActive : ""}`}>
+              <span className={styles.chipInner}>
+                {active ? <span className={styles.chipCheck}>✓</span> : null}
+                <span>{item.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label}</div>
+        <div className={styles.orderValue}>{selectedKey ? items.find((item) => item.key === selectedKey)?.label || selectedKey : "No rows"}</div>
+      </div>
+    </div>
+  );
+}
+
 function SummaryCards({ summary }) {
   const items = [
     { label: "Total Leads", value: formatNumber(summary.totalLeads) },
@@ -809,30 +845,79 @@ function compareBuilderValues(left, right, type) {
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
-function BuilderTable({ columns = [], rows = [], sortState, onSort }) {
+function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
+  const isColumnPivot =
+    Boolean(builder?.columnDimension) &&
+    Array.isArray(builder?.columnValues) &&
+    builder.columnValues.length > 0 &&
+    Array.isArray(builder?.columnMetrics) &&
+    builder.columnMetrics.length > 0;
+  const dimensionColumns = columns.filter((column) => column.kind === "dimension");
+  const pivotMetricColumns = isColumnPivot
+    ? builder.columnValues.flatMap((columnValue) =>
+        builder.columnMetrics
+          .map((metric) => columns.find((column) => column.key === `${builder.columnDimension}_${columnValue}__${metric.key}`))
+          .filter(Boolean),
+      )
+    : [];
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
       <div className={styles.tableScroll}>
       <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }}>
         <thead>
-          <tr>
-            {columns.map((column) => {
-              const active = sortState.key === column.key;
-              const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
-              return (
-                <th
-                  key={column.key}
-                  onClick={() => onSort(column.key)}
-                  style={{
-                    cursor: "pointer",
-                  }}
-                >
-                  {column.label}
-                  {suffix}
-                </th>
-              );
-            })}
-          </tr>
+          {isColumnPivot ? (
+            <>
+              <tr>
+                {dimensionColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th key={column.key} rowSpan={2} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }}>
+                      {column.label}
+                      {suffix}
+                    </th>
+                  );
+                })}
+                {builder.columnValues.map((value) => (
+                  <th key={`group-${value}`} colSpan={builder.columnMetrics.length} className={styles.tableGroupHeader}>
+                    {value}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {pivotMetricColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  const metricName = column.label.replace(/^[^\s]+\s+/, "");
+                  return (
+                    <th key={column.key} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }} className={styles.tableSubHeader}>
+                      {metricName}
+                      {suffix}
+                    </th>
+                  );
+                })}
+              </tr>
+            </>
+          ) : (
+            <tr>
+              {columns.map((column) => {
+                const active = sortState.key === column.key;
+                const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                return (
+                  <th
+                    key={column.key}
+                    onClick={() => onSort(column.key)}
+                    style={{
+                      cursor: "pointer",
+                    }}
+                  >
+                    {column.label}
+                    {suffix}
+                  </th>
+                );
+              })}
+            </tr>
+          )}
         </thead>
         <tbody>
           {rows.map((row, index) => (
@@ -1647,43 +1732,69 @@ export default function DashboardPage() {
             label="Column"
             value={filters.columnDimension}
             options={builderColumnDimensionOptions.map((item) => ({ value: item.key, label: item.label }))}
-            onChange={(value) => setFilters((prev) => ({ ...prev, columnDimension: value }))}
+            onChange={(value) =>
+              setFilters((prev) => {
+                const currentRows = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const nextRows = value ? (currentRows.length ? [currentRows[currentRows.length - 1]] : []) : currentRows;
+                return {
+                  ...prev,
+                  columnDimension: value,
+                  rowDimensions: nextRows,
+                  totalDimensions: [],
+                };
+              })
+            }
             placeholder="Rows Only"
           />
-          <RowDimensionGroup
-            label="Row / Group Dimensions"
-            items={builderDimensionOptions}
-            selectedItems={filters.rowDimensions || []}
-            selectedTotals={filters.totalDimensions || []}
-            onToggleDimension={(key) =>
-              setFilters((prev) => {
-                const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
-                if (!next.length) {
-                  return prev;
-                }
-                const lastSelected = next[next.length - 1];
-                const nextTotals = Array.isArray(prev.totalDimensions)
-                  ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
-                  : [];
-                return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
-              })
-            }
-            onToggleTotal={(key) =>
-              setFilters((prev) => {
-                const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
-                if (!selectedDimensions.includes(key) || key === lastSelected) {
-                  return prev;
-                }
-                const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
-                const nextTotals = currentTotals.includes(key)
-                  ? currentTotals.filter((item) => item !== key)
-                  : [...currentTotals, key];
-                return { ...prev, totalDimensions: nextTotals };
-              })
-            }
-          />
+          {filters.columnDimension ? (
+            <RowSingleSelectGroup
+              label="Row"
+              items={builderDimensionOptions}
+              selectedItems={filters.rowDimensions || []}
+              onSelect={(key) =>
+                setFilters((prev) => ({
+                  ...prev,
+                  rowDimensions: key ? [key] : [],
+                  totalDimensions: [],
+                }))
+              }
+            />
+          ) : (
+            <RowDimensionGroup
+              label="Row / Group Dimensions"
+              items={builderDimensionOptions}
+              selectedItems={filters.rowDimensions || []}
+              selectedTotals={filters.totalDimensions || []}
+              onToggleDimension={(key) =>
+                setFilters((prev) => {
+                  const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                  const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                  if (!next.length) {
+                    return prev;
+                  }
+                  const lastSelected = next[next.length - 1];
+                  const nextTotals = Array.isArray(prev.totalDimensions)
+                    ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
+                    : [];
+                  return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
+                })
+              }
+              onToggleTotal={(key) =>
+                setFilters((prev) => {
+                  const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                  const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                  if (!selectedDimensions.includes(key) || key === lastSelected) {
+                    return prev;
+                  }
+                  const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
+                  const nextTotals = currentTotals.includes(key)
+                    ? currentTotals.filter((item) => item !== key)
+                    : [...currentTotals, key];
+                  return { ...prev, totalDimensions: nextTotals };
+                })
+              }
+            />
+          )}
           <ToggleGroup
             label="Metrics / Data Fields"
             items={builderMetricOptions}
@@ -1735,7 +1846,13 @@ export default function DashboardPage() {
           {report.tableType === "builder" ? (
             <section className={styles.section} style={{ padding: 0 }}>
               <h3 className={styles.sectionTitle}>Results Table</h3>
-              <BuilderTable columns={builderColumns} rows={sortedBuilderRows} sortState={builderSort} onSort={handleBuilderSort} />
+              <BuilderTable
+                columns={builderColumns}
+                rows={sortedBuilderRows}
+                sortState={builderSort}
+                onSort={handleBuilderSort}
+                builder={report?.builder || {}}
+              />
             </section>
           ) : null}
           {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
