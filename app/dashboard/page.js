@@ -209,29 +209,28 @@ function TotalDimensionSwitches({ items, selectedDimensions, selectedTotals, onT
   const totalSet = new Set(selectedTotals || []);
   return (
     <div className={styles.totalSwitchSection}>
-      <div className={styles.chipTitle}>Total Rows</div>
+      <div className={styles.totalSwitchTitle}>Total Rows</div>
       <div className={styles.totalSwitchGrid}>
         {items.map((item) => {
           const enabled = selectedSet.has(item.key);
           const active = enabled && totalSet.has(item.key);
           return (
-            <div key={`total-switch-${item.key}`} className={styles.totalSwitchCard}>
-              <span className={styles.totalSwitchLabel}>{item.label}</span>
-              <button
-                type="button"
-                aria-pressed={active}
-                disabled={!enabled}
-                onClick={() => onToggle(item.key)}
-                className={`${styles.totalSwitch} ${
-                  !enabled ? styles.totalSwitchDisabled : active ? styles.totalSwitchOn : styles.totalSwitchOff
-                }`}
-                title={!enabled ? "Select this row dimension first" : active ? "Total enabled" : "Total disabled"}
-              >
-                <span
-                  className={`${styles.totalSwitchThumb} ${active ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
-                />
-              </button>
-            </div>
+            <button
+              key={`total-switch-${item.key}`}
+              type="button"
+              aria-label={`${item.label} total`}
+              aria-pressed={active}
+              disabled={!enabled}
+              onClick={() => onToggle(item.key)}
+              className={`${styles.totalSwitch} ${
+                !enabled ? styles.totalSwitchDisabled : active ? styles.totalSwitchOn : styles.totalSwitchOff
+              }`}
+              title={!enabled ? "Select this row dimension first" : active ? `${item.label} total enabled` : `${item.label} total disabled`}
+            >
+              <span
+                className={`${styles.totalSwitchThumb} ${active ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
+              />
+            </button>
           );
         })}
       </div>

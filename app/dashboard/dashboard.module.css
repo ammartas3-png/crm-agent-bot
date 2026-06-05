@@ -646,48 +646,39 @@
 
 .totalSwitchSection {
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .totalSwitchGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
-}
-
-.totalSwitchCard {
-  border: 1px solid #dbe7f3;
-  border-radius: 10px;
-  background: #f8fbff;
-  padding: 7px 10px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.totalSwitchLabel {
-  font-size: 12px;
+.totalSwitchTitle {
+  font-size: 11px;
   font-weight: 700;
-  color: #334155;
-  line-height: 1.2;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .totalSwitch {
-  width: 46px;
-  height: 24px;
+  width: 32px;
+  height: 18px;
   border-radius: 999px;
   border: 1px solid transparent;
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 0;
   transition: background 0.2s ease;
 }
 
 .totalSwitchThumb {
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
@@ -695,7 +686,7 @@
 }
 
 .totalSwitchThumbOn {
-  transform: translateX(24px);
+  transform: translateX(16px);
 }
 
 .totalSwitchThumbOff {
