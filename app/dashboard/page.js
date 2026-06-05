@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./dashboard.module.css";
 
-const MULTI_VALUE_FILTER_KEYS = new Set(["country", "teamLeader", "agent"]);
+const MULTI_VALUE_FILTER_KEYS = new Set([
+  "date",
+  "hour",
+  "desk",
+  "country",
+  "brand",
+  "campaign",
+  "subCampaign",
+  "placement",
+  "status",
+  "teamLeader",
+  "agent",
+]);
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
@@ -875,15 +887,15 @@ const EMPTY_FILTERS = {
   reportMode: "",
   specificType: "builder",
   monthKey: "",
-  date: "",
-  hour: "",
-  desk: "",
+  date: [],
+  hour: [],
+  desk: [],
   country: [],
-  brand: "",
-  campaign: "",
-  subCampaign: "",
-  placement: "",
-  status: "",
+  brand: [],
+  campaign: [],
+  subCampaign: [],
+  placement: [],
+  status: [],
   teamLeader: [],
   agent: [],
   groupBy: "agent",
@@ -1328,15 +1340,15 @@ export default function DashboardPage() {
                       reportMode: "",
                       specificType: "builder",
                       monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
-                      date: "",
-                      hour: "",
-                      desk: "",
+                      date: [],
+                      hour: [],
+                      desk: [],
                       country: [],
-                      brand: "",
-                      campaign: "",
-                      subCampaign: "",
-                      placement: "",
-                      status: "",
+                      brand: [],
+                      campaign: [],
+                      subCampaign: [],
+                      placement: [],
+                      status: [],
                       teamLeader: [],
                       agent: [],
                     }))
@@ -1371,14 +1383,14 @@ export default function DashboardPage() {
                   ...prev,
                   reportMode: "last4",
                   specificType: "builder",
-                  date: "",
-                  hour: "",
+                  date: [],
+                  hour: [],
                   country: [],
-                  brand: "",
-                  campaign: "",
-                  subCampaign: "",
-                  placement: "",
-                  status: "",
+                  brand: [],
+                  campaign: [],
+                  subCampaign: [],
+                  placement: [],
+                  status: [],
                   groupBy: "agent",
                 }))
               }
@@ -1456,15 +1468,15 @@ export default function DashboardPage() {
                     officeScope: value,
                     reportMode: "",
                     specificType: "builder",
-                    date: "",
-                    hour: "",
-                    desk: "",
+                    date: [],
+                    hour: [],
+                    desk: [],
                     country: [],
-                    brand: "",
-                    campaign: "",
-                    subCampaign: "",
-                    placement: "",
-                    status: "",
+                    brand: [],
+                    campaign: [],
+                    subCampaign: [],
+                    placement: [],
+                    status: [],
                     teamLeader: [],
                     agent: [],
                   }))
@@ -1481,37 +1493,37 @@ export default function DashboardPage() {
                 />
               ) : null}
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Date"
-                  value={filters.date}
+                  values={filters.date}
                   options={asOptions(options.dates || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, date: value }))}
+                  onChange={(value) => handleCascadingFilterChange("date", value)}
                 />
               ) : null}
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Hour"
-                  value={filters.hour}
+                  values={filters.hour}
                   options={asOptions(options.hours || [])}
                   loading={reportState.loading}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, hour: value }))}
+                  onChange={(value) => handleCascadingFilterChange("hour", value)}
                 />
               ) : null}
             </div>
 
             <div className={styles.filterRow}>
-              <SelectFilter
+              <MultiSelectFilter
                 label="Desk"
-                value={filters.desk}
+                values={filters.desk}
                 options={asOptions(options.desks || [])}
                 loading={reportState.loading}
                 onChange={(value) => handleCascadingFilterChange("desk", value)}
               />
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Brand"
-                  value={filters.brand}
+                  values={filters.brand}
                   options={asOptions(options.brands || [])}
                   loading={reportState.loading}
                   onChange={(value) => handleCascadingFilterChange("brand", value)}
@@ -1541,9 +1553,9 @@ export default function DashboardPage() {
                 onChange={(value) => handleCascadingFilterChange("teamLeader", value)}
               />
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Campaign"
-                  value={filters.campaign}
+                  values={filters.campaign}
                   options={asOptions(options.campaigns || [])}
                   loading={reportState.loading}
                   onChange={(value) => handleCascadingFilterChange("campaign", value)}
@@ -1553,16 +1565,16 @@ export default function DashboardPage() {
 
             {!isLast4Mode ? (
               <div className={styles.filterRow}>
-                <SelectFilter
+                <MultiSelectFilter
                   label="Sub Campaign"
-                  value={filters.subCampaign}
+                  values={filters.subCampaign}
                   options={asOptions(options.subCampaigns || [])}
                   loading={reportState.loading}
                   onChange={(value) => handleCascadingFilterChange("subCampaign", value)}
                 />
-                <SelectFilter
+                <MultiSelectFilter
                   label="Placement"
-                  value={filters.placement}
+                  values={filters.placement}
                   options={asOptions(options.placements || [])}
                   loading={reportState.loading}
                   onChange={(value) => handleCascadingFilterChange("placement", value)}
