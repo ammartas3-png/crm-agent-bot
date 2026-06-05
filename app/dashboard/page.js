@@ -36,6 +36,23 @@ function reachColor(value) {
   return "#b91c1c";
 }
 
+function benchmarkRateStyle(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return { background: "transparent", color: "#0f172a" };
+  }
+  if (number >= 110) {
+    return { background: "#16a34a", color: "#ffffff" };
+  }
+  if (number >= 85) {
+    return { background: "#65a30d", color: "#ffffff" };
+  }
+  if (number >= 60) {
+    return { background: "#facc15", color: "#713f12" };
+  }
+  return { background: "#ef4444", color: "#ffffff" };
+}
+
 function officeThemeForName(officeName = "") {
   const normalized = String(officeName || "").toLowerCase();
   if (normalized.includes("argentina")) {
@@ -952,12 +969,16 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
             <tr key={`builder-${index}`} className={row.__rowKind === "total" ? styles.tableTotalRow : ""}>
               {columns.map((column) => {
                 const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
                 const value = row[column.key];
+                const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
                 return (
                   <td
                     key={`${index}-${column.key}`}
                     style={{
-                      color: isReach ? reachColor(value) : "#0f172a",
+                      color: isBenchmarkRate ? benchmarkStyle.color : isReach ? reachColor(value) : "#0f172a",
+                      background: isBenchmarkRate ? benchmarkStyle.background : undefined,
+                      fontWeight: isBenchmarkRate ? 700 : undefined,
                     }}
                   >
                     {formatBuilderCell(value, column.type)}
@@ -1002,6 +1023,8 @@ const DEFAULT_BUILDER_METRICS = [
   { key: "ftd", label: "FTD", type: "number" },
   { key: "avgFtdByAgent", label: "Desk Avg FTD per Agent", type: "number" },
   { key: "avgFtdByAgentDaily", label: "Desk Avg FTD per Agent Daily", type: "number" },
+  { key: "avgFtdByDeskLongTerm", label: "Desk Avg FTD per Desk By Long Term", type: "number" },
+  { key: "ftdBenchmarkRate", label: "Benchmark Rate", type: "percent" },
   { key: "ftdTarget", label: "FTD Target", type: "number" },
   { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
   { key: "cr", label: "CR", type: "percent" },
