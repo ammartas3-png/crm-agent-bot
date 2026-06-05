@@ -687,6 +687,7 @@ const DEFAULT_BUILDER_DIMENSIONS = [
 
 const DEFAULT_BUILDER_METRICS = [
   { key: "leads", label: "Leads", type: "number" },
+  { key: "leadShare", label: "Lead Share", type: "percent" },
   { key: "ftd", label: "FTD", type: "number" },
   { key: "ftdTarget", label: "FTD Target", type: "number" },
   { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
@@ -717,7 +718,7 @@ const EMPTY_FILTERS = {
   agent: "",
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
-  metricFields: ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"],
+  metricFields: ["leads", "leadShare", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"],
 };
 
 function asOptions(values = []) {
