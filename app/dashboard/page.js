@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./dashboard.module.css";
 
+const MULTI_VALUE_FILTER_KEYS = new Set(["country", "teamLeader", "agent"]);
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
@@ -122,6 +124,107 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
+function MultiSelectFilter({
+  label,
+  values,
+  options,
+  onChange,
+  placeholder = "All",
+  disabled = false,
+  loading = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const selectedValues = Array.isArray(values) ? values : [];
+  const selectedSet = new Set(selectedValues.map((item) => String(item)));
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const handleClickOutside = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled && open) {
+      setOpen(false);
+    }
+  }, [disabled, open]);
+
+  const selectedLabel = useMemo(() => {
+    if (!selectedValues.length) {
+      return placeholder;
+    }
+    if (selectedValues.length === 1) {
+      const matched = options.find((option) => option.value === selectedValues[0]);
+      return matched?.label || selectedValues[0];
+    }
+    return `${selectedValues.length} selected`;
+  }, [options, placeholder, selectedValues]);
+
+  const orderedOptionValues = useMemo(() => options.map((option) => option.value), [options]);
+
+  const toggleValue = useCallback(
+    (nextValue) => {
+      const valueKey = String(nextValue);
+      const mutable = new Set(selectedSet);
+      if (mutable.has(valueKey)) {
+        mutable.delete(valueKey);
+      } else {
+        mutable.add(valueKey);
+      }
+      const ordered = orderedOptionValues.filter((value) => mutable.has(String(value)));
+      onChange(ordered);
+    },
+    [onChange, orderedOptionValues, selectedSet],
+  );
+
+  return (
+    <div className={styles.selectWrap} ref={rootRef}>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
+      </span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        className={`${styles.selectInput} ${styles.multiSelectButton}`}
+      >
+        <span className={styles.multiSelectText}>{selectedLabel}</span>
+        <span className={styles.multiSelectCaret} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div className={styles.multiSelectMenu}>
+          <button type="button" className={styles.multiSelectClear} onClick={() => onChange([])}>
+            Clear
+          </button>
+          <div className={styles.multiSelectOptions}>
+            {options.map((option) => {
+              const checked = selectedSet.has(String(option.value));
+              return (
+                <label key={`${label}-${option.value}`} className={styles.multiSelectOption}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleValue(option.value)} />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+            {!options.length ? <p className={styles.multiSelectEmpty}>No options</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function buildReportQuery(filters = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters || {})) {
@@ -160,8 +263,12 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
     ["agent", options.agents || []],
   ];
   for (const [key, values] of dependencyChecks) {
+    if (Array.isArray(next[key])) {
+      next[key] = next[key].filter((value) => values.includes(value));
+      continue;
+    }
     if (next[key] && !values.includes(next[key])) {
-      next[key] = "";
+      next[key] = MULTI_VALUE_FILTER_KEYS.has(key) ? [] : "";
     }
   }
   return next;
@@ -771,14 +878,14 @@ const EMPTY_FILTERS = {
   date: "",
   hour: "",
   desk: "",
-  country: "",
+  country: [],
   brand: "",
   campaign: "",
   subCampaign: "",
   placement: "",
   status: "",
-  teamLeader: "",
-  agent: "",
+  teamLeader: [],
+  agent: [],
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: ["leads", "leadShare", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"],
@@ -944,11 +1051,14 @@ export default function DashboardPage() {
   const handleCascadingFilterChange = useCallback((key, value) => {
     const chain = ["desk", "brand", "agent", "country", "teamLeader", "campaign", "subCampaign", "placement"];
     setFilters((prev) => {
-      const next = { ...prev, [key]: value };
+      const normalizedValue = MULTI_VALUE_FILTER_KEYS.has(key)
+        ? (Array.isArray(value) ? value : [])
+        : String(value || "").trim();
+      const next = { ...prev, [key]: normalizedValue };
       const index = chain.indexOf(key);
       if (index >= 0) {
         for (let i = index + 1; i < chain.length; i += 1) {
-          next[chain[i]] = "";
+          next[chain[i]] = MULTI_VALUE_FILTER_KEYS.has(chain[i]) ? [] : "";
         }
       }
       return next;
@@ -1221,14 +1331,14 @@ export default function DashboardPage() {
                       date: "",
                       hour: "",
                       desk: "",
-                      country: "",
+                      country: [],
                       brand: "",
                       campaign: "",
                       subCampaign: "",
                       placement: "",
                       status: "",
-                      teamLeader: "",
-                      agent: "",
+                      teamLeader: [],
+                      agent: [],
                     }))
                   }
                   className={styles.officeCard}
@@ -1263,7 +1373,7 @@ export default function DashboardPage() {
                   specificType: "builder",
                   date: "",
                   hour: "",
-                  country: "",
+                  country: [],
                   brand: "",
                   campaign: "",
                   subCampaign: "",
@@ -1349,14 +1459,14 @@ export default function DashboardPage() {
                     date: "",
                     hour: "",
                     desk: "",
-                    country: "",
+                    country: [],
                     brand: "",
                     campaign: "",
                     subCampaign: "",
                     placement: "",
                     status: "",
-                    teamLeader: "",
-                    agent: "",
+                    teamLeader: [],
+                    agent: [],
                   }))
                 }
               />
@@ -1407,25 +1517,25 @@ export default function DashboardPage() {
                   onChange={(value) => handleCascadingFilterChange("brand", value)}
                 />
               ) : null}
-              <SelectFilter
+              <MultiSelectFilter
                 label="Agent"
-                value={filters.agent}
+                values={filters.agent}
                 options={asOptions(options.agents || [])}
                 loading={reportState.loading}
                 onChange={(value) => handleCascadingFilterChange("agent", value)}
               />
               {!isLast4Mode ? (
-                <SelectFilter
+                <MultiSelectFilter
                   label="Country"
-                  value={filters.country}
+                  values={filters.country}
                   options={asOptions(options.countries || [])}
                   loading={reportState.loading}
                   onChange={(value) => handleCascadingFilterChange("country", value)}
                 />
               ) : null}
-              <SelectFilter
+              <MultiSelectFilter
                 label="Team Leader"
-                value={filters.teamLeader}
+                values={filters.teamLeader}
                 options={asOptions(options.teamLeaders || [])}
                 loading={reportState.loading}
                 onChange={(value) => handleCascadingFilterChange("teamLeader", value)}

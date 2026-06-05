@@ -256,6 +256,7 @@
   display: grid;
   gap: 6px;
   min-width: 145px;
+  position: relative;
   border: 1px solid #d6e0ea;
   border-radius: 10px;
   background: #fff;
@@ -307,6 +308,73 @@
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.multiSelectButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.multiSelectText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multiSelectCaret {
+  color: #64748b;
+  margin-left: 8px;
+  font-size: 11px;
+}
+
+.multiSelectMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 8px;
+  right: 8px;
+  z-index: 20;
+  border: 1px solid #d6e0ea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.multiSelectClear {
+  border: 1px solid #c7d2de;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 7px;
+  justify-self: start;
+}
+
+.multiSelectOptions {
+  display: grid;
+  gap: 4px;
+}
+
+.multiSelectOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.multiSelectEmpty {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
 }
 
 .inlineInfo {
