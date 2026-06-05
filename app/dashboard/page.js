@@ -1014,11 +1014,119 @@ export default function DashboardPage() {
     if (!activeColumn) {
       return rows;
     }
-    rows.sort((left, right) => {
-      const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
-      return builderSort.direction === "desc" ? -compare : compare;
-    });
-    return rows;
+    const selectedDimensions = Array.isArray(report?.builder?.selectedDimensions) ? report.builder.selectedDimensions : [];
+    const selectedTotalDimensions = Array.isArray(report?.builder?.selectedTotalDimensions)
+      ? report.builder.selectedTotalDimensions
+      : [];
+    const hasHierarchyTotals = rows.some((row) => row.__rowKind === "total") && selectedDimensions.length > 1;
+    if (!hasHierarchyTotals) {
+      rows.sort((left, right) => {
+        const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+      return rows;
+    }
+
+    const detailRows = rows.filter((row) => row.__rowKind !== "total");
+    const totalRows = rows.filter((row) => row.__rowKind === "total");
+    const dimensionDepth = new Map(selectedDimensions.map((key, index) => [key, index]));
+    const totalDimensionSet = new Set(selectedTotalDimensions);
+    const normalizePiece = (value) => String(value || "-").trim().toLowerCase();
+    const prefixKey = (pieces = []) => pieces.map(normalizePiece).join("::");
+    const subtotalMap = new Map();
+    for (const row of totalRows) {
+      const dimensionKey = row.__totalDimension;
+      const depth = dimensionDepth.get(dimensionKey);
+      if (!dimensionKey || depth === undefined) {
+        continue;
+      }
+      const pieces = [];
+      for (let index = 0; index < depth; index += 1) {
+        pieces.push(String(row[selectedDimensions[index]] || "-").trim() || "-");
+      }
+      const ownValue = String(row[dimensionKey] || "")
+        .replace(/\s+total$/i, "")
+        .trim();
+      pieces.push(ownValue || "-");
+      subtotalMap.set(`${dimensionKey}::${prefixKey(pieces)}`, row);
+    }
+
+    const aggregateMetric = (groupRows = []) => {
+      if (activeColumn.type === "percent") {
+        if (!groupRows.length) {
+          return 0;
+        }
+        const total = groupRows.reduce((sum, row) => sum + Number(row[activeColumn.key] || 0), 0);
+        return total / groupRows.length;
+      }
+      return groupRows.reduce((sum, row) => sum + Number(row[activeColumn.key] || 0), 0);
+    };
+
+    const sortRowsFlat = (groupRows = []) =>
+      [...groupRows].sort((left, right) => {
+        const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+
+    const sortGroups = (entries = [], dimensionKey, prefixPieces = []) =>
+      [...entries].sort((leftEntry, rightEntry) => {
+        const [leftValue, leftRows] = leftEntry;
+        const [rightValue, rightRows] = rightEntry;
+        const leftPrefix = [...prefixPieces, leftValue];
+        const rightPrefix = [...prefixPieces, rightValue];
+        const leftSubtotal = subtotalMap.get(`${dimensionKey}::${prefixKey(leftPrefix)}`);
+        const rightSubtotal = subtotalMap.get(`${dimensionKey}::${prefixKey(rightPrefix)}`);
+
+        let leftSortValue;
+        let rightSortValue;
+        if (activeColumn.kind === "metric" || activeColumn.type === "number" || activeColumn.type === "percent") {
+          leftSortValue = leftSubtotal ? leftSubtotal[activeColumn.key] : aggregateMetric(leftRows);
+          rightSortValue = rightSubtotal ? rightSubtotal[activeColumn.key] : aggregateMetric(rightRows);
+        } else if (activeColumn.key === dimensionKey) {
+          leftSortValue = leftValue;
+          rightSortValue = rightValue;
+        } else {
+          leftSortValue = leftRows[0]?.[activeColumn.key];
+          rightSortValue = rightRows[0]?.[activeColumn.key];
+        }
+        const compare = compareBuilderValues(leftSortValue, rightSortValue, activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+
+    const orderHierarchical = (inputRows = [], depth = 0, prefixPieces = []) => {
+      const dimensionKey = selectedDimensions[depth];
+      if (!dimensionKey) {
+        return sortRowsFlat(inputRows);
+      }
+      const grouped = new Map();
+      for (const row of inputRows) {
+        const groupValue = String(row[dimensionKey] || "-").trim() || "-";
+        if (!grouped.has(groupValue)) {
+          grouped.set(groupValue, []);
+        }
+        grouped.get(groupValue).push(row);
+      }
+
+      const sortedGroups = sortGroups([...grouped.entries()], dimensionKey, prefixPieces);
+      const ordered = [];
+      for (const [groupValue, groupRows] of sortedGroups) {
+        const nextPrefix = [...prefixPieces, groupValue];
+        if (totalDimensionSet.has(dimensionKey)) {
+          const subtotalRow = subtotalMap.get(`${dimensionKey}::${prefixKey(nextPrefix)}`);
+          if (subtotalRow) {
+            ordered.push(subtotalRow);
+          }
+        }
+        if (depth >= selectedDimensions.length - 1) {
+          ordered.push(...sortRowsFlat(groupRows));
+        } else {
+          ordered.push(...orderHierarchical(groupRows, depth + 1, nextPrefix));
+        }
+      }
+      return ordered;
+    };
+
+    return orderHierarchical(detailRows, 0, []);
   }, [builderColumns, builderSort.direction, builderSort.key, report?.table, report?.tableType]);
 
   useEffect(() => {
