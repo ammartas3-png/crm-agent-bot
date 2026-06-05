@@ -30,22 +30,22 @@ function queryParams(searchParams) {
 }
 
 export async function GET(request) {
-  const resolved = await dashboardAccessFromRequest(request);
-  if (!resolved.authenticated) {
-    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
-  }
-  if (!resolved.access?.authorized) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
-  }
-  const query = queryParams(new URL(request.url).searchParams);
   try {
+    const resolved = await dashboardAccessFromRequest(request);
+    if (!resolved.authenticated) {
+      return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+    }
+    if (!resolved.access?.authorized) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const query = queryParams(new URL(request.url).searchParams);
     const report = await loadDashboardReport(resolved.access, query);
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        error: "report_generation_failed",
+        error: "report_route_failed",
         message: error?.message || "Could not load report.",
       },
       { status: 500 },

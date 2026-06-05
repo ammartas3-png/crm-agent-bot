@@ -276,6 +276,23 @@ function buildReportQuery(filters = {}) {
   return query;
 }
 
+async function readApiPayload(response) {
+  const rawText = await response.text();
+  if (!rawText) {
+    return {};
+  }
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
+    return {
+      ok: false,
+      error: "invalid_json_response",
+      message: snippet ? `Server returned non-JSON response: ${snippet}` : "Server returned non-JSON response.",
+    };
+  }
+}
+
 function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
   const next = { ...sourceFilters };
   if (Array.isArray(options.officeScopes) && options.officeScopes.length) {
@@ -1110,7 +1127,10 @@ export default function DashboardPage() {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const response = await fetch("/api/dashboard/session", { cache: "no-store" });
-      const payload = await response.json();
+      const payload = await readApiPayload(response);
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.message || payload?.error || "Could not load dashboard session.");
+      }
       const officeScopes = payload.bootstrap?.officeScopes || [];
       setSessionState({
         loading: false,
@@ -1161,7 +1181,7 @@ export default function DashboardPage() {
     try {
       const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
-      const payload = await response.json();
+      const payload = await readApiPayload(response);
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.message || payload?.error || "Could not load report.");
       }

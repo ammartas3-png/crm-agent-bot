@@ -40,16 +40,15 @@ function safeName(value = "") {
 }
 
 export async function GET(request) {
-  const resolved = await dashboardAccessFromRequest(request);
-  if (!resolved.authenticated) {
-    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
-  }
-  if (!resolved.access?.authorized) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
-  }
-
-  const query = queryParams(new URL(request.url).searchParams);
   try {
+    const resolved = await dashboardAccessFromRequest(request);
+    if (!resolved.authenticated) {
+      return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+    }
+    if (!resolved.access?.authorized) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
+    }
+    const query = queryParams(new URL(request.url).searchParams);
     const report = await loadDashboardReport(resolved.access, query);
     const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
     const office = safeName(report?.month?.office_name || query.officeScope || "office");
@@ -68,7 +67,7 @@ export async function GET(request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "report_export_failed",
+        error: "export_route_failed",
         message: error?.message || "Could not export report.",
       },
       { status: 500 },
