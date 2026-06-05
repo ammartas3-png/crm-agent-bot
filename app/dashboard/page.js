@@ -399,8 +399,7 @@ function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onTogg
   );
 }
 
-function RowSingleSelectGroup({ label, items, selectedItems, onSelect }) {
-  const selectedKey = Array.isArray(selectedItems) && selectedItems.length ? selectedItems[0] : "";
+function SingleChoiceChipGroup({ label, items, selectedKey, onSelect, noLabel = "No" }) {
   return (
     <div className={styles.chipSection}>
       <div className={styles.chipTitle}>{label}</div>
@@ -412,7 +411,7 @@ function RowSingleSelectGroup({ label, items, selectedItems, onSelect }) {
         >
           <span className={styles.chipInner}>
             {!selectedKey ? <span className={styles.chipCheck}>✓</span> : null}
-            <span>No</span>
+            <span>{noLabel}</span>
           </span>
         </button>
         {items.map((item) => {
@@ -429,7 +428,7 @@ function RowSingleSelectGroup({ label, items, selectedItems, onSelect }) {
       </div>
       <div className={styles.orderPreview}>
         <div className={styles.orderLabel}>{label}</div>
-        <div className={styles.orderValue}>{selectedKey ? items.find((item) => item.key === selectedKey)?.label || selectedKey : "No rows"}</div>
+        <div className={styles.orderValue}>{selectedKey ? items.find((item) => item.key === selectedKey)?.label || selectedKey : noLabel}</div>
       </div>
     </div>
   );
@@ -987,7 +986,6 @@ const DEFAULT_BUILDER_METRICS = [
 ];
 
 const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
-  { key: "", label: "Rows Only", type: "text" },
   { key: "month", label: "Months", type: "text" },
   { key: "date", label: "Date", type: "date" },
   { key: "hour", label: "Hour", type: "hour" },
@@ -1730,73 +1728,47 @@ export default function DashboardPage() {
       {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Report Builder</h2>
-          <SelectFilter
+          <SingleChoiceChipGroup
             label="Column"
-            value={filters.columnDimension}
-            options={builderColumnDimensionOptions.map((item) => ({ value: item.key, label: item.label }))}
-            onChange={(value) =>
+            items={builderColumnDimensionOptions}
+            selectedKey={filters.columnDimension}
+            onSelect={(value) => setFilters((prev) => ({ ...prev, columnDimension: value }))}
+            noLabel="No"
+          />
+          <RowDimensionGroup
+            label="Row / Group Dimensions"
+            items={builderDimensionOptions}
+            selectedItems={filters.rowDimensions || []}
+            selectedTotals={filters.totalDimensions || []}
+            onToggleDimension={(key) =>
               setFilters((prev) => {
-                const currentRows = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                const nextRows = value ? (currentRows.length ? [currentRows[currentRows.length - 1]] : []) : currentRows;
-                return {
-                  ...prev,
-                  columnDimension: value,
-                  rowDimensions: nextRows,
-                  totalDimensions: [],
-                };
+                const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                if (!next.length) {
+                  return prev;
+                }
+                const lastSelected = next[next.length - 1];
+                const nextTotals = Array.isArray(prev.totalDimensions)
+                  ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
+                  : [];
+                return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
               })
             }
-            placeholder="Rows Only"
+            onToggleTotal={(key) =>
+              setFilters((prev) => {
+                const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                if (!selectedDimensions.includes(key) || key === lastSelected) {
+                  return prev;
+                }
+                const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
+                const nextTotals = currentTotals.includes(key)
+                  ? currentTotals.filter((item) => item !== key)
+                  : [...currentTotals, key];
+                return { ...prev, totalDimensions: nextTotals };
+              })
+            }
           />
-          {filters.columnDimension ? (
-            <RowSingleSelectGroup
-              label="Row"
-              items={builderDimensionOptions}
-              selectedItems={filters.rowDimensions || []}
-              onSelect={(key) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  rowDimensions: key ? [key] : [],
-                  totalDimensions: [],
-                }))
-              }
-            />
-          ) : (
-            <RowDimensionGroup
-              label="Row / Group Dimensions"
-              items={builderDimensionOptions}
-              selectedItems={filters.rowDimensions || []}
-              selectedTotals={filters.totalDimensions || []}
-              onToggleDimension={(key) =>
-                setFilters((prev) => {
-                  const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                  const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
-                  if (!next.length) {
-                    return prev;
-                  }
-                  const lastSelected = next[next.length - 1];
-                  const nextTotals = Array.isArray(prev.totalDimensions)
-                    ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
-                    : [];
-                  return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
-                })
-              }
-              onToggleTotal={(key) =>
-                setFilters((prev) => {
-                  const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
-                  const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
-                  if (!selectedDimensions.includes(key) || key === lastSelected) {
-                    return prev;
-                  }
-                  const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
-                  const nextTotals = currentTotals.includes(key)
-                    ? currentTotals.filter((item) => item !== key)
-                    : [...currentTotals, key];
-                  return { ...prev, totalDimensions: nextTotals };
-                })
-              }
-            />
-          )}
           <ToggleGroup
             label="Metrics / Data Fields"
             items={builderMetricOptions}
