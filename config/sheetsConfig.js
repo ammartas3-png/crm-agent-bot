@@ -62,6 +62,28 @@ export function sheetRange(sheetName, columns = "A:Z") {
   return `${quoteSheetName(sheetName)}!${String(columns || "A:Z").trim()}`;
 }
 
+function columnLabelToIndex(label = "") {
+  return String(label || "")
+    .trim()
+    .toUpperCase()
+    .split("")
+    .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0);
+}
+
+function ensureMinEndColumnRange(range, sheetName, minimumEndColumn = "AP") {
+  const normalizedRange = String(range || "").trim();
+  const match = normalizedRange.match(/!([A-Z]+)\d*:([A-Z]+)\d*$/i);
+  if (!match) {
+    return normalizedRange || sheetRange(sheetName, `A:${minimumEndColumn}`);
+  }
+  const startColumn = String(match[1] || "A").toUpperCase();
+  const currentEndColumn = String(match[2] || minimumEndColumn).toUpperCase();
+  const minEnd = String(minimumEndColumn || "AP").toUpperCase();
+  const finalEndColumn =
+    columnLabelToIndex(currentEndColumn) >= columnLabelToIndex(minEnd) ? currentEndColumn : minEnd;
+  return sheetRange(sheetName, `${startColumn}:${finalEndColumn}`);
+}
+
 const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
 const ftdTabName = (process.env.GOOGLE_FTD_TAB || "FTD").trim();
 const transactionTabName = (process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION").trim();
@@ -130,7 +152,11 @@ export const sheetsConfig = {
     infoAgents: {
       key: "infoAgents",
       name: infoAgentsTabName,
-      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:AP"),
+      range: ensureMinEndColumnRange(
+        process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:AP"),
+        infoAgentsTabName,
+        "AP",
+      ),
       columns: DEFAULT_INFO_AGENTS_COLUMNS,
       fields: {
         workingStatus: "Working Status",
