@@ -111,6 +111,77 @@ function reportModeMeta(mode = "") {
   return { title: "Custom Report Builder", icon: "🧩" };
 }
 
+function useResizableColumns({ minWidth = 84 } = {}) {
+  const [columnWidths, setColumnWidths] = useState({});
+
+  const startResize = useCallback(
+    (event, columnKey) => {
+      if (!columnKey) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const headerCell = event.currentTarget?.closest?.("th");
+      const startX = Number(event.clientX || 0);
+      const currentWidth = Number(columnWidths[columnKey] || 0);
+      const startWidth = currentWidth > 0 ? currentWidth : Math.max(minWidth, Number(headerCell?.offsetWidth || minWidth));
+
+      const onMouseMove = (moveEvent) => {
+        const delta = Number(moveEvent.clientX || 0) - startX;
+        const nextWidth = Math.max(minWidth, startWidth + delta);
+        setColumnWidths((prev) => {
+          if (prev[columnKey] === nextWidth) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [columnKey]: nextWidth,
+          };
+        });
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [columnWidths, minWidth],
+  );
+
+  const widthStyle = useCallback(
+    (columnKey, extra = {}) => {
+      const width = Number(columnWidths[columnKey] || 0);
+      if (!width) {
+        return extra;
+      }
+      return {
+        ...extra,
+        width,
+        minWidth: width,
+      };
+    },
+    [columnWidths],
+  );
+
+  return { startResize, widthStyle };
+}
+
+function ColumnResizeHandle({ columnKey = "", onResizeStart }) {
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      title="Drag to resize column"
+      className={styles.columnResizeHandle}
+      onMouseDown={(event) => onResizeStart?.(event, columnKey)}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+}
+
 function TelegramLoginWidget({ botUsername, onAuth }) {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -552,6 +623,7 @@ function SimpleTable({ rows = [] }) {
   ];
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
@@ -562,9 +634,11 @@ function SimpleTable({ rows = [] }) {
               <th
                 key={column.key}
                 onMouseEnter={() => setHoveredColumnKey(column.key)}
+                style={widthStyle(column.key, { position: "relative" })}
                 className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
               >
                 {column.header}
+                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
               </th>
             ))}
           </tr>
@@ -595,7 +669,7 @@ function SimpleTable({ rows = [] }) {
                       className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                         column.key === "label" ? styles.tableStrong : ""
                       }`}
-                      style={color ? { color } : undefined}
+                      style={widthStyle(column.key, color ? { color } : {})}
                     >
                       {content}
                     </td>
@@ -635,6 +709,7 @@ function PivotTable({ rows = [], summary = {} }) {
   ];
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
@@ -645,9 +720,11 @@ function PivotTable({ rows = [], summary = {} }) {
               <th
                 key={column.key}
                 onMouseEnter={() => setHoveredColumnKey(column.key)}
+                style={widthStyle(column.key, { position: "relative" })}
                 className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
               >
                 {column.header}
+                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
               </th>
             ))}
           </tr>
@@ -678,7 +755,7 @@ function PivotTable({ rows = [], summary = {} }) {
                       className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                         column.key === "agent" ? styles.tableStrong : ""
                       }`}
-                      style={color ? { color } : undefined}
+                      style={widthStyle(column.key, color ? { color } : {})}
                     >
                       {content}
                     </td>
@@ -728,6 +805,7 @@ function last4MonthTheme(index) {
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
@@ -745,9 +823,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("desk"),
               }}
             >
               Desk
+              <ColumnResizeHandle columnKey="desk" onResizeStart={startResize} />
             </th>
             <th
               rowSpan={2}
@@ -760,9 +841,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("teamLeader"),
               }}
             >
               Team Leader
+              <ColumnResizeHandle columnKey="teamLeader" onResizeStart={startResize} />
             </th>
             <th
               rowSpan={2}
@@ -775,9 +859,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("agent"),
               }}
             >
               Agent
+              <ColumnResizeHandle columnKey="agent" onResizeStart={startResize} />
             </th>
             {monthBlocks.map((month, index) => {
               const theme = last4MonthTheme(index);
@@ -811,9 +898,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("startDate"),
               }}
             >
               Starting Date
+              <ColumnResizeHandle columnKey="startDate" onResizeStart={startResize} />
             </th>
             <th
               rowSpan={2}
@@ -826,9 +916,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("monthsWorked"),
               }}
             >
               Months Worked
+              <ColumnResizeHandle columnKey="monthsWorked" onResizeStart={startResize} />
             </th>
             <th
               rowSpan={2}
@@ -841,9 +934,12 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
+                position: "relative",
+                ...widthStyle("currentStatus"),
               }}
             >
               Current Status
+              <ColumnResizeHandle columnKey="currentStatus" onResizeStart={startResize} />
             </th>
           </tr>
           <tr>
@@ -854,6 +950,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 monthKey={month.key}
                 hoveredColumnKey={hoveredColumnKey}
                 onHoverColumn={setHoveredColumnKey}
+                onResizeStart={startResize}
+                widthStyle={widthStyle}
               />
             ))}
           </tr>
@@ -871,21 +969,21 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 <td
                   onMouseEnter={() => setHoveredColumnKey("desk")}
                   className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
-                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}
+                  style={widthStyle("desk", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
                 >
                   {row.desk}
                 </td>
                 <td
                   onMouseEnter={() => setHoveredColumnKey("teamLeader")}
                   className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
-                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}
+                  style={widthStyle("teamLeader", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
                 >
                   {row.teamLeader}
                 </td>
                 <td
                   onMouseEnter={() => setHoveredColumnKey("agent")}
                   className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
-                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                  style={widthStyle("agent", { padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 })}
                 >
                   {row.agent}
                 </td>
@@ -900,20 +998,29 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                       monthKey={month.key}
                       hoveredColumnKey={hoveredColumnKey}
                       onHoverColumn={setHoveredColumnKey}
+                      widthStyle={widthStyle}
                     />
                   );
                 })}
                 <td
                   onMouseEnter={() => setHoveredColumnKey("startDate")}
                   className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
-                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                  style={widthStyle("startDate", {
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 600,
+                  })}
                 >
                   {row.startDate || "-"}
                 </td>
                 <td
                   onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
                   className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
-                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                  style={widthStyle("monthsWorked", {
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 600,
+                  })}
                 >
                   {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
                 </td>
@@ -925,6 +1032,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                     borderBottom: "1px solid #eef2f7",
                     fontWeight: 700,
                     ...workingStatusStyle(row.currentStatus),
+                    ...widthStyle("currentStatus"),
                   }}
                 >
                   {row.currentStatus || "Not Working"}
@@ -946,7 +1054,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   );
 }
 
-function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", onHoverColumn }) {
+function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", onHoverColumn, onResizeStart, widthStyle }) {
   const metricColumns = [
     { key: "target", label: "Target" },
     { key: "ftd", label: "FTD" },
@@ -976,9 +1084,12 @@ function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", on
               ...baseStyle,
               ...(index === 0 ? { borderLeft: `3px solid ${theme?.line || "#334155"}` } : {}),
               ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
+              position: "relative",
+              ...(widthStyle ? widthStyle(columnKey) : {}),
             }}
           >
             {column.label}
+            <ColumnResizeHandle columnKey={columnKey} onResizeStart={onResizeStart} />
           </th>
         );
       })}
@@ -986,7 +1097,7 @@ function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", on
   );
 }
 
-function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnKey = "", onHoverColumn }) {
+function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnKey = "", onHoverColumn, widthStyle }) {
   const crReach = Number(metric.crTargetReach || 0);
   const ftdReach = Number(metric.ftdTargetReach || 0);
   const baseStyle = {
@@ -1018,6 +1129,7 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
               ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
               ...(column.color ? { color: column.color } : {}),
               ...(column.bold ? { fontWeight: 700 } : {}),
+              ...(widthStyle ? widthStyle(columnKey) : {}),
             }}
           >
             {column.render(value)}
@@ -1071,6 +1183,7 @@ function compareBuilderValues(left, right, type) {
 function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   const isColumnPivot =
     Boolean(builder?.columnDimension) &&
     Array.isArray(builder?.columnValues) &&
@@ -1107,11 +1220,12 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       rowSpan={2}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={{ cursor: "pointer" }}
+                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                     >
                       {column.label}
                       {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
                     </th>
                   );
                 })}
@@ -1129,11 +1243,12 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       rowSpan={2}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={{ cursor: "pointer" }}
+                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                     >
                       {column.label}
                       {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
                     </th>
                   );
                 })}
@@ -1148,11 +1263,12 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       key={column.key}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={{ cursor: "pointer" }}
+                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
                       className={`${styles.tableSubHeader} ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
                     >
                       {metricName}
                       {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
                     </th>
                   );
                 })}
@@ -1168,13 +1284,12 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                     key={column.key}
                     onClick={() => onSort(column.key)}
                     onMouseEnter={() => setHoveredColumnKey(column.key)}
-                    style={{
-                      cursor: "pointer",
-                    }}
+                    style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
                     className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                   >
                     {column.label}
                     {suffix}
+                    <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
                   </th>
                 );
               })}
@@ -1205,7 +1320,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       key={`${index}-${column.key}`}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
-                      style={{
+                      style={widthStyle(column.key, {
                         color: isWorkCurrentStatus
                           ? statusStyle.color
                           : isBenchmarkRate
@@ -1219,7 +1334,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                             ? benchmarkStyle.background
                             : undefined,
                         fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
-                      }}
+                      })}
                     >
                       {formatBuilderCell(value, column.type)}
                     </td>
