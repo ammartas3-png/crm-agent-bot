@@ -538,40 +538,72 @@ function StatusCards({ stats = {} }) {
 }
 
 function SimpleTable({ rows = [] }) {
+  const columns = [
+    { key: "label", header: "Group" },
+    { key: "totalLeads", header: "Leads" },
+    { key: "totalFtd", header: "FTD" },
+    { key: "ftdTarget", header: "FTD Target" },
+    { key: "ftdTargetReach", header: "FTD Target Reach", type: "percentReach" },
+    { key: "cr", header: "CR", type: "percent" },
+    { key: "crTarget", header: "CR Target", type: "percent" },
+    { key: "crTargetReach", header: "CR Target Reach", type: "percentReach" },
+    { key: "selfs", header: "Selfs" },
+    { key: "lateFtd", header: "Late FTD" },
+  ];
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table}>
+      <table className={styles.table} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
-            {["Group", "Leads", "FTD", "FTD Target", "FTD Target Reach", "CR", "CR Target", "CR Target Reach", "Selfs", "Late FTD"].map(
-              (header) => (
-                <th key={header}>
-                  {header}
-                </th>
-              ),
-            )}
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                onMouseEnter={() => setHoveredColumnKey(column.key)}
+                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+              >
+                {column.header}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.monthKey || row.label}>
-              <td className={styles.tableStrong}>{row.label}</td>
-              <td>{formatNumber(row.totalLeads)}</td>
-              <td>{formatNumber(row.totalFtd)}</td>
-              <td>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ color: reachColor(row.ftdTargetReach) }}>
-                {formatPercent(row.ftdTargetReach)}
-              </td>
-              <td>{formatPercent(row.cr)}</td>
-              <td>{formatPercent(row.crTarget)}</td>
-              <td style={{ color: reachColor(row.crTargetReach) }}>
-                {formatPercent(row.crTargetReach)}
-              </td>
-              <td>{formatNumber(row.selfs)}</td>
-              <td>{formatNumber(row.lateFtd)}</td>
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowKey = String(row.monthKey || row.label || index);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+              >
+                {columns.map((column) => {
+                  const value = row[column.key];
+                  const content =
+                    column.key === "label"
+                      ? value || "-"
+                      : column.type === "percent" || column.type === "percentReach"
+                        ? formatPercent(value)
+                        : formatNumber(value);
+                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  return (
+                    <td
+                      key={`${rowKey}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                        column.key === "label" ? styles.tableStrong : ""
+                      }`}
+                      style={color ? { color } : undefined}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
               <td colSpan={10} className={styles.tableEmpty}>
@@ -587,53 +619,74 @@ function SimpleTable({ rows = [] }) {
 }
 
 function PivotTable({ rows = [], summary = {} }) {
+  const columns = [
+    { key: "desk", header: "Desk" },
+    { key: "teamLeader", header: "Team Leader" },
+    { key: "agent", header: "Agent" },
+    { key: "totalLeads", header: "Leads" },
+    { key: "totalFtd", header: "FTD" },
+    { key: "selfs", header: "Selfs" },
+    { key: "lateFtd", header: "Late FTD +30 Day" },
+    { key: "cr", header: "CR", type: "percent" },
+    { key: "crTarget", header: "CR Target", type: "percent" },
+    { key: "crTargetReach", header: "CR Target Reach", type: "percentReach" },
+    { key: "ftdTarget", header: "FTD Target" },
+    { key: "ftdTargetReach", header: "FTD Target Reach", type: "percentReach" },
+  ];
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table} style={{ minWidth: 1150 }}>
+      <table className={styles.table} style={{ minWidth: 1150 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
-            {[
-              "Desk",
-              "Team Leader",
-              "Agent",
-              "Leads",
-              "FTD",
-              "Selfs",
-              "Late FTD +30 Day",
-              "CR",
-              "CR Target",
-              "CR Target Reach",
-              "FTD Target",
-              "FTD Target Reach",
-            ].map((header) => (
-              <th key={header}>
-                {header}
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                onMouseEnter={() => setHoveredColumnKey(column.key)}
+                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+              >
+                {column.header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={`${row.desk}-${row.teamLeader}-${row.agent}`}>
-              <td>{row.desk}</td>
-              <td>{row.teamLeader}</td>
-              <td className={styles.tableStrong}>{row.agent}</td>
-              <td>{formatNumber(row.totalLeads)}</td>
-              <td>{formatNumber(row.totalFtd)}</td>
-              <td>{formatNumber(row.selfs)}</td>
-              <td>{formatNumber(row.lateFtd)}</td>
-              <td>{formatPercent(row.cr)}</td>
-              <td>{formatPercent(row.crTarget)}</td>
-              <td style={{ color: reachColor(row.crTargetReach) }}>
-                {formatPercent(row.crTargetReach)}
-              </td>
-              <td>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ color: reachColor(row.ftdTargetReach) }}>
-                {formatPercent(row.ftdTargetReach)}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowKey = `${row.desk}-${row.teamLeader}-${row.agent}-${index}`;
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+              >
+                {columns.map((column) => {
+                  const value = row[column.key];
+                  const content =
+                    column.type === "percent" || column.type === "percentReach"
+                      ? formatPercent(value)
+                      : ["desk", "teamLeader", "agent"].includes(column.key)
+                        ? String(value || "-")
+                        : formatNumber(value);
+                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  return (
+                    <td
+                      key={`${rowKey}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                        column.key === "agent" ? styles.tableStrong : ""
+                      }`}
+                      style={color ? { color } : undefined}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           <tr>
             <td className={styles.tableStrong}>Grand total</td>
             <td />
@@ -673,14 +726,18 @@ function last4MonthTheme(index) {
 }
 
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table} style={{ minWidth: 1880 }}>
+      <table className={styles.table} style={{ minWidth: 1880 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("desk")}
+              className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -694,6 +751,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             </th>
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+              className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -707,6 +766,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             </th>
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("agent")}
+              className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -741,6 +802,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             })}
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("startDate")}
+              className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -754,6 +817,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             </th>
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
+              className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -767,6 +832,8 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             </th>
             <th
               rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("currentStatus")}
+              className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
                 padding: "9px 12px",
@@ -781,39 +848,90 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
           </tr>
           <tr>
             {monthBlocks.map((month, index) => (
-              <FragmentMetricHeaders key={month.key} theme={last4MonthTheme(index)} />
+              <FragmentMetricHeaders
+                key={month.key}
+                theme={last4MonthTheme(index)}
+                monthKey={month.key}
+                hoveredColumnKey={hoveredColumnKey}
+                onHoverColumn={setHoveredColumnKey}
+              />
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.key || row.agent}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
-              {monthBlocks.map((month, index) => {
-                const metric = row.months?.[month.key] || {};
-                const theme = last4MonthTheme(index);
-                return (
-                  <FragmentMetricCells key={`${row.key || row.agent}-${month.key}`} metric={metric} theme={theme} />
-                );
-              })}
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.startDate || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>
-                {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
-              </td>
-              <td
-                style={{
-                  padding: "8px 12px",
-                  borderBottom: "1px solid #eef2f7",
-                  fontWeight: 700,
-                  ...workingStatusStyle(row.currentStatus),
-                }}
+          {rows.map((row, rowIndex) => {
+            const rowKey = String(row.key || row.agent || rowIndex);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
               >
-                {row.currentStatus || "Not Working"}
-              </td>
-            </tr>
-          ))}
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("desk")}
+                  className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
+                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}
+                >
+                  {row.desk}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+                  className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
+                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}
+                >
+                  {row.teamLeader}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("agent")}
+                  className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
+                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                >
+                  {row.agent}
+                </td>
+                {monthBlocks.map((month, index) => {
+                  const metric = row.months?.[month.key] || {};
+                  const theme = last4MonthTheme(index);
+                  return (
+                    <FragmentMetricCells
+                      key={`${rowKey}-${month.key}`}
+                      metric={metric}
+                      theme={theme}
+                      monthKey={month.key}
+                      hoveredColumnKey={hoveredColumnKey}
+                      onHoverColumn={setHoveredColumnKey}
+                    />
+                  );
+                })}
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("startDate")}
+                  className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
+                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                >
+                  {row.startDate || "-"}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
+                  className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
+                  style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}
+                >
+                  {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("currentStatus")}
+                  className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
+                  style={{
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 700,
+                    ...workingStatusStyle(row.currentStatus),
+                  }}
+                >
+                  {row.currentStatus || "Not Working"}
+                </td>
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
               <td colSpan={6 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
@@ -828,7 +946,15 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   );
 }
 
-function FragmentMetricHeaders({ theme }) {
+function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", onHoverColumn }) {
+  const metricColumns = [
+    { key: "target", label: "Target" },
+    { key: "ftd", label: "FTD" },
+    { key: "cr", label: "CR" },
+    { key: "crTarget", label: "CR Target" },
+    { key: "crTargetReach", label: "CR Reach" },
+    { key: "ftdTargetReach", label: "FTD Reach" },
+  ];
   const baseStyle = {
     textAlign: "left",
     padding: "7px 10px",
@@ -839,17 +965,28 @@ function FragmentMetricHeaders({ theme }) {
   };
   return (
     <>
-      <th style={{ ...baseStyle, borderLeft: `3px solid ${theme?.line || "#334155"}` }}>Target</th>
-      <th style={baseStyle}>FTD</th>
-      <th style={baseStyle}>CR</th>
-      <th style={baseStyle}>CR Target</th>
-      <th style={baseStyle}>CR Reach</th>
-      <th style={{ ...baseStyle, borderRight: `3px solid ${theme?.line || "#334155"}` }}>FTD Reach</th>
+      {metricColumns.map((column, index) => {
+        const columnKey = `${monthKey}__${column.key}`;
+        return (
+          <th
+            key={columnKey}
+            onMouseEnter={() => onHoverColumn?.(columnKey)}
+            className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
+            style={{
+              ...baseStyle,
+              ...(index === 0 ? { borderLeft: `3px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
+            }}
+          >
+            {column.label}
+          </th>
+        );
+      })}
     </>
   );
 }
 
-function FragmentMetricCells({ metric = {}, theme }) {
+function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnKey = "", onHoverColumn }) {
   const crReach = Number(metric.crTargetReach || 0);
   const ftdReach = Number(metric.ftdTargetReach || 0);
   const baseStyle = {
@@ -857,31 +994,36 @@ function FragmentMetricCells({ metric = {}, theme }) {
     borderBottom: "1px solid #eef2f7",
     background: theme?.light || "#fff",
   };
+  const metricColumns = [
+    { key: "target", render: (value) => formatNumber(value) },
+    { key: "ftd", render: (value) => formatNumber(value) },
+    { key: "cr", render: (value) => formatPercent(value) },
+    { key: "crTarget", render: (value) => formatPercent(value) },
+    { key: "crTargetReach", render: (value) => formatPercent(value), color: reachColor(crReach), bold: crReach >= 100 },
+    { key: "ftdTargetReach", render: (value) => formatPercent(value), color: reachColor(ftdReach), bold: ftdReach >= 100 },
+  ];
   return (
     <>
-      <td style={{ ...baseStyle, borderLeft: `3px solid ${theme?.line || "#334155"}` }}>{formatNumber(metric.target)}</td>
-      <td style={baseStyle}>{formatNumber(metric.ftd)}</td>
-      <td style={baseStyle}>{formatPercent(metric.cr)}</td>
-      <td style={baseStyle}>{formatPercent(metric.crTarget)}</td>
-      <td
-        style={{
-          ...baseStyle,
-          color: reachColor(crReach),
-          fontWeight: crReach >= 100 ? 700 : 400,
-        }}
-      >
-        {formatPercent(metric.crTargetReach)}
-      </td>
-      <td
-        style={{
-          ...baseStyle,
-          borderRight: `3px solid ${theme?.line || "#334155"}`,
-          color: reachColor(ftdReach),
-          fontWeight: ftdReach >= 100 ? 700 : 400,
-        }}
-      >
-        {formatPercent(metric.ftdTargetReach)}
-      </td>
+      {metricColumns.map((column, index) => {
+        const columnKey = `${monthKey}__${column.key}`;
+        const value = metric[column.key];
+        return (
+          <td
+            key={columnKey}
+            onMouseEnter={() => onHoverColumn?.(columnKey)}
+            className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
+            style={{
+              ...baseStyle,
+              ...(index === 0 ? { borderLeft: `3px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
+              ...(column.color ? { color: column.color } : {}),
+              ...(column.bold ? { fontWeight: 700 } : {}),
+            }}
+          >
+            {column.render(value)}
+          </td>
+        );
+      })}
     </>
   );
 }
@@ -927,6 +1069,8 @@ function compareBuilderValues(left, right, type) {
 }
 
 function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
   const isColumnPivot =
     Boolean(builder?.columnDimension) &&
     Array.isArray(builder?.columnValues) &&
@@ -949,7 +1093,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
       <div className={styles.tableScroll}>
-      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           {isColumnPivot ? (
             <>
@@ -958,7 +1102,14 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   const active = sortState.key === column.key;
                   const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                   return (
-                    <th key={column.key} rowSpan={2} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }}>
+                    <th
+                      key={column.key}
+                      rowSpan={2}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={{ cursor: "pointer" }}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                    >
                       {column.label}
                       {suffix}
                     </th>
@@ -973,7 +1124,14 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   const active = sortState.key === column.key;
                   const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                   return (
-                    <th key={column.key} rowSpan={2} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }}>
+                    <th
+                      key={column.key}
+                      rowSpan={2}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={{ cursor: "pointer" }}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                    >
                       {column.label}
                       {suffix}
                     </th>
@@ -986,7 +1144,13 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                   const metricName = column.label.replace(/^[^\s]+\s+/, "");
                   return (
-                    <th key={column.key} onClick={() => onSort(column.key)} style={{ cursor: "pointer" }} className={styles.tableSubHeader}>
+                    <th
+                      key={column.key}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={{ cursor: "pointer" }}
+                      className={`${styles.tableSubHeader} ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
+                    >
                       {metricName}
                       {suffix}
                     </th>
@@ -1003,9 +1167,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   <th
                     key={column.key}
                     onClick={() => onSort(column.key)}
+                    onMouseEnter={() => setHoveredColumnKey(column.key)}
                     style={{
                       cursor: "pointer",
                     }}
+                    className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                   >
                     {column.label}
                     {suffix}
@@ -1016,40 +1182,52 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           )}
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={`builder-${index}`} className={row.__rowKind === "total" ? styles.tableTotalRow : ""}>
-              {columns.map((column) => {
-                const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
-                const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
-                const isWorkCurrentStatus = column.key === "workCurrentStatus";
-                const value = row[column.key];
-                const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
-                const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
-                return (
-                  <td
-                    key={`${index}-${column.key}`}
-                    style={{
-                      color: isWorkCurrentStatus
-                        ? statusStyle.color
-                        : isBenchmarkRate
-                          ? benchmarkStyle.color
-                          : isReach
-                            ? reachColor(value)
-                            : "#0f172a",
-                      background: isWorkCurrentStatus
-                        ? statusStyle.background
-                        : isBenchmarkRate
-                          ? benchmarkStyle.background
-                          : undefined,
-                      fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
-                    }}
-                  >
-                    {formatBuilderCell(value, column.type)}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${index}`);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={`builder-${rowKey}`}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${row.__rowKind === "total" ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
+                  selected ? styles.tableSelectedRow : ""
+                }`}
+              >
+                {columns.map((column) => {
+                  const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                  const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                  const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                  const value = row[column.key];
+                  const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                  const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
+                  return (
+                    <td
+                      key={`${index}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                      style={{
+                        color: isWorkCurrentStatus
+                          ? statusStyle.color
+                          : isBenchmarkRate
+                            ? benchmarkStyle.color
+                            : isReach
+                              ? reachColor(value)
+                              : "#0f172a",
+                        background: isWorkCurrentStatus
+                          ? statusStyle.background
+                          : isBenchmarkRate
+                            ? benchmarkStyle.background
+                            : undefined,
+                        fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
+                      }}
+                    >
+                      {formatBuilderCell(value, column.type)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
               <td colSpan={columns.length || 1} className={styles.tableEmpty}>
