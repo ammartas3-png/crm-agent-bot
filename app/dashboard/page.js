@@ -53,6 +53,17 @@ function benchmarkRateStyle(value) {
   return { background: "#ef4444", color: "#ffffff" };
 }
 
+function workingStatusStyle(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "active" || normalized === "working") {
+    return { background: "#16a34a", color: "#ffffff" };
+  }
+  if (normalized === "not working" || normalized === "not_working" || normalized) {
+    return { background: "#ef4444", color: "#ffffff" };
+  }
+  return { background: "transparent", color: "#0f172a" };
+}
+
 function officeThemeForName(officeName = "") {
   const normalized = String(officeName || "").toLowerCase();
   if (normalized.includes("argentina")) {
@@ -754,6 +765,19 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
             >
               Months Worked
             </th>
+            <th
+              rowSpan={2}
+              style={{
+                textAlign: "left",
+                padding: "9px 12px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+              }}
+            >
+              Current Status
+            </th>
           </tr>
           <tr>
             {monthBlocks.map((month, index) => (
@@ -778,11 +802,21 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>
                 {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
               </td>
+              <td
+                style={{
+                  padding: "8px 12px",
+                  borderBottom: "1px solid #eef2f7",
+                  fontWeight: 700,
+                  ...workingStatusStyle(row.currentStatus),
+                }}
+              >
+                {row.currentStatus || "Not Working"}
+              </td>
             </tr>
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={5 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={6 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
                 No rows found.
               </td>
             </tr>
@@ -987,15 +1021,27 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
               {columns.map((column) => {
                 const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                 const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                const isWorkCurrentStatus = column.key === "workCurrentStatus";
                 const value = row[column.key];
                 const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
                 return (
                   <td
                     key={`${index}-${column.key}`}
                     style={{
-                      color: isBenchmarkRate ? benchmarkStyle.color : isReach ? reachColor(value) : "#0f172a",
-                      background: isBenchmarkRate ? benchmarkStyle.background : undefined,
-                      fontWeight: isBenchmarkRate ? 700 : undefined,
+                      color: isWorkCurrentStatus
+                        ? statusStyle.color
+                        : isBenchmarkRate
+                          ? benchmarkStyle.color
+                          : isReach
+                            ? reachColor(value)
+                            : "#0f172a",
+                      background: isWorkCurrentStatus
+                        ? statusStyle.background
+                        : isBenchmarkRate
+                          ? benchmarkStyle.background
+                          : undefined,
+                      fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
                     }}
                   >
                     {formatBuilderCell(value, column.type)}
