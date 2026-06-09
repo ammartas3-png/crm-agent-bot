@@ -1210,6 +1210,10 @@ function compareBuilderValues(left, right, type) {
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
+function formatColumnGroupLabel(value = "") {
+  return String(value || "") === "__grand_total__" ? "Grand Total" : String(value || "");
+}
+
 function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
@@ -1266,7 +1270,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                 })}
                 {builder.columnValues.map((value) => (
                   <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
-                    {value}
+                    {formatColumnGroupLabel(value)}
                   </th>
                 ))}
                 {pivotTailColumns.map((column) => {
