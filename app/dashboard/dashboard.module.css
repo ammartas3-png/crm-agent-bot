@@ -574,7 +574,7 @@
 }
 
 .tableSticky thead tr:nth-child(2) th {
-  top: 30px;
+  top: var(--sticky-second-row-top, 34px);
   z-index: 3;
 }
 

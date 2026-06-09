@@ -634,7 +634,7 @@ function SimpleTable({ rows = [] }) {
               <th
                 key={column.key}
                 onMouseEnter={() => setHoveredColumnKey(column.key)}
-                style={widthStyle(column.key, { position: "relative" })}
+                style={widthStyle(column.key)}
                 className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
               >
                 {column.header}
@@ -720,7 +720,7 @@ function PivotTable({ rows = [], summary = {} }) {
               <th
                 key={column.key}
                 onMouseEnter={() => setHoveredColumnKey(column.key)}
-                style={widthStyle(column.key, { position: "relative" })}
+                style={widthStyle(column.key)}
                 className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
               >
                 {column.header}
@@ -809,7 +809,11 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 1880 }} onMouseLeave={() => setHoveredColumnKey("")}>
+      <table
+        className={`${styles.table} ${styles.tableSticky}`}
+        style={{ minWidth: 1880, "--sticky-second-row-top": "28px" }}
+        onMouseLeave={() => setHoveredColumnKey("")}
+      >
         <thead>
           <tr>
             <th
@@ -823,7 +827,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("desk"),
               }}
             >
@@ -841,7 +844,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("teamLeader"),
               }}
             >
@@ -859,7 +861,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("agent"),
               }}
             >
@@ -898,7 +899,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("startDate"),
               }}
             >
@@ -916,7 +916,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("monthsWorked"),
               }}
             >
@@ -934,7 +933,6 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 fontSize: 12,
                 background: "#334155",
                 color: "#fff",
-                position: "relative",
                 ...widthStyle("currentStatus"),
               }}
             >
@@ -1084,7 +1082,6 @@ function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", on
               ...baseStyle,
               ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
               ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
-              position: "relative",
               ...(widthStyle ? widthStyle(columnKey) : {}),
             }}
           >
@@ -1225,7 +1222,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       rowSpan={2}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                     >
                       {column.label}
@@ -1248,7 +1245,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       rowSpan={2}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                     >
                       {column.label}
@@ -1268,7 +1265,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       key={column.key}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
                       className={`${styles.tableSubHeader} ${
                         pivotGroupStartKeySet.has(column.key) ? styles.tableSubHeaderGroupStart : ""
                       } ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
@@ -1291,7 +1288,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                     key={column.key}
                     onClick={() => onSort(column.key)}
                     onMouseEnter={() => setHoveredColumnKey(column.key)}
-                    style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
+                    style={widthStyle(column.key, { cursor: "pointer" })}
                     className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                   >
                     {column.label}
