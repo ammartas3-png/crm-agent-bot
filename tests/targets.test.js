@@ -14,6 +14,7 @@ import {
   summarizeTarget,
   targetForOffice,
   targetForTeamLeader,
+  targetAggregationForScope,
   targetReachPercent,
 } from "../lib/targets.js";
 
@@ -160,4 +161,106 @@ test("info agent context keeps earliest valid start date for duplicate agent row
   ]);
   const record = context.byAgent.get(normalizeAgentName("Asad kh"));
   assert.equal(record?.start_date, "25/09/2023");
+});
+
+test("targetAggregationForScope can force row-only targets for bucketed summaries", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "10",
+      "FTD MAKER": "x",
+      Created: "2026-04-03T08:00:00Z",
+      __sourceMonthKey: "2026-04",
+    },
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "30",
+      "FTD MAKER": "x",
+      Created: "2026-06-04T08:00:00Z",
+      __sourceMonthKey: "2026-06",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "A Agent",
+      "Agent Target": "30",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aprilRows = rows.filter((row) => row.__sourceMonthKey === "2026-04");
+  const april = targetAggregationForScope({
+    rows: aprilRows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      preferRowTargets: true,
+    },
+  });
+  const total = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      preferRowTargets: true,
+    },
+  });
+  assert.equal(april.includedTarget, 10);
+  assert.equal(total.includedTarget, 40);
+});
+
+test("targetAggregationForScope reads dynamic non-CR target columns", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "B Agent",
+      "Monthly Target": "14",
+      "CR TARGET": "10%",
+      "FTD MAKER": "x",
+      Created: "2026-05-03T08:00:00Z",
+      __sourceMonthKey: "2026-05",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "B Agent",
+      "Agent Target": "99",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aggregation = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["B Agent"],
+      preferRowTargets: true,
+    },
+  });
+  assert.equal(aggregation.includedTarget, 14);
 });
