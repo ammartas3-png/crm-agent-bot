@@ -226,6 +226,45 @@ test("targetAggregationForScope can force row-only targets for bucketed summarie
   assert.equal(total.includedTarget, 40);
 });
 
+test("targetAggregationForScope can force info-context targets for scoped rows", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "10",
+      "FTD MAKER": "x",
+      Created: "2026-04-03T08:00:00Z",
+      __sourceMonthKey: "2026-04",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "A Agent",
+      "Agent Target": "22",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aggregation = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      restrictToRows: true,
+      preferInfoTargets: true,
+    },
+  });
+  assert.equal(aggregation.includedTarget, 22);
+});
+
 test("targetAggregationForScope reads dynamic non-CR target columns", () => {
   const rows = [
     {
