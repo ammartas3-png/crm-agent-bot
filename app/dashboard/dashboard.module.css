@@ -358,6 +358,21 @@
   justify-self: start;
 }
 
+.multiSelectSearch {
+  border: 1px solid #c7d2de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.multiSelectSearch:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 .multiSelectOptions {
   display: grid;
   gap: 4px;

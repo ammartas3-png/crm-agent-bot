@@ -245,6 +245,7 @@ function MultiSelectFilter({
   loading = false,
 }) {
   const [open, setOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
   const rootRef = useRef(null);
   const selectedValues = Array.isArray(values) ? values : [];
   const selectedSet = new Set(selectedValues.map((item) => String(item)));
@@ -268,6 +269,12 @@ function MultiSelectFilter({
     }
   }, [disabled, open]);
 
+  useEffect(() => {
+    if (!open) {
+      setSearchText("");
+    }
+  }, [open]);
+
   const selectedLabel = useMemo(() => {
     if (!selectedValues.length) {
       return placeholder;
@@ -280,6 +287,23 @@ function MultiSelectFilter({
   }, [options, placeholder, selectedValues]);
 
   const orderedOptionValues = useMemo(() => options.map((option) => option.value), [options]);
+  const filteredOptions = useMemo(() => {
+    const needle = String(searchText || "").trim().toLocaleLowerCase("en-US");
+    if (!needle) {
+      return options;
+    }
+    return options.filter((option) => {
+      const labelMatch = String(option.label || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+      if (labelMatch) {
+        return true;
+      }
+      return String(option.value || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+    });
+  }, [options, searchText]);
 
   const toggleValue = useCallback(
     (nextValue) => {
@@ -318,8 +342,15 @@ function MultiSelectFilter({
           <button type="button" className={styles.multiSelectClear} onClick={() => onChange([])}>
             Clear
           </button>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder={`Search ${label.toLowerCase()}...`}
+            className={styles.multiSelectSearch}
+          />
           <div className={styles.multiSelectOptions}>
-            {options.map((option) => {
+            {filteredOptions.map((option) => {
               const checked = selectedSet.has(String(option.value));
               return (
                 <label key={`${label}-${option.value}`} className={styles.multiSelectOption}>
@@ -328,7 +359,9 @@ function MultiSelectFilter({
                 </label>
               );
             })}
-            {!options.length ? <p className={styles.multiSelectEmpty}>No options</p> : null}
+            {!filteredOptions.length ? (
+              <p className={styles.multiSelectEmpty}>{searchText ? "No matching options" : "No options"}</p>
+            ) : null}
           </div>
         </div>
       ) : null}
