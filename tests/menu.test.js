@@ -1703,7 +1703,7 @@ test("last 4 months reuses first found Agent ID name for older months", async ()
   assert.doesNotMatch(agentList.text, /Legacy Name/);
 });
 
-test("single month reports show Annalena for Asli alias", async () => {
+test("single month reports keep source agent name when no alias source is provided", async () => {
   upsertMonthFile("May 2026", "sheet-alias-single");
   const readRowsAliasSingle = async (tabKey, options = {}) => {
     if (tabKey === "infoAgents") {
@@ -1777,8 +1777,8 @@ test("single month reports show Annalena for Asli alias", async () => {
     readRows: readRowsAliasSingle,
     now: NOW,
   });
-  assert.match(aliasList.text, /Annalena Gu/);
-  assert.doesNotMatch(aliasList.text, /Asli Gu/);
+  assert.match(aliasList.text, /Asli Gu/);
+  assert.doesNotMatch(aliasList.text, /Annalena Gu/);
 });
 
 test("last 4 months all excel export returns document payload", async () => {

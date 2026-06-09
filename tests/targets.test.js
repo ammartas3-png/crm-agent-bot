@@ -86,10 +86,10 @@ test("collectAgentNames reads agent field values", () => {
   assert.deepEqual(names, ["Ahmet", "Max"]);
 });
 
-test("agent alias maps Asli Gu to Annalena Gu", () => {
-  assert.equal(normalizeAgentName("Asli Gu"), "annalena gu");
+test("agent normalization does not apply hardcoded alias mapping", () => {
+  assert.equal(normalizeAgentName("Asli Gu"), "asli gu");
   assert.equal(normalizeAgentName(" annalena   gu "), "annalena gu");
-  assert.equal(canonicalAgentName("Asli Gu"), "Annalena Gu");
+  assert.equal(canonicalAgentName("Asli Gu"), "Asli Gu");
 });
 
 test("info agent context supports Active status and Desk column", () => {
