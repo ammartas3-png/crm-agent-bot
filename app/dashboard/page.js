@@ -627,7 +627,7 @@ function SimpleTable({ rows = [] }) {
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table} onMouseLeave={() => setHoveredColumnKey("")}>
+      <table className={`${styles.table} ${styles.tableSticky}`} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
             {columns.map((column) => (
@@ -713,7 +713,7 @@ function PivotTable({ rows = [], summary = {} }) {
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table} style={{ minWidth: 1150 }} onMouseLeave={() => setHoveredColumnKey("")}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 1150 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
             {columns.map((column) => (
@@ -809,7 +809,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableScroll}>
-      <table className={styles.table} style={{ minWidth: 1880 }} onMouseLeave={() => setHoveredColumnKey("")}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 1880 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
           <tr>
             <th
@@ -818,7 +818,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -836,7 +836,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -854,7 +854,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -874,13 +874,13 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                 colSpan={6}
                 style={{
                   textAlign: "center",
-                  padding: "9px 12px",
+                  padding: "6px 10px",
                   borderBottom: "1px solid #dbe3ee",
                   fontSize: 12,
                   background: theme.dark,
                   color: "#fff",
-                  borderLeft: `3px solid ${theme.line}`,
-                  borderRight: `3px solid ${theme.line}`,
+                  borderLeft: `1px solid ${theme.line}`,
+                  borderRight: `1px solid ${theme.line}`,
                 }}
               >
                 {month.label}
@@ -893,7 +893,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -911,7 +911,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -929,7 +929,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
               className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
               style={{
                 textAlign: "left",
-                padding: "9px 12px",
+                padding: "6px 10px",
                 borderBottom: "1px solid #dbe3ee",
                 fontSize: 12,
                 background: "#334155",
@@ -1065,7 +1065,7 @@ function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", on
   ];
   const baseStyle = {
     textAlign: "left",
-    padding: "7px 10px",
+    padding: "5px 8px",
     borderBottom: "1px solid #dbe3ee",
     fontSize: 11,
     background: theme?.light || "#f8fafc",
@@ -1082,8 +1082,8 @@ function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", on
             className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
             style={{
               ...baseStyle,
-              ...(index === 0 ? { borderLeft: `3px solid ${theme?.line || "#334155"}` } : {}),
-              ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
               position: "relative",
               ...(widthStyle ? widthStyle(columnKey) : {}),
             }}
@@ -1101,7 +1101,7 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
   const crReach = Number(metric.crTargetReach || 0);
   const ftdReach = Number(metric.ftdTargetReach || 0);
   const baseStyle = {
-    padding: "8px 10px",
+    padding: "7px 9px",
     borderBottom: "1px solid #eef2f7",
     background: theme?.light || "#fff",
   };
@@ -1125,8 +1125,8 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
             className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
             style={{
               ...baseStyle,
-              ...(index === 0 ? { borderLeft: `3px solid ${theme?.line || "#334155"}` } : {}),
-              ...(index === metricColumns.length - 1 ? { borderRight: `3px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
               ...(column.color ? { color: column.color } : {}),
               ...(column.bold ? { fontWeight: 700 } : {}),
               ...(widthStyle ? widthStyle(columnKey) : {}),
@@ -1203,6 +1203,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
     ? columns.filter((column) => !pivotMetricKeySet.has(column.key) && column.kind !== "dimension")
     : [];
   const perGroupMetricCount = builder.columnMetrics?.length || 0;
+  const pivotGroupStartKeySet = new Set(
+    isColumnPivot && perGroupMetricCount > 0
+      ? pivotMetricColumns.filter((_, index) => index % perGroupMetricCount === 0).map((column) => column.key)
+      : [],
+  );
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
       <div className={styles.tableScroll}>
@@ -1264,7 +1269,9 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       onClick={() => onSort(column.key)}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
                       style={widthStyle(column.key, { cursor: "pointer", position: "relative" })}
-                      className={`${styles.tableSubHeader} ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
+                      className={`${styles.tableSubHeader} ${
+                        pivotGroupStartKeySet.has(column.key) ? styles.tableSubHeaderGroupStart : ""
+                      } ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
                     >
                       {metricName}
                       {suffix}
@@ -1333,6 +1340,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                           : isBenchmarkRate
                             ? benchmarkStyle.background
                             : undefined,
+                        borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
                         fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
                       })}
                     >
