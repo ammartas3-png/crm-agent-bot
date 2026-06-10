@@ -1702,7 +1702,20 @@ export default function DashboardPage() {
     const source = options.months || sessionState.bootstrap.months || [];
     return source.map((item) => ({
       value: item.key,
-      label: item.office_name ? `${item.month_label} — ${item.office_name}` : item.month_label,
+      label: (() => {
+        const officeNames = Array.isArray(item.office_names)
+          ? item.office_names.filter(Boolean)
+          : item.office_name
+            ? [item.office_name]
+            : [];
+        if (officeNames.length > 1) {
+          return `${item.month_label} — ${officeNames.length} Offices`;
+        }
+        if (officeNames.length === 1) {
+          return `${item.month_label} — ${officeNames[0]}`;
+        }
+        return item.month_label;
+      })(),
     }));
   }, [options.months, sessionState.bootstrap.months]);
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
