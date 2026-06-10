@@ -1482,7 +1482,7 @@ const EMPTY_FILTERS = {
 };
 
 const QUICK_PRESET_MONTHLY_METRICS = ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
-const QUICK_PRESET_LAST4_METRICS = ["crTargetReach", "leads", "ftd"];
+const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
 
 function asOptions(values = []) {
@@ -1764,7 +1764,7 @@ export default function DashboardPage() {
             hour: [],
             columnDimension: "month",
             includeWorkTime: true,
-            hideNotWorking: false,
+            hideNotWorking: true,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LAST4_METRICS,
