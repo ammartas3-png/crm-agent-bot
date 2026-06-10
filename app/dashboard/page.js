@@ -78,6 +78,28 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
+function TextFilter({ label, value, onChange, placeholder = "", disabled = false }) {
+  return (
+    <label style={{ display: "grid", gap: 5, minWidth: 145, flex: 1 }}>
+      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>{label}</span>
+      <input
+        value={value}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+        style={{
+          border: "1px solid #cbd5e1",
+          borderRadius: 8,
+          padding: "8px 10px",
+          background: disabled ? "#f8fafc" : "#fff",
+          color: "#0f172a",
+          fontSize: 13,
+        }}
+      />
+    </label>
+  );
+}
+
 function SummaryCards({ summary }) {
   const items = [
     { label: "Total Leads", value: formatNumber(summary.totalLeads) },
@@ -344,6 +366,63 @@ function FragmentMetricCells({ metric = {} }) {
   );
 }
 
+function PermissionRowsTable({ rows = [], onEdit, onDelete }) {
+  return (
+    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+        <thead>
+          <tr style={{ background: "#f8fafc" }}>
+            {["Row", "User Name", "Telegram", "Telegram ID", "Authority", "Office", "Desk", "Team", "Actions"].map((header) => (
+              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.rowNumber}-${row.telegramId}-${row.telegramUsername}-${row.userName}`}>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.rowNumber}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.userName || "-"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.telegramUsername || "-"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.telegramId || "-"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.authority || "CRM"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.office || "all"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk || "all"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.team || "all"}</td>
+              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(row)}
+                    style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(row)}
+                    style={{ border: "1px solid #fecaca", borderRadius: 8, padding: "6px 9px", background: "#fff1f2", color: "#b91c1c", cursor: "pointer" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+          {!rows.length ? (
+            <tr>
+              <td colSpan={9} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+                No permission rows found.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 const EMPTY_FILTERS = {
   officeScope: "",
   reportMode: "",
@@ -358,6 +437,22 @@ const EMPTY_FILTERS = {
   teamLeader: "",
   agent: "",
   groupBy: "agent",
+};
+
+const EMPTY_PERMISSION_FILTERS = {
+  office: "",
+  desk: "",
+  team: "",
+};
+
+const EMPTY_PERMISSION_FORM = {
+  userName: "",
+  telegramUsername: "",
+  telegramId: "",
+  authority: "CRM",
+  office: "",
+  desk: "",
+  team: "",
 };
 
 function asOptions(values = []) {
@@ -378,6 +473,17 @@ export default function DashboardPage() {
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
+    error: "",
+  });
+  const [permissionFilters, setPermissionFilters] = useState(EMPTY_PERMISSION_FILTERS);
+  const [permissionForm, setPermissionForm] = useState(EMPTY_PERMISSION_FORM);
+  const [permissionEditRow, setPermissionEditRow] = useState(0);
+  const [permissionState, setPermissionState] = useState({
+    loading: false,
+    saving: false,
+    deletingRow: 0,
+    rows: [],
+    options: { offices: [], desks: [], teams: [] },
     error: "",
   });
 
@@ -469,6 +575,144 @@ export default function DashboardPage() {
     }
   }, [filters, sessionState.authorized]);
 
+  const canManagePermissions = String(sessionState.user?.username || "").toLocaleLowerCase("en-US") === "antoniotsd";
+  const shouldShowPermissionManager = canManagePermissions && (!filters.officeScope || !filters.reportMode);
+
+  const requestPermissions = useCallback(async () => {
+    if (!sessionState.authorized || !shouldShowPermissionManager) {
+      return;
+    }
+    setPermissionState((prev) => ({ ...prev, loading: true, error: "" }));
+    try {
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(permissionFilters)) {
+        const normalized = String(value || "").trim();
+        if (normalized) {
+          query.set(key, normalized);
+        }
+      }
+      const response = await fetch(`/api/dashboard/permissions?${query.toString()}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload?.message || payload?.error || "Could not load permissions.");
+      }
+      setPermissionState((prev) => ({
+        ...prev,
+        loading: false,
+        rows: payload.rows || [],
+        options: payload.options || { offices: [], desks: [], teams: [] },
+        error: "",
+      }));
+      setPermissionFilters((prev) => {
+        const next = { ...prev };
+        const options = payload.options || {};
+        const checks = [
+          ["office", options.offices || []],
+          ["desk", options.desks || []],
+          ["team", options.teams || []],
+        ];
+        for (const [key, values] of checks) {
+          if (next[key] && !values.includes(next[key])) {
+            next[key] = "";
+          }
+        }
+        return next;
+      });
+    } catch (error) {
+      setPermissionState((prev) => ({
+        ...prev,
+        loading: false,
+        rows: [],
+        error: error?.message || "Could not load permissions.",
+      }));
+    }
+  }, [permissionFilters, sessionState.authorized, shouldShowPermissionManager]);
+
+  const savePermission = useCallback(
+    async (event) => {
+      event.preventDefault();
+      if (!canManagePermissions) {
+        return;
+      }
+      setPermissionState((prev) => ({ ...prev, saving: true, error: "" }));
+      try {
+        const response = await fetch("/api/dashboard/permissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...permissionForm,
+            filterOffice: permissionFilters.office,
+            filterDesk: permissionFilters.desk,
+            filterTeam: permissionFilters.team,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload?.message || payload?.error || "Could not save permission.");
+        }
+        setPermissionState((prev) => ({
+          ...prev,
+          saving: false,
+          rows: payload.rows || [],
+          options: payload.options || prev.options,
+          error: "",
+        }));
+        setPermissionForm(EMPTY_PERMISSION_FORM);
+        setPermissionEditRow(0);
+      } catch (error) {
+        setPermissionState((prev) => ({
+          ...prev,
+          saving: false,
+          error: error?.message || "Could not save permission.",
+        }));
+      }
+    },
+    [canManagePermissions, permissionFilters.desk, permissionFilters.office, permissionFilters.team, permissionForm],
+  );
+
+  const removePermission = useCallback(
+    async (row) => {
+      if (!canManagePermissions || !row?.rowNumber) {
+        return;
+      }
+      setPermissionState((prev) => ({ ...prev, deletingRow: Number(row.rowNumber) || 0, error: "" }));
+      try {
+        const response = await fetch("/api/dashboard/permissions", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rowNumber: row.rowNumber,
+            filterOffice: permissionFilters.office,
+            filterDesk: permissionFilters.desk,
+            filterTeam: permissionFilters.team,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload?.message || payload?.error || "Could not remove permission.");
+        }
+        setPermissionState((prev) => ({
+          ...prev,
+          deletingRow: 0,
+          rows: payload.rows || [],
+          options: payload.options || prev.options,
+          error: "",
+        }));
+        if (Number(permissionEditRow) === Number(row.rowNumber)) {
+          setPermissionEditRow(0);
+          setPermissionForm(EMPTY_PERMISSION_FORM);
+        }
+      } catch (error) {
+        setPermissionState((prev) => ({
+          ...prev,
+          deletingRow: 0,
+          error: error?.message || "Could not remove permission.",
+        }));
+      }
+    },
+    [canManagePermissions, permissionEditRow, permissionFilters.desk, permissionFilters.office, permissionFilters.team],
+  );
+
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
@@ -476,6 +720,10 @@ export default function DashboardPage() {
   useEffect(() => {
     requestReport();
   }, [requestReport]);
+
+  useEffect(() => {
+    requestPermissions();
+  }, [requestPermissions]);
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -506,6 +754,17 @@ export default function DashboardPage() {
     await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
     setReportState({ loading: false, report: null, error: "" });
     setFilters(EMPTY_FILTERS);
+    setPermissionFilters(EMPTY_PERMISSION_FILTERS);
+    setPermissionForm(EMPTY_PERMISSION_FORM);
+    setPermissionEditRow(0);
+    setPermissionState({
+      loading: false,
+      saving: false,
+      deletingRow: 0,
+      rows: [],
+      options: { offices: [], desks: [], teams: [] },
+      error: "",
+    });
     await fetchSession();
   }, [fetchSession]);
 
@@ -627,6 +886,130 @@ export default function DashboardPage() {
           Log out
         </button>
       </section>
+
+      {shouldShowPermissionManager ? (
+        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 17 }}>Permissions</h2>
+            <p style={{ margin: 0, color: "#64748b" }}>
+              Manage access with Office, Desk, Team scopes. Agents, countries, campaigns, sub campaigns, placements and metrics are
+              automatically allowed under that scope.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <SelectFilter
+              label="Office Filter"
+              value={permissionFilters.office}
+              options={asOptions(permissionState.options.offices || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, office: value, desk: "", team: "" }))}
+            />
+            <SelectFilter
+              label="Desk Filter"
+              value={permissionFilters.desk}
+              options={asOptions(permissionState.options.desks || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, desk: value, team: "" }))}
+            />
+            <SelectFilter
+              label="Team Filter"
+              value={permissionFilters.team}
+              options={asOptions(permissionState.options.teams || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, team: value }))}
+            />
+          </div>
+
+          <form onSubmit={savePermission} style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <TextFilter
+                label="User Name"
+                value={permissionForm.userName}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, userName: value }))}
+                placeholder="Display name"
+              />
+              <TextFilter
+                label="Telegram Username"
+                value={permissionForm.telegramUsername}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramUsername: value }))}
+                placeholder="@username"
+              />
+              <TextFilter
+                label="Telegram ID"
+                value={permissionForm.telegramId}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramId: value }))}
+                placeholder="Numeric ID"
+              />
+              <TextFilter
+                label="Authority"
+                value={permissionForm.authority}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, authority: value }))}
+                placeholder="CRM / Manager / Team Leader / all"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <TextFilter
+                label="Office Scope"
+                value={permissionForm.office}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, office: value }))}
+                placeholder="Comma separated, empty = all"
+              />
+              <TextFilter
+                label="Desk Scope"
+                value={permissionForm.desk}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, desk: value }))}
+                placeholder="Comma separated, empty = all"
+              />
+              <TextFilter
+                label="Team Scope"
+                value={permissionForm.team}
+                onChange={(value) => setPermissionForm((prev) => ({ ...prev, team: value }))}
+                placeholder="Comma separated, empty = all"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="submit"
+                disabled={permissionState.saving}
+                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+              >
+                {permissionEditRow ? "Update Permission" : "Grant / Save Permission"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPermissionEditRow(0);
+                  setPermissionForm(EMPTY_PERMISSION_FORM);
+                }}
+                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+              >
+                Clear Form
+              </button>
+            </div>
+          </form>
+
+          {permissionState.loading ? <p style={{ margin: 0 }}>Loading permissions...</p> : null}
+          {permissionState.saving ? <p style={{ margin: 0 }}>Saving permission...</p> : null}
+          {permissionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{permissionState.error}</p> : null}
+          {!permissionState.loading ? (
+            <PermissionRowsTable
+              rows={permissionState.rows || []}
+              onEdit={(row) => {
+                setPermissionEditRow(Number(row.rowNumber) || 0);
+                setPermissionForm({
+                  userName: String(row.userName || ""),
+                  telegramUsername: String(row.telegramUsername || ""),
+                  telegramId: String(row.telegramId || ""),
+                  authority: String(row.authority || "CRM"),
+                  office: row.office === "all" ? "" : String(row.office || ""),
+                  desk: row.desk === "all" ? "" : String(row.desk || ""),
+                  team: row.team === "all" ? "" : String(row.team || ""),
+                });
+              }}
+              onDelete={removePermission}
+            />
+          ) : null}
+          {permissionState.deletingRow ? <p style={{ margin: 0 }}>Removing row {permissionState.deletingRow}...</p> : null}
+        </section>
+      ) : null}
 
       {needOfficeSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
