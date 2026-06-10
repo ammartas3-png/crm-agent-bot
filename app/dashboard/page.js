@@ -1,6 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import styles from "./dashboard.module.css";
+
+const MULTI_VALUE_FILTER_KEYS = new Set([
+  "date",
+  "hour",
+  "desk",
+  "country",
+  "brand",
+  "campaign",
+  "subCampaign",
+  "placement",
+  "status",
+  "teamLeader",
+  "agent",
+]);
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
@@ -19,6 +34,152 @@ function reachColor(value) {
     return "#b45309";
   }
   return "#b91c1c";
+}
+
+function benchmarkRateStyle(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return { background: "transparent", color: "#0f172a" };
+  }
+  if (number >= 110) {
+    return { background: "#16a34a", color: "#ffffff" };
+  }
+  if (number >= 85) {
+    return { background: "#65a30d", color: "#ffffff" };
+  }
+  if (number >= 60) {
+    return { background: "#facc15", color: "#713f12" };
+  }
+  return { background: "#ef4444", color: "#ffffff" };
+}
+
+function workingStatusStyle(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "active" || normalized === "working") {
+    return { background: "#16a34a", color: "#ffffff" };
+  }
+  if (normalized === "not working" || normalized === "not_working" || normalized) {
+    return { background: "#ef4444", color: "#ffffff" };
+  }
+  return { background: "transparent", color: "#0f172a" };
+}
+
+function officeThemeForName(officeName = "") {
+  const normalized = String(officeName || "").toLowerCase();
+  if (normalized.includes("argentina")) {
+    return {
+      background: "linear-gradient(180deg, #ecfeff 0%, #e0f2fe 100%)",
+      borderColor: "#7dd3fc",
+      color: "#0c4a6e",
+    };
+  }
+  if (normalized.includes("dubai") || normalized.includes("uae")) {
+    return {
+      background: "linear-gradient(180deg, #ecfdf5 0%, #dcfce7 100%)",
+      borderColor: "#86efac",
+      color: "#14532d",
+    };
+  }
+  if (normalized.includes("pakistan")) {
+    return {
+      background: "linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%)",
+      borderColor: "#86efac",
+      color: "#14532d",
+    };
+  }
+  if (normalized.includes("turkiye") || normalized.includes("turkey")) {
+    return {
+      background: "linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%)",
+      borderColor: "#fca5a5",
+      color: "#7f1d1d",
+    };
+  }
+  return {
+    background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+    borderColor: "#c9d5e4",
+    color: "#0f172a",
+  };
+}
+
+function reportModeMeta(mode = "") {
+  if (mode === "monthly") {
+    return { title: "Monthly Report", icon: "📊" };
+  }
+  if (mode === "last4") {
+    return { title: "Last 4 Months Report", icon: "📅" };
+  }
+  return { title: "Custom Report Builder", icon: "🧩" };
+}
+
+function useResizableColumns({ minWidth = 84 } = {}) {
+  const [columnWidths, setColumnWidths] = useState({});
+
+  const startResize = useCallback(
+    (event, columnKey) => {
+      if (!columnKey) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const headerCell = event.currentTarget?.closest?.("th");
+      const startX = Number(event.clientX || 0);
+      const currentWidth = Number(columnWidths[columnKey] || 0);
+      const startWidth = currentWidth > 0 ? currentWidth : Math.max(minWidth, Number(headerCell?.offsetWidth || minWidth));
+
+      const onMouseMove = (moveEvent) => {
+        const delta = Number(moveEvent.clientX || 0) - startX;
+        const nextWidth = Math.max(minWidth, startWidth + delta);
+        setColumnWidths((prev) => {
+          if (prev[columnKey] === nextWidth) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [columnKey]: nextWidth,
+          };
+        });
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [columnWidths, minWidth],
+  );
+
+  const widthStyle = useCallback(
+    (columnKey, extra = {}) => {
+      const width = Number(columnWidths[columnKey] || 0);
+      if (!width) {
+        return extra;
+      }
+      return {
+        ...extra,
+        width,
+        minWidth: width,
+      };
+    },
+    [columnWidths],
+  );
+
+  return { startResize, widthStyle };
+}
+
+function ColumnResizeHandle({ columnKey = "", onResizeStart }) {
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      title="Drag to resize column"
+      className={styles.columnResizeHandle}
+      onMouseDown={(event) => onResizeStart?.(event, columnKey)}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
 }
 
 function TelegramLoginWidget({ botUsername, onAuth }) {
@@ -50,23 +211,18 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
   return <div ref={containerRef} />;
 }
 
-function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
+function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false, loading = false }) {
   return (
-    <label style={{ display: "grid", gap: 6, minWidth: 165, flex: 1 }}>
-      <span style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>{label}</span>
+    <label className={styles.selectWrap}>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
+      </span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        style={{
-          border: "1px solid #d0d7e2",
-          borderRadius: 10,
-          padding: "9px 11px",
-          background: disabled ? "#f8fafc" : "#fbfdff",
-          color: "#0f172a",
-          fontSize: 13,
-          boxShadow: disabled ? "none" : "inset 0 1px 0 rgba(255,255,255,0.85)",
-        }}
+        className={styles.selectInput}
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
@@ -79,26 +235,427 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
-function TextFilter({ label, value, onChange, placeholder = "", disabled = false }) {
+function PermissionTextField({ label, value, onChange, placeholder = "", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 6, minWidth: 165, flex: 1 }}>
-      <span style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>{label}</span>
+    <label className={styles.selectWrap}>
+      <span className={styles.selectLabel}>{label}</span>
       <input
+        type="text"
         value={value}
         disabled={disabled}
-        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        style={{
-          border: "1px solid #d0d7e2",
-          borderRadius: 10,
-          padding: "9px 11px",
-          background: disabled ? "#f8fafc" : "#fbfdff",
-          color: "#0f172a",
-          fontSize: 13,
-          boxShadow: disabled ? "none" : "inset 0 1px 0 rgba(255,255,255,0.85)",
-        }}
+        placeholder={placeholder}
+        className={styles.selectInput}
       />
     </label>
+  );
+}
+
+function PermissionRowsTable({ rows = [], deletingRow = 0, onEdit, onDelete }) {
+  return (
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              {["Row", "User Name", "Telegram", "Telegram ID", "Authority", "Office", "Desk", "Team", "Actions"].map((header) => (
+                <th key={header}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.rowNumber}-${row.telegramId}-${row.telegramUsername}-${row.userName}`}>
+                <td>{row.rowNumber}</td>
+                <td className={styles.tableStrong}>{row.userName || "-"}</td>
+                <td>{row.telegramUsername || "-"}</td>
+                <td>{row.telegramId || "-"}</td>
+                <td>{row.authority || "CRM"}</td>
+                <td>{row.office || "all"}</td>
+                <td>{row.desk || "all"}</td>
+                <td>{row.team || "all"}</td>
+                <td>
+                  <div className={styles.pillRow}>
+                    <button type="button" onClick={() => onEdit(row)} className={`${styles.button} ${styles.buttonSecondary}`}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(row)}
+                      disabled={Number(deletingRow) === Number(row.rowNumber)}
+                      className={`${styles.button} ${styles.buttonSecondary}`}
+                    >
+                      {Number(deletingRow) === Number(row.rowNumber) ? "Removing..." : "Remove"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={9} className={styles.tableEmpty}>
+                  No permission rows found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MultiSelectFilter({
+  label,
+  values,
+  options,
+  onChange,
+  placeholder = "All",
+  disabled = false,
+  loading = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const rootRef = useRef(null);
+  const selectedValues = Array.isArray(values) ? values : [];
+  const selectedSet = new Set(selectedValues.map((item) => String(item)));
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const handleClickOutside = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled && open) {
+      setOpen(false);
+    }
+  }, [disabled, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearchText("");
+    }
+  }, [open]);
+
+  const selectedLabel = useMemo(() => {
+    if (!selectedValues.length) {
+      return placeholder;
+    }
+    if (selectedValues.length === 1) {
+      const matched = options.find((option) => option.value === selectedValues[0]);
+      return matched?.label || selectedValues[0];
+    }
+    return `${selectedValues.length} selected`;
+  }, [options, placeholder, selectedValues]);
+
+  const orderedOptionValues = useMemo(() => options.map((option) => option.value), [options]);
+  const filteredOptions = useMemo(() => {
+    const needle = String(searchText || "").trim().toLocaleLowerCase("en-US");
+    if (!needle) {
+      return options;
+    }
+    return options.filter((option) => {
+      const labelMatch = String(option.label || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+      if (labelMatch) {
+        return true;
+      }
+      return String(option.value || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+    });
+  }, [options, searchText]);
+
+  const toggleValue = useCallback(
+    (nextValue) => {
+      const valueKey = String(nextValue);
+      const mutable = new Set(selectedSet);
+      if (mutable.has(valueKey)) {
+        mutable.delete(valueKey);
+      } else {
+        mutable.add(valueKey);
+      }
+      const ordered = orderedOptionValues.filter((value) => mutable.has(String(value)));
+      onChange(ordered);
+    },
+    [onChange, orderedOptionValues, selectedSet],
+  );
+
+  return (
+    <div className={styles.selectWrap} ref={rootRef}>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
+      </span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        className={`${styles.selectInput} ${styles.multiSelectButton}`}
+      >
+        <span className={styles.multiSelectText}>{selectedLabel}</span>
+        <span className={styles.multiSelectCaret} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div className={styles.multiSelectMenu}>
+          <button type="button" className={styles.multiSelectClear} onClick={() => onChange([])}>
+            Clear
+          </button>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder={`Search ${label.toLowerCase()}...`}
+            className={styles.multiSelectSearch}
+          />
+          <div className={styles.multiSelectOptions}>
+            {filteredOptions.map((option) => {
+              const checked = selectedSet.has(String(option.value));
+              return (
+                <label key={`${label}-${option.value}`} className={styles.multiSelectOption}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleValue(option.value)} />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+            {!filteredOptions.length ? (
+              <p className={styles.multiSelectEmpty}>{searchText ? "No matching options" : "No options"}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function buildReportQuery(filters = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters || {})) {
+    if (typeof value === "boolean") {
+      if (value) {
+        query.set(key, "1");
+      }
+      continue;
+    }
+    const normalized = Array.isArray(value)
+      ? value
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .join(",")
+      : String(value || "").trim();
+    if (normalized) {
+      query.set(key, normalized);
+    }
+  }
+  return query;
+}
+
+async function readApiPayload(response) {
+  const rawText = await response.text();
+  if (!rawText) {
+    return {};
+  }
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
+    return {
+      ok: false,
+      error: "invalid_json_response",
+      message: snippet ? `Server returned non-JSON response: ${snippet}` : "Server returned non-JSON response.",
+    };
+  }
+}
+
+function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
+  const next = { ...sourceFilters };
+  if (Array.isArray(options.officeScopes) && options.officeScopes.length) {
+    const officeValues = Array.isArray(next.officeScope)
+      ? next.officeScope
+      : String(next.officeScope || "").trim()
+        ? [String(next.officeScope || "").trim()]
+        : [];
+    const filteredOffices = officeValues.filter((value) => options.officeScopes.includes(value));
+    next.officeScope = filteredOffices.length ? filteredOffices : [options.officeScopes[0]];
+  }
+  if (Array.isArray(options.months) && options.months.length) {
+    const monthValues = Array.isArray(next.monthKey)
+      ? next.monthKey
+      : String(next.monthKey || "").trim()
+        ? [String(next.monthKey || "").trim()]
+        : [];
+    const validMonthKeys = new Set(options.months.map((month) => month.key));
+    const filteredMonths = monthValues.filter((value) => validMonthKeys.has(value));
+    next.monthKey = filteredMonths.length ? filteredMonths : [options.months[0].key];
+  }
+  const dependencyChecks = [
+    ["date", options.dates || []],
+    ["hour", options.hours || []],
+    ["desk", options.desks || []],
+    ["country", options.countries || []],
+    ["brand", options.brands || []],
+    ["campaign", options.campaigns || []],
+    ["subCampaign", options.subCampaigns || []],
+    ["placement", options.placements || []],
+    ["status", options.statuses || []],
+    ["teamLeader", options.teamLeaders || []],
+    ["agent", options.agents || []],
+  ];
+  for (const [key, values] of dependencyChecks) {
+    if (Array.isArray(next[key])) {
+      next[key] = next[key].filter((value) => values.includes(value));
+      continue;
+    }
+    if (next[key] && !values.includes(next[key])) {
+      next[key] = MULTI_VALUE_FILTER_KEYS.has(key) ? [] : "";
+    }
+  }
+  return next;
+}
+
+function ToggleGroup({ label, items, selectedItems, onToggle }) {
+  const selectedLabels = selectedItems
+    .map((key) => items.find((item) => item.key === key)?.label || "")
+    .filter(Boolean);
+  return (
+    <div className={styles.chipSection}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
+        {items.map((item) => {
+          const active = selectedItems.includes(item.key);
+          const orderIndex = selectedItems.indexOf(item.key);
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onToggle(item.key)}
+              className={`${styles.chip} ${active ? styles.chipActive : ""}`}
+            >
+              <span className={styles.chipInner}>
+                {active ? <span className={styles.chipCheck}>✓</span> : null}
+                {active && orderIndex >= 0 ? <span className={styles.chipOrder}>{orderIndex + 1}</span> : null}
+                <span>{item.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label} Order</div>
+        <div className={styles.orderValue}>
+          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : "No selection"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onToggleDimension, onToggleTotal }) {
+  const selectedSet = new Set(selectedItems || []);
+  const totalSet = new Set(selectedTotals || []);
+  const lastSelectedKey = selectedItems?.[selectedItems.length - 1] || "";
+  const selectedLabels = selectedItems
+    .map((key) => items.find((item) => item.key === key)?.label || "")
+    .filter(Boolean);
+  return (
+    <div className={styles.totalSwitchSection}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
+        {items.map((item) => {
+          const activeDimension = selectedSet.has(item.key);
+          const totalEnabled = activeDimension && item.key !== lastSelectedKey;
+          const totalActive = totalEnabled && totalSet.has(item.key);
+          return (
+            <div key={`row-dim-${item.key}`} className={styles.chipWithSwitch}>
+              <button
+                type="button"
+                onClick={() => onToggleDimension(item.key)}
+                className={`${styles.chip} ${activeDimension ? styles.chipActive : ""}`}
+              >
+                <span className={styles.chipInner}>
+                  {activeDimension ? <span className={styles.chipCheck}>✓</span> : null}
+                  {activeDimension ? <span className={styles.chipOrder}>{selectedItems.indexOf(item.key) + 1}</span> : null}
+                  <span>{item.label}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={`${item.label} total`}
+                aria-pressed={totalActive}
+                disabled={!totalEnabled}
+                onClick={() => onToggleTotal(item.key)}
+                className={`${styles.totalSwitch} ${
+                  !totalEnabled ? styles.totalSwitchDisabled : totalActive ? styles.totalSwitchOn : styles.totalSwitchOff
+                }`}
+                title={
+                  !totalEnabled
+                    ? "Subtotal not available for last selected row"
+                    : totalActive
+                      ? `${item.label} subtotal enabled`
+                      : `${item.label} subtotal disabled`
+                }
+              >
+                <span
+                  className={`${styles.totalSwitchThumb} ${totalActive ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff}`}
+                />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label} Order</div>
+        <div className={styles.orderValue}>
+          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : "No selection"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SingleChoiceChipGroup({ label, items, selectedKey, onSelect, noLabel = "No" }) {
+  return (
+    <div className={styles.chipSection}>
+      <div className={styles.chipTitle}>{label}</div>
+      <div className={styles.chipList}>
+        <button
+          type="button"
+          onClick={() => onSelect("")}
+          className={`${styles.chip} ${!selectedKey ? styles.chipActive : ""}`}
+        >
+          <span className={styles.chipInner}>
+            {!selectedKey ? <span className={styles.chipCheck}>✓</span> : null}
+            <span>{noLabel}</span>
+          </span>
+        </button>
+        {items.map((item) => {
+          const active = selectedKey === item.key;
+          return (
+            <button key={item.key} type="button" onClick={() => onSelect(item.key)} className={`${styles.chip} ${active ? styles.chipActive : ""}`}>
+              <span className={styles.chipInner}>
+                {active ? <span className={styles.chipCheck}>✓</span> : null}
+                <span>{item.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className={styles.orderPreview}>
+        <div className={styles.orderLabel}>{label}</div>
+        <div className={styles.orderValue}>{selectedKey ? items.find((item) => item.key === selectedKey)?.label || selectedKey : noLabel}</div>
+      </div>
+    </div>
   );
 }
 
@@ -121,11 +678,13 @@ function SummaryCards({ summary }) {
     },
   ];
   return (
-    <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+    <div className={styles.cardGrid}>
       {items.map((item) => (
-        <div key={item.label} style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 10 }}>
-          <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>{item.label}</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: item.color || "#0f172a" }}>{item.value}</div>
+        <div key={item.label} className={`${styles.panel} ${styles.metricCard}`}>
+          <div className={styles.metricLabel}>{item.label}</div>
+          <div className={styles.metricValue} style={{ color: item.color || "#0f172a" }}>
+            {item.value}
+          </div>
         </div>
       ))}
     </div>
@@ -141,21 +700,11 @@ function StatusCards({ stats = {} }) {
     ["Rate Of Target Achieved", formatPercent(stats.rateOfTargetAchieved)],
   ];
   return (
-    <div
-      style={{
-        border: "1px solid #dbe3ee",
-        borderRadius: 10,
-        background: "#fff",
-        padding: 10,
-        display: "grid",
-        gap: 6,
-        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-      }}
-    >
+    <div className={`${styles.panel} ${styles.statusGrid}`}>
       {items.map(([label, value]) => (
         <div key={label}>
-          <div style={{ fontSize: 11, color: "#64748b" }}>{label}</div>
-          <div style={{ fontSize: 29, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+          <div className={styles.statusLabel}>{label}</div>
+          <div className={styles.statusValue}>{value}</div>
         </div>
       ))}
     </div>
@@ -163,282 +712,842 @@ function StatusCards({ stats = {} }) {
 }
 
 function SimpleTable({ rows = [] }) {
+  const columns = [
+    { key: "label", header: "Group" },
+    { key: "totalLeads", header: "Leads" },
+    { key: "totalFtd", header: "FTD" },
+    { key: "ftdTarget", header: "FTD Target" },
+    { key: "ftdTargetReach", header: "FTD Target Reach", type: "percentReach" },
+    { key: "cr", header: "CR", type: "percent" },
+    { key: "crTarget", header: "CR Target", type: "percent" },
+    { key: "crTargetReach", header: "CR Target Reach", type: "percentReach" },
+    { key: "selfs", header: "Selfs" },
+    { key: "lateFtd", header: "Late FTD" },
+  ];
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table className={`${styles.table} ${styles.tableSticky}`} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            {["Group", "Leads", "FTD", "FTD Target", "FTD Target Reach", "CR", "CR Target", "CR Target Reach", "Selfs", "Late FTD"].map(
-              (header) => (
-                <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
-                  {header}
-                </th>
-              ),
-            )}
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                onMouseEnter={() => setHoveredColumnKey(column.key)}
+                style={widthStyle(column.key)}
+                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+              >
+                {column.header}
+                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.monthKey || row.label}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.label}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
-                {formatPercent(row.ftdTargetReach)}
-              </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
-                {formatPercent(row.crTargetReach)}
-              </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowKey = String(row.monthKey || row.label || index);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+              >
+                {columns.map((column) => {
+                  const value = row[column.key];
+                  const content =
+                    column.key === "label"
+                      ? value || "-"
+                      : column.type === "percent" || column.type === "percentReach"
+                        ? formatPercent(value)
+                        : formatNumber(value);
+                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  return (
+                    <td
+                      key={`${rowKey}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                        column.key === "label" ? styles.tableStrong : ""
+                      }`}
+                      style={widthStyle(column.key, color ? { color } : {})}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
-              <td colSpan={10} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={10} className={styles.tableEmpty}>
                 No rows found.
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
 function PivotTable({ rows = [], summary = {} }) {
+  const columns = [
+    { key: "desk", header: "Desk" },
+    { key: "teamLeader", header: "Team Leader" },
+    { key: "agent", header: "Agent" },
+    { key: "totalLeads", header: "Leads" },
+    { key: "totalFtd", header: "FTD" },
+    { key: "selfs", header: "Selfs" },
+    { key: "lateFtd", header: "Late FTD +30 Day" },
+    { key: "cr", header: "CR", type: "percent" },
+    { key: "crTarget", header: "CR Target", type: "percent" },
+    { key: "crTargetReach", header: "CR Target Reach", type: "percentReach" },
+    { key: "ftdTarget", header: "FTD Target" },
+    { key: "ftdTargetReach", header: "FTD Target Reach", type: "percentReach" },
+  ];
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1150 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 1150 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            {[
-              "Desk",
-              "Team Leader",
-              "Agent",
-              "Leads",
-              "FTD",
-              "Selfs",
-              "Late FTD +30 Day",
-              "CR",
-              "CR Target",
-              "CR Target Reach",
-              "FTD Target",
-              "FTD Target Reach",
-            ].map((header) => (
-              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
-                {header}
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                onMouseEnter={() => setHoveredColumnKey(column.key)}
+                style={widthStyle(column.key)}
+                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+              >
+                {column.header}
+                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={`${row.desk}-${row.teamLeader}-${row.agent}`}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalLeads)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.totalFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.selfs)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.lateFtd)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.cr)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(row.crTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.crTargetReach) }}>
-                {formatPercent(row.crTargetReach)}
-              </td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(row.ftdTarget)}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: reachColor(row.ftdTargetReach) }}>
-                {formatPercent(row.ftdTargetReach)}
-              </td>
-            </tr>
-          ))}
-          <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>Grand total</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }} />
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalLeads)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.totalFtd)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.selfs)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.lateFtd)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.cr)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatPercent(summary.crTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.crTargetReach) }}>
+          {rows.map((row, index) => {
+            const rowKey = `${row.desk}-${row.teamLeader}-${row.agent}-${index}`;
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+              >
+                {columns.map((column) => {
+                  const value = row[column.key];
+                  const content =
+                    column.type === "percent" || column.type === "percentReach"
+                      ? formatPercent(value)
+                      : ["desk", "teamLeader", "agent"].includes(column.key)
+                        ? String(value || "-")
+                        : formatNumber(value);
+                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  return (
+                    <td
+                      key={`${rowKey}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                        column.key === "agent" ? styles.tableStrong : ""
+                      }`}
+                      style={widthStyle(column.key, color ? { color } : {})}
+                    >
+                      {content}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+          <tr>
+            <td className={styles.tableStrong}>Grand total</td>
+            <td />
+            <td />
+            <td className={styles.tableStrong}>{formatNumber(summary.totalLeads)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.totalFtd)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.selfs)}</td>
+            <td className={styles.tableStrong}>{formatNumber(summary.lateFtd)}</td>
+            <td className={styles.tableStrong}>{formatPercent(summary.cr)}</td>
+            <td className={styles.tableStrong}>{formatPercent(summary.crTarget)}</td>
+            <td className={styles.tableStrong} style={{ color: reachColor(summary.crTargetReach) }}>
               {formatPercent(summary.crTargetReach)}
             </td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee" }}>{formatNumber(summary.ftdTarget)}</td>
-            <td style={{ padding: "9px 12px", borderTop: "1px solid #dbe3ee", color: reachColor(summary.ftdTargetReach) }}>
+            <td className={styles.tableStrong}>{formatNumber(summary.ftdTarget)}</td>
+            <td className={styles.tableStrong} style={{ color: reachColor(summary.ftdTargetReach) }}>
               {formatPercent(summary.ftdTargetReach)}
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
+const LAST4_MONTH_THEMES = [
+  { dark: "#1d4ed8", light: "#dbeafe", line: "#1e3a8a" },
+  { dark: "#7c3aed", light: "#ede9fe", line: "#4c1d95" },
+  { dark: "#c2410c", light: "#ffedd5", line: "#9a3412" },
+  { dark: "#0f766e", light: "#ccfbf1", line: "#134e4a" },
+  { dark: "#be123c", light: "#ffe4e6", line: "#881337" },
+  { dark: "#475569", light: "#e2e8f0", line: "#334155" },
+];
+
+function last4MonthTheme(index) {
+  return LAST4_MONTH_THEMES[index % LAST4_MONTH_THEMES.length];
+}
+
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1700 }}>
+    <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableScroll}>
+      <table
+        className={`${styles.table} ${styles.tableSticky}`}
+        style={{ minWidth: 1880, "--sticky-second-row-top": "28px" }}
+        onMouseLeave={() => setHoveredColumnKey("")}
+      >
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+          <tr>
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("desk")}
+              className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("desk"),
+              }}
+            >
               Desk
+              <ColumnResizeHandle columnKey="desk" onResizeStart={startResize} />
             </th>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+              className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("teamLeader"),
+              }}
+            >
               Team Leader
+              <ColumnResizeHandle columnKey="teamLeader" onResizeStart={startResize} />
             </th>
-            <th rowSpan={2} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("agent")}
+              className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("agent"),
+              }}
+            >
               Agent
+              <ColumnResizeHandle columnKey="agent" onResizeStart={startResize} />
             </th>
-            {monthBlocks.map((month) => (
+            {monthBlocks.map((month, index) => {
+              const theme = last4MonthTheme(index);
+              return (
               <th
                 key={month.key}
                 colSpan={6}
-                style={{ textAlign: "center", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}
+                style={{
+                  textAlign: "center",
+                  padding: "6px 10px",
+                  borderBottom: "1px solid #dbe3ee",
+                  fontSize: 12,
+                  background: theme.dark,
+                  color: "#fff",
+                  borderLeft: `1px solid ${theme.line}`,
+                  borderRight: `1px solid ${theme.line}`,
+                }}
               >
                 {month.label}
               </th>
-            ))}
+              );
+            })}
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("startDate")}
+              className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("startDate"),
+              }}
+            >
+              Starting Date
+              <ColumnResizeHandle columnKey="startDate" onResizeStart={startResize} />
+            </th>
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
+              className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("monthsWorked"),
+              }}
+            >
+              Months Worked
+              <ColumnResizeHandle columnKey="monthsWorked" onResizeStart={startResize} />
+            </th>
+            <th
+              rowSpan={2}
+              onMouseEnter={() => setHoveredColumnKey("currentStatus")}
+              className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
+              style={{
+                textAlign: "left",
+                padding: "6px 10px",
+                borderBottom: "1px solid #dbe3ee",
+                fontSize: 12,
+                background: "#334155",
+                color: "#fff",
+                ...widthStyle("currentStatus"),
+              }}
+            >
+              Current Status
+              <ColumnResizeHandle columnKey="currentStatus" onResizeStart={startResize} />
+            </th>
           </tr>
-          <tr style={{ background: "#f8fafc" }}>
-            {monthBlocks.map((month) => (
-              <FragmentMetricHeaders key={month.key} />
+          <tr>
+            {monthBlocks.map((month, index) => (
+              <FragmentMetricHeaders
+                key={month.key}
+                theme={last4MonthTheme(index)}
+                monthKey={month.key}
+                hoveredColumnKey={hoveredColumnKey}
+                onHoverColumn={setHoveredColumnKey}
+                onResizeStart={startResize}
+                widthStyle={widthStyle}
+              />
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.key || row.agent}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.teamLeader}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.agent}</td>
-              {monthBlocks.map((month) => {
-                const metric = row.months?.[month.key] || {};
-                return (
-                  <FragmentMetricCells key={`${row.key || row.agent}-${month.key}`} metric={metric} />
-                );
-              })}
-            </tr>
-          ))}
+          {rows.map((row, rowIndex) => {
+            const rowKey = String(row.key || row.agent || rowIndex);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={rowKey}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+              >
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("desk")}
+                  className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
+                  style={widthStyle("desk", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
+                >
+                  {row.desk}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+                  className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
+                  style={widthStyle("teamLeader", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
+                >
+                  {row.teamLeader}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("agent")}
+                  className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
+                  style={widthStyle("agent", { padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 })}
+                >
+                  {row.agent}
+                </td>
+                {monthBlocks.map((month, index) => {
+                  const metric = row.months?.[month.key] || {};
+                  const theme = last4MonthTheme(index);
+                  return (
+                    <FragmentMetricCells
+                      key={`${rowKey}-${month.key}`}
+                      metric={metric}
+                      theme={theme}
+                      monthKey={month.key}
+                      hoveredColumnKey={hoveredColumnKey}
+                      onHoverColumn={setHoveredColumnKey}
+                      widthStyle={widthStyle}
+                    />
+                  );
+                })}
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("startDate")}
+                  className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
+                  style={widthStyle("startDate", {
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 600,
+                  })}
+                >
+                  {row.startDate || "-"}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
+                  className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
+                  style={widthStyle("monthsWorked", {
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 600,
+                  })}
+                >
+                  {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
+                </td>
+                <td
+                  onMouseEnter={() => setHoveredColumnKey("currentStatus")}
+                  className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
+                  style={{
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #eef2f7",
+                    fontWeight: 700,
+                    ...workingStatusStyle(row.currentStatus),
+                    ...widthStyle("currentStatus"),
+                  }}
+                >
+                  {row.currentStatus || "Not Working"}
+                </td>
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
-              <td colSpan={3 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+              <td colSpan={6 + monthBlocks.length * 6} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
                 No rows found.
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
-function FragmentMetricHeaders() {
+function FragmentMetricHeaders({ theme, monthKey = "", hoveredColumnKey = "", onHoverColumn, onResizeStart, widthStyle }) {
+  const metricColumns = [
+    { key: "target", label: "Target" },
+    { key: "ftd", label: "FTD" },
+    { key: "cr", label: "CR" },
+    { key: "crTarget", label: "CR Target" },
+    { key: "crTargetReach", label: "CR Reach" },
+    { key: "ftdTargetReach", label: "FTD Reach" },
+  ];
+  const baseStyle = {
+    textAlign: "left",
+    padding: "5px 8px",
+    borderBottom: "1px solid #dbe3ee",
+    fontSize: 11,
+    background: theme?.light || "#f8fafc",
+    color: "#0f172a",
+  };
   return (
     <>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>Target</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Target</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>CR Reach</th>
-      <th style={{ textAlign: "left", padding: "7px 10px", borderBottom: "1px solid #dbe3ee", fontSize: 11 }}>FTD Reach</th>
+      {metricColumns.map((column, index) => {
+        const columnKey = `${monthKey}__${column.key}`;
+        return (
+          <th
+            key={columnKey}
+            onMouseEnter={() => onHoverColumn?.(columnKey)}
+            className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
+            style={{
+              ...baseStyle,
+              ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(widthStyle ? widthStyle(columnKey) : {}),
+            }}
+          >
+            {column.label}
+            <ColumnResizeHandle columnKey={columnKey} onResizeStart={onResizeStart} />
+          </th>
+        );
+      })}
     </>
   );
 }
 
-function FragmentMetricCells({ metric = {} }) {
+function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnKey = "", onHoverColumn, widthStyle }) {
+  const crReach = Number(metric.crTargetReach || 0);
+  const ftdReach = Number(metric.ftdTargetReach || 0);
+  const baseStyle = {
+    padding: "7px 9px",
+    borderBottom: "1px solid #eef2f7",
+    background: theme?.light || "#fff",
+  };
+  const metricColumns = [
+    { key: "target", render: (value) => formatNumber(value) },
+    { key: "ftd", render: (value) => formatNumber(value) },
+    { key: "cr", render: (value) => formatPercent(value) },
+    { key: "crTarget", render: (value) => formatPercent(value) },
+    { key: "crTargetReach", render: (value) => formatPercent(value), color: reachColor(crReach), bold: crReach >= 100 },
+    { key: "ftdTargetReach", render: (value) => formatPercent(value), color: reachColor(ftdReach), bold: ftdReach >= 100 },
+  ];
   return (
     <>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.target)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatNumber(metric.ftd)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.cr)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7" }}>{formatPercent(metric.crTarget)}</td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.crTargetReach) }}>
-        {formatPercent(metric.crTargetReach)}
-      </td>
-      <td style={{ padding: "8px 10px", borderBottom: "1px solid #eef2f7", color: reachColor(metric.ftdTargetReach) }}>
-        {formatPercent(metric.ftdTargetReach)}
-      </td>
+      {metricColumns.map((column, index) => {
+        const columnKey = `${monthKey}__${column.key}`;
+        const value = metric[column.key];
+        return (
+          <td
+            key={columnKey}
+            onMouseEnter={() => onHoverColumn?.(columnKey)}
+            className={hoveredColumnKey === columnKey ? styles.tableColumnGlow : ""}
+            style={{
+              ...baseStyle,
+              ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
+              ...(column.color ? { color: column.color } : {}),
+              ...(column.bold ? { fontWeight: 700 } : {}),
+              ...(widthStyle ? widthStyle(columnKey) : {}),
+            }}
+          >
+            {column.render(value)}
+          </td>
+        );
+      })}
     </>
   );
 }
 
-function PermissionRowsTable({ rows = [], onEdit, onDelete }) {
+function LoadingReportIndicator() {
   return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+    <section className={`${styles.panel} ${styles.loadingCard}`}>
+      <div className={styles.loadingTitle}>
+        <span className={styles.loadingIcon}>🤖</span>
+        <span>Building your report...</span>
+      </div>
+      <div className={styles.loadingTrack}>
+        <div className={styles.loadingBar} />
+      </div>
+      <p className={styles.loadingHint}>Please wait, data is being fetched and calculated.</p>
+    </section>
+  );
+}
+
+function formatBuilderCell(value, type) {
+  if (type === "number") {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "-";
+    }
+    return formatNumber(value);
+  }
+  if (type === "percent") {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return "-";
+    }
+    return formatPercent(value);
+  }
+  return String(value ?? "-");
+}
+
+function compareBuilderValues(left, right, type) {
+  if (type === "number" || type === "percent") {
+    return Number(left || 0) - Number(right || 0);
+  }
+  return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
+}
+
+function formatColumnGroupLabel(value = "") {
+  return String(value || "") === "__grand_total__" ? "Grand Total" : String(value || "");
+}
+
+function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
+  const { startResize, widthStyle } = useResizableColumns();
+  const isColumnPivot =
+    Boolean(builder?.columnDimension) &&
+    Array.isArray(builder?.columnValues) &&
+    builder.columnValues.length > 0 &&
+    Array.isArray(builder?.columnMetrics) &&
+    builder.columnMetrics.length > 0;
+  const dimensionColumns = columns.filter((column) => column.kind === "dimension");
+  const pivotMetricColumns = isColumnPivot
+    ? builder.columnValues.flatMap((columnValue) =>
+        builder.columnMetrics
+          .map((metric) => columns.find((column) => column.key === `${builder.columnDimension}_${columnValue}__${metric.key}`))
+          .filter(Boolean),
+      )
+    : [];
+  const pivotMetricKeySet = new Set(pivotMetricColumns.map((column) => column.key));
+  const pivotTailColumns = isColumnPivot
+    ? columns.filter((column) => !pivotMetricKeySet.has(column.key) && column.kind !== "dimension")
+    : [];
+  const perGroupMetricCount = builder.columnMetrics?.length || 0;
+  const pivotGroupStartKeySet = new Set(
+    isColumnPivot && perGroupMetricCount > 0
+      ? pivotMetricColumns.filter((_, index) => index % perGroupMetricCount === 0).map((column) => column.key)
+      : [],
+  );
+  return (
+    <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
+      <div className={styles.tableScroll}>
+      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            {["Row", "User Name", "Telegram", "Telegram ID", "Authority", "Office", "Desk", "Team", "Actions"].map((header) => (
-              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
-                {header}
-              </th>
-            ))}
-          </tr>
+          {isColumnPivot ? (
+            <>
+              <tr>
+                {dimensionColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th
+                      key={column.key}
+                      rowSpan={2}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                    >
+                      {column.label}
+                      {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                    </th>
+                  );
+                })}
+                {builder.columnValues.map((value) => (
+                  <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
+                    {formatColumnGroupLabel(value)}
+                  </th>
+                ))}
+                {pivotTailColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th
+                      key={column.key}
+                      rowSpan={2}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                    >
+                      {column.label}
+                      {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr>
+                {pivotMetricColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  const metricName = column.label.replace(/^[^\s]+\s+/, "");
+                  return (
+                    <th
+                      key={column.key}
+                      onClick={() => onSort(column.key)}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      style={widthStyle(column.key, { cursor: "pointer" })}
+                      className={`${styles.tableSubHeader} ${
+                        pivotGroupStartKeySet.has(column.key) ? styles.tableSubHeaderGroupStart : ""
+                      } ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
+                    >
+                      {metricName}
+                      {suffix}
+                      <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                    </th>
+                  );
+                })}
+              </tr>
+            </>
+          ) : (
+            <tr>
+              {columns.map((column) => {
+                const active = sortState.key === column.key;
+                const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                return (
+                  <th
+                    key={column.key}
+                    onClick={() => onSort(column.key)}
+                    onMouseEnter={() => setHoveredColumnKey(column.key)}
+                    style={widthStyle(column.key, { cursor: "pointer" })}
+                    className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                  >
+                    {column.label}
+                    {suffix}
+                    <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                  </th>
+                );
+              })}
+            </tr>
+          )}
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={`${row.rowNumber}-${row.telegramId}-${row.telegramUsername}-${row.userName}`}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.rowNumber}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.userName || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.telegramUsername || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.telegramId || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.authority || "CRM"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.office || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.team || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => onEdit(row)}
-                    style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "6px 9px", background: "#fff", cursor: "pointer" }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(row)}
-                    style={{ border: "1px solid #fecaca", borderRadius: 8, padding: "6px 9px", background: "#fff1f2", color: "#b91c1c", cursor: "pointer" }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${index}`);
+            const selected = selectedRowKey === rowKey;
+            return (
+              <tr
+                key={`builder-${rowKey}`}
+                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                className={`${row.__rowKind === "total" ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
+                  selected ? styles.tableSelectedRow : ""
+                }`}
+              >
+                {columns.map((column) => {
+                  const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                  const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                  const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                  const value = row[column.key];
+                  const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                  const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
+                  return (
+                    <td
+                      key={`${index}-${column.key}`}
+                      onMouseEnter={() => setHoveredColumnKey(column.key)}
+                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                      style={widthStyle(column.key, {
+                        color: isWorkCurrentStatus
+                          ? statusStyle.color
+                          : isBenchmarkRate
+                            ? benchmarkStyle.color
+                            : isReach
+                              ? reachColor(value)
+                              : "#0f172a",
+                        background: isWorkCurrentStatus
+                          ? statusStyle.background
+                          : isBenchmarkRate
+                            ? benchmarkStyle.background
+                            : undefined,
+                        borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
+                        fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
+                      })}
+                    >
+                      {formatBuilderCell(value, column.type)}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
           {!rows.length ? (
             <tr>
-              <td colSpan={9} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
-                No permission rows found.
+              <td colSpan={columns.length || 1} className={styles.tableEmpty}>
+                No data found for current filters.
               </td>
             </tr>
           ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
 
+const DEFAULT_BUILDER_DIMENSIONS = [
+  { key: "date", label: "Date", type: "date" },
+  { key: "hour", label: "Hour", type: "hour" },
+  { key: "desk", label: "Desk", type: "text" },
+  { key: "teamLeader", label: "Team Leader", type: "text" },
+  { key: "agent", label: "Agent", type: "text" },
+  { key: "status", label: "Working Status", type: "text" },
+  { key: "country", label: "Country", type: "text" },
+  { key: "campaign", label: "Campaign", type: "text" },
+  { key: "subCampaign", label: "Sub Campaign", type: "text" },
+  { key: "placement", label: "Placement", type: "text" },
+];
+
+const DEFAULT_BUILDER_METRICS = [
+  { key: "leads", label: "Leads", type: "number" },
+  { key: "leadShare", label: "Lead Share", type: "percent" },
+  { key: "agentCount", label: "Number of Agents", type: "number" },
+  { key: "avgLeadByAgent", label: "Avg Lead by Agent", type: "number" },
+  { key: "avgLeadByAgentDaily", label: "Avg Lead by Agent Daily", type: "number" },
+  { key: "ftd", label: "FTD", type: "number" },
+  { key: "avgFtdByAgent", label: "Desk Avg FTD per Agent", type: "number" },
+  { key: "avgFtdByAgentDaily", label: "Desk Avg FTD per Agent Daily", type: "number" },
+  { key: "agentAvgFtdPerWorkedMonth", label: "Agent Avg FTD per Worked Month", type: "number" },
+  { key: "avgFtdByDeskLongTerm", label: "Desk Avg FTD per Desk By Long Term", type: "number" },
+  { key: "ftdBenchmarkRate", label: "Benchmark Rate", type: "percent" },
+  { key: "ftdTarget", label: "FTD Target", type: "number" },
+  { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
+  { key: "cr", label: "CR", type: "percent" },
+  { key: "crTarget", label: "CR Target", type: "percent" },
+  { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
+  { key: "selfs", label: "Selfs", type: "number" },
+  { key: "lateFtd", label: "Late FTD", type: "number" },
+  { key: "ftdTargetByCr", label: "FTD Target by CR", type: "number" },
+  { key: "missingFtd", label: "Missing FTD", type: "number" },
+];
+
+const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
+  { key: "month", label: "Months", type: "text" },
+  { key: "date", label: "Date", type: "date" },
+  { key: "hour", label: "Hour", type: "hour" },
+];
+
 const EMPTY_FILTERS = {
-  officeScope: "",
+  officeScope: [],
   reportMode: "",
-  specificType: "hourly",
-  monthKey: "",
-  desk: "",
-  country: "",
-  brand: "",
-  campaign: "",
-  placement: "",
-  status: "",
-  teamLeader: "",
-  agent: "",
+  specificType: "builder",
+  monthKey: [],
+  date: [],
+  hour: [],
+  desk: [],
+  country: [],
+  brand: [],
+  campaign: [],
+  subCampaign: [],
+  placement: [],
+  status: [],
+  teamLeader: [],
+  agent: [],
+  columnDimension: "",
+  includeWorkTime: false,
   groupBy: "agent",
+  rowDimensions: ["date", "desk", "teamLeader", "agent"],
+  metricFields: [
+    "leads",
+    "leadShare",
+    "agentCount",
+    "avgLeadByAgent",
+    "avgLeadByAgentDaily",
+    "ftd",
+    "avgFtdByAgent",
+    "avgFtdByAgentDaily",
+    "agentAvgFtdPerWorkedMonth",
+    "ftdTarget",
+    "ftdTargetReach",
+    "cr",
+    "crTarget",
+    "crTargetReach",
+  ],
+  totalDimensions: [],
 };
 
 const EMPTY_PERMISSION_FILTERS = {
@@ -472,11 +1581,14 @@ export default function DashboardPage() {
     error: "",
   });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(EMPTY_FILTERS);
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
     error: "",
   });
+  const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
+  const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [permissionFilters, setPermissionFilters] = useState(EMPTY_PERMISSION_FILTERS);
   const [permissionForm, setPermissionForm] = useState(EMPTY_PERMISSION_FORM);
   const [permissionEditRow, setPermissionEditRow] = useState(0);
@@ -493,7 +1605,10 @@ export default function DashboardPage() {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const response = await fetch("/api/dashboard/session", { cache: "no-store" });
-      const payload = await response.json();
+      const payload = await readApiPayload(response);
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.message || payload?.error || "Could not load dashboard session.");
+      }
       const officeScopes = payload.bootstrap?.officeScopes || [];
       setSessionState({
         loading: false,
@@ -504,10 +1619,17 @@ export default function DashboardPage() {
         bootstrap: payload.bootstrap || { defaultMonthKey: "", months: [], officeScopes: [] },
         error: "",
       });
+      const officeScopeDefault = officeScopes.length === 1 ? [officeScopes[0]] : [];
+      const monthDefault = payload.bootstrap?.defaultMonthKey ? [payload.bootstrap.defaultMonthKey] : [];
       setFilters((prev) => ({
         ...prev,
-        officeScope: prev.officeScope || (officeScopes.length === 1 ? officeScopes[0] : ""),
-        monthKey: prev.monthKey || payload.bootstrap?.defaultMonthKey || "",
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
+      }));
+      setAppliedFilters((prev) => ({
+        ...prev,
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
       }));
     } catch {
       setSessionState((prev) => ({
@@ -519,21 +1641,25 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
+    if (
+      !sessionState.authorized ||
+      !Array.isArray(appliedFilters.officeScope) ||
+      !appliedFilters.officeScope.length ||
+      !appliedFilters.reportMode
+    ) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
     }
-    setReportState((prev) => ({ ...prev, loading: true, error: "" }));
+    setReportState({
+      loading: true,
+      report: null,
+      error: "",
+    });
+    setExportState((prev) => ({ ...prev, error: "" }));
     try {
-      const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(filters)) {
-        const normalized = String(value || "").trim();
-        if (normalized) {
-          query.set(key, normalized);
-        }
-      }
+      const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
-      const payload = await response.json();
+      const payload = await readApiPayload(response);
       if (!response.ok || !payload.ok) {
         throw new Error(payload?.message || payload?.error || "Could not load report.");
       }
@@ -544,29 +1670,16 @@ export default function DashboardPage() {
       });
       const options = payload.report?.options || {};
       setFilters((prev) => {
-        const next = { ...prev };
-        if (Array.isArray(options.months) && options.months.length) {
-          const monthExists = options.months.some((month) => month.key === next.monthKey);
-          if (!monthExists) {
-            next.monthKey = options.months[0].key;
-          }
-        }
-        const dependencyChecks = [
-          ["desk", options.desks || []],
-          ["country", options.countries || []],
-          ["brand", options.brands || []],
-          ["campaign", options.campaigns || []],
-          ["placement", options.placements || []],
-          ["status", options.statuses || []],
-          ["teamLeader", options.teamLeaders || []],
-          ["agent", options.agents || []],
-        ];
-        for (const [key, values] of dependencyChecks) {
-          if (next[key] && !values.includes(next[key])) {
-            next[key] = "";
-          }
-        }
-        return next;
+        const sanitized = sanitizeFiltersWithOptions(prev, options);
+        const prevKey = buildReportQuery(prev).toString();
+        const sanitizedKey = buildReportQuery(sanitized).toString();
+        return prevKey === sanitizedKey ? prev : sanitized;
+      });
+      setAppliedFilters((prev) => {
+        const sanitized = sanitizeFiltersWithOptions(prev, options);
+        const prevKey = buildReportQuery(prev).toString();
+        const sanitizedKey = buildReportQuery(sanitized).toString();
+        return prevKey === sanitizedKey ? prev : sanitized;
       });
     } catch (error) {
       setReportState({
@@ -575,10 +1688,12 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [filters, sessionState.authorized]);
+  }, [appliedFilters, sessionState.authorized]);
 
   const canManagePermissions = String(sessionState.user?.username || "").toLocaleLowerCase("en-US") === "antoniotsd";
-  const shouldShowPermissionManager = canManagePermissions && (!filters.officeScope || !filters.reportMode);
+  const shouldShowPermissionManager =
+    canManagePermissions &&
+    ((!Array.isArray(filters.officeScope) || filters.officeScope.length === 0) || !filters.reportMode);
 
   const requestPermissions = useCallback(async () => {
     if (!sessionState.authorized || !shouldShowPermissionManager) {
@@ -587,21 +1702,24 @@ export default function DashboardPage() {
     setPermissionState((prev) => ({ ...prev, loading: true, error: "" }));
     try {
       const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(permissionFilters)) {
-        const normalized = String(value || "").trim();
-        if (normalized) {
-          query.set(key, normalized);
-        }
+      if (permissionFilters.office) {
+        query.set("office", permissionFilters.office);
+      }
+      if (permissionFilters.desk) {
+        query.set("desk", permissionFilters.desk);
+      }
+      if (permissionFilters.team) {
+        query.set("team", permissionFilters.team);
       }
       const response = await fetch(`/api/dashboard/permissions?${query.toString()}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
+      const payload = await readApiPayload(response);
+      if (!response.ok || payload?.ok === false) {
         throw new Error(payload?.message || payload?.error || "Could not load permissions.");
       }
       setPermissionState((prev) => ({
         ...prev,
         loading: false,
-        rows: payload.rows || [],
+        rows: Array.isArray(payload.rows) ? payload.rows : [],
         options: payload.options || { offices: [], desks: [], teams: [] },
         error: "",
       }));
@@ -628,7 +1746,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load permissions.",
       }));
     }
-  }, [permissionFilters, sessionState.authorized, shouldShowPermissionManager]);
+  }, [permissionFilters.desk, permissionFilters.office, permissionFilters.team, sessionState.authorized, shouldShowPermissionManager]);
 
   const savePermission = useCallback(
     async (event) => {
@@ -648,14 +1766,14 @@ export default function DashboardPage() {
             filterTeam: permissionFilters.team,
           }),
         });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) {
+        const payload = await readApiPayload(response);
+        if (!response.ok || payload?.ok === false) {
           throw new Error(payload?.message || payload?.error || "Could not save permission.");
         }
         setPermissionState((prev) => ({
           ...prev,
           saving: false,
-          rows: payload.rows || [],
+          rows: Array.isArray(payload.rows) ? payload.rows : [],
           options: payload.options || prev.options,
           error: "",
         }));
@@ -689,14 +1807,14 @@ export default function DashboardPage() {
             filterTeam: permissionFilters.team,
           }),
         });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) {
+        const payload = await readApiPayload(response);
+        if (!response.ok || payload?.ok === false) {
           throw new Error(payload?.message || payload?.error || "Could not remove permission.");
         }
         setPermissionState((prev) => ({
           ...prev,
           deletingRow: 0,
-          rows: payload.rows || [],
+          rows: Array.isArray(payload.rows) ? payload.rows : [],
           options: payload.options || prev.options,
           error: "",
         }));
@@ -755,7 +1873,9 @@ export default function DashboardPage() {
   const handleLogout = useCallback(async () => {
     await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
     setReportState({ loading: false, report: null, error: "" });
+    setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
+    setAppliedFilters(EMPTY_FILTERS);
     setPermissionFilters(EMPTY_PERMISSION_FILTERS);
     setPermissionForm(EMPTY_PERMISSION_FORM);
     setPermissionEditRow(0);
@@ -770,6 +1890,66 @@ export default function DashboardPage() {
     await fetchSession();
   }, [fetchSession]);
 
+  const handleBuilderSort = useCallback((columnKey) => {
+    setBuilderSort((prev) => {
+      if (prev.key !== columnKey) {
+        return { key: columnKey, direction: "asc" };
+      }
+      return { key: columnKey, direction: prev.direction === "asc" ? "desc" : "asc" };
+    });
+  }, []);
+
+  const handleCascadingFilterChange = useCallback((key, value) => {
+    const chain = ["desk", "brand", "agent", "country", "teamLeader", "campaign", "subCampaign", "placement"];
+    setFilters((prev) => {
+      const normalizedValue = MULTI_VALUE_FILTER_KEYS.has(key)
+        ? (Array.isArray(value) ? value : [])
+        : String(value || "").trim();
+      const next = { ...prev, [key]: normalizedValue };
+      const index = chain.indexOf(key);
+      if (index >= 0) {
+        for (let i = index + 1; i < chain.length; i += 1) {
+          next[chain[i]] = MULTI_VALUE_FILTER_KEYS.has(chain[i]) ? [] : "";
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const handleApplyFilters = useCallback(() => {
+    if (!Array.isArray(filters.officeScope) || !filters.officeScope.length || !filters.reportMode) {
+      return;
+    }
+    setAppliedFilters({ ...filters });
+  }, [filters]);
+
+  const handleExportXlsx = useCallback(async () => {
+    setExportState({ loading: true, error: "" });
+    try {
+      const query = buildReportQuery(appliedFilters);
+      const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.message || payload?.error || "Could not export report.");
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/i);
+      const filename = match?.[1] || `crm-report-${Date.now()}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setExportState({ loading: false, error: "" });
+    } catch (error) {
+      setExportState({ loading: false, error: error?.message || "Could not export report." });
+    }
+  }, [appliedFilters]);
+
   const report = reportState.report;
   const options = report?.options || {};
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -780,10 +1960,152 @@ export default function DashboardPage() {
       label: item.office_name ? `${item.month_label} — ${item.office_name}` : item.month_label,
     }));
   }, [options.months, sessionState.bootstrap.months]);
+  const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
+  const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
+  const hasPendingChanges = draftQueryKey !== appliedQueryKey;
+  const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
+  const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
+  const builderColumnDimensionOptions = options.builderColumnDimensions || DEFAULT_BUILDER_COLUMN_DIMENSIONS;
+  const builderColumns = report?.builder?.columns || [];
+  const sortedBuilderRows = useMemo(() => {
+    if (report?.tableType !== "builder") {
+      return [];
+    }
+    const rows = Array.isArray(report?.table) ? [...report.table] : [];
+    const activeColumn = builderColumns.find((column) => column.key === builderSort.key);
+    if (!activeColumn) {
+      return rows;
+    }
+    const selectedDimensions = Array.isArray(report?.builder?.selectedDimensions) ? report.builder.selectedDimensions : [];
+    const selectedTotalDimensions = Array.isArray(report?.builder?.selectedTotalDimensions)
+      ? report.builder.selectedTotalDimensions
+      : [];
+    const hasHierarchyTotals = rows.some((row) => row.__rowKind === "total") && selectedDimensions.length > 1;
+    if (!hasHierarchyTotals) {
+      rows.sort((left, right) => {
+        const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+      return rows;
+    }
+
+    const detailRows = rows.filter((row) => row.__rowKind !== "total");
+    const totalRows = rows.filter((row) => row.__rowKind === "total");
+    const dimensionDepth = new Map(selectedDimensions.map((key, index) => [key, index]));
+    const totalDimensionSet = new Set(selectedTotalDimensions);
+    const normalizePiece = (value) => String(value || "-").trim().toLowerCase();
+    const prefixKey = (pieces = []) => pieces.map(normalizePiece).join("::");
+    const subtotalMap = new Map();
+    for (const row of totalRows) {
+      const dimensionKey = row.__totalDimension;
+      const depth = dimensionDepth.get(dimensionKey);
+      if (!dimensionKey || depth === undefined) {
+        continue;
+      }
+      const pieces = [];
+      for (let index = 0; index < depth; index += 1) {
+        pieces.push(String(row[selectedDimensions[index]] || "-").trim() || "-");
+      }
+      const ownValue = String(row[dimensionKey] || "")
+        .replace(/\s+total$/i, "")
+        .trim();
+      pieces.push(ownValue || "-");
+      subtotalMap.set(`${dimensionKey}::${prefixKey(pieces)}`, row);
+    }
+
+    const aggregateMetric = (groupRows = []) => {
+      if (activeColumn.type === "percent") {
+        if (!groupRows.length) {
+          return 0;
+        }
+        const total = groupRows.reduce((sum, row) => sum + Number(row[activeColumn.key] || 0), 0);
+        return total / groupRows.length;
+      }
+      return groupRows.reduce((sum, row) => sum + Number(row[activeColumn.key] || 0), 0);
+    };
+
+    const sortRowsFlat = (groupRows = []) =>
+      [...groupRows].sort((left, right) => {
+        const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+
+    const sortGroups = (entries = [], dimensionKey, prefixPieces = []) =>
+      [...entries].sort((leftEntry, rightEntry) => {
+        const [leftValue, leftRows] = leftEntry;
+        const [rightValue, rightRows] = rightEntry;
+        const leftPrefix = [...prefixPieces, leftValue];
+        const rightPrefix = [...prefixPieces, rightValue];
+        const leftSubtotal = subtotalMap.get(`${dimensionKey}::${prefixKey(leftPrefix)}`);
+        const rightSubtotal = subtotalMap.get(`${dimensionKey}::${prefixKey(rightPrefix)}`);
+
+        let leftSortValue;
+        let rightSortValue;
+        if (activeColumn.kind === "metric" || activeColumn.type === "number" || activeColumn.type === "percent") {
+          leftSortValue = leftSubtotal ? leftSubtotal[activeColumn.key] : aggregateMetric(leftRows);
+          rightSortValue = rightSubtotal ? rightSubtotal[activeColumn.key] : aggregateMetric(rightRows);
+        } else if (activeColumn.key === dimensionKey) {
+          leftSortValue = leftValue;
+          rightSortValue = rightValue;
+        } else {
+          leftSortValue = leftRows[0]?.[activeColumn.key];
+          rightSortValue = rightRows[0]?.[activeColumn.key];
+        }
+        const compare = compareBuilderValues(leftSortValue, rightSortValue, activeColumn.type);
+        return builderSort.direction === "desc" ? -compare : compare;
+      });
+
+    const orderHierarchical = (inputRows = [], depth = 0, prefixPieces = []) => {
+      const dimensionKey = selectedDimensions[depth];
+      if (!dimensionKey) {
+        return sortRowsFlat(inputRows);
+      }
+      const grouped = new Map();
+      for (const row of inputRows) {
+        const groupValue = String(row[dimensionKey] || "-").trim() || "-";
+        if (!grouped.has(groupValue)) {
+          grouped.set(groupValue, []);
+        }
+        grouped.get(groupValue).push(row);
+      }
+
+      const sortedGroups = sortGroups([...grouped.entries()], dimensionKey, prefixPieces);
+      const ordered = [];
+      for (const [groupValue, groupRows] of sortedGroups) {
+        const nextPrefix = [...prefixPieces, groupValue];
+        if (totalDimensionSet.has(dimensionKey)) {
+          const subtotalRow = subtotalMap.get(`${dimensionKey}::${prefixKey(nextPrefix)}`);
+          if (subtotalRow) {
+            ordered.push(subtotalRow);
+          }
+        }
+        if (depth >= selectedDimensions.length - 1) {
+          ordered.push(...sortRowsFlat(groupRows));
+        } else {
+          ordered.push(...orderHierarchical(groupRows, depth + 1, nextPrefix));
+        }
+      }
+      return ordered;
+    };
+
+    return orderHierarchical(detailRows, 0, []);
+  }, [builderColumns, builderSort.direction, builderSort.key, report?.table, report?.tableType]);
+
+  useEffect(() => {
+    if (report?.tableType !== "builder") {
+      if (builderSort.key) {
+        setBuilderSort({ key: "", direction: "asc" });
+      }
+      return;
+    }
+    if (builderColumns.length && !builderColumns.some((column) => column.key === builderSort.key)) {
+      setBuilderSort({ key: builderColumns[0].key, direction: "asc" });
+    }
+  }, [builderColumns, builderSort.key, report?.tableType]);
 
   if (sessionState.loading) {
     return (
-      <main style={{ fontFamily: "Arial, sans-serif", padding: 24 }}>
+      <main className={styles.unauthorizedPage}>
         <p>Loading dashboard...</p>
       </main>
     );
@@ -791,40 +2113,20 @@ export default function DashboardPage() {
 
   if (!sessionState.authenticated) {
     return (
-      <main
-        style={{
-          minHeight: "100vh",
-          padding: 24,
-          fontFamily: "Arial, sans-serif",
-          background: "#f1f5f9",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        <section
-          style={{
-            width: "100%",
-            maxWidth: 560,
-            background: "#fff",
-            border: "1px solid #dbe3ee",
-            borderRadius: 12,
-            padding: 20,
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: 24 }}>CRM Dashboard Login</h1>
-          <p style={{ margin: 0, color: "#475569" }}>
+      <main className={styles.loginPage}>
+        <section className={`${styles.panel} ${styles.loginCard}`}>
+          <h1 className={styles.title}>CRM Dashboard Login</h1>
+          <p className={styles.sectionHint}>
             Log in with your Telegram account. Access permissions are shared with the Telegram bot.
           </p>
           {sessionState.auth.enabled ? (
             <TelegramLoginWidget botUsername={sessionState.auth.botUsername} onAuth={handleTelegramAuth} />
           ) : (
-            <p style={{ margin: 0, color: "#b91c1c" }}>
+            <p className={styles.errorText}>
               Telegram login widget is unavailable. Check TELEGRAM_BOT_TOKEN and bot connectivity.
             </p>
           )}
-          {sessionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{sessionState.error}</p> : null}
+          {sessionState.error ? <p className={styles.errorText}>{sessionState.error}</p> : null}
         </section>
       </main>
     );
@@ -832,74 +2134,53 @@ export default function DashboardPage() {
 
   if (!sessionState.authorized) {
     return (
-      <main style={{ fontFamily: "Arial, sans-serif", padding: 24, display: "grid", gap: 12 }}>
-        <h1 style={{ margin: 0 }}>CRM Dashboard</h1>
-        <p style={{ margin: 0, color: "#b91c1c" }}>Your Telegram account is logged in but not authorized for this dashboard.</p>
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{ width: 140, padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-        >
+      <main className={styles.unauthorizedPage}>
+        <h1 className={styles.title}>CRM Dashboard</h1>
+        <p className={styles.errorText}>Your Telegram account is logged in but not authorized for this dashboard.</p>
+        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`} style={{ width: 140 }}>
           Log out
         </button>
       </main>
     );
   }
 
-  const needOfficeSelection = !filters.officeScope;
+  const needOfficeSelection = !Array.isArray(filters.officeScope) || filters.officeScope.length === 0;
   const needReportSelection = !needOfficeSelection && !filters.reportMode;
+  const isLast4Mode = filters.reportMode === "last4";
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        fontFamily: "Arial, sans-serif",
-        padding: 16,
-        background: "#f1f5f9",
-        color: "#0f172a",
-        display: "grid",
-        gap: 14,
-      }}
-    >
-      <section
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "center",
-          background: "#fff",
-          border: "1px solid #dbe3ee",
-          borderRadius: 10,
-          padding: 14,
-        }}
-      >
+    <main className={styles.page}>
+      <section className={`${styles.panel} ${styles.topBar}`}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 24 }}>CRM Dashboard</h1>
-          <p style={{ margin: "6px 0 0", color: "#475569", fontSize: 14 }}>
+          <h1 className={`${styles.title} ${styles.topBarTitle}`}>CRM Dashboard</h1>
+          <p className={`${styles.subtitle} ${styles.topBarSubtitle}`}>
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}
-        >
+        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
           Log out
         </button>
       </section>
 
       {shouldShowPermissionManager ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Permissions</h2>
-            <p style={{ margin: 0, color: "#64748b" }}>
-              Manage access with Office, Desk, Team scopes. Agents, countries, campaigns, sub campaigns, placements and metrics are
-              automatically allowed under that scope.
-            </p>
+        <section className={`${styles.panel} ${styles.section}`}>
+          <div className={styles.toolbar}>
+            <div>
+              <h2 className={styles.sectionTitle}>Permissions</h2>
+              <p className={styles.sectionHint}>
+                Manage access with Office, Desk, Team scopes. Agents, countries, campaigns, sub campaigns, placements and metrics are
+                automatically allowed under that scope.
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "grid",
+              gap: 10,
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            }}
+          >
             <SelectFilter
               label="Office Filter"
               value={permissionFilters.office}
@@ -921,59 +2202,72 @@ export default function DashboardPage() {
           </div>
 
           <form onSubmit={savePermission} style={{ display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <TextFilter
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              }}
+            >
+              <PermissionTextField
                 label="User Name"
                 value={permissionForm.userName}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, userName: value }))}
                 placeholder="Display name"
               />
-              <TextFilter
+              <PermissionTextField
                 label="Telegram Username"
                 value={permissionForm.telegramUsername}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramUsername: value }))}
                 placeholder="@username"
               />
-              <TextFilter
+              <PermissionTextField
                 label="Telegram ID"
                 value={permissionForm.telegramId}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramId: value }))}
                 placeholder="Numeric ID"
               />
-              <TextFilter
+              <PermissionTextField
                 label="Authority"
                 value={permissionForm.authority}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, authority: value }))}
-                placeholder="CRM / Manager / Team Leader / all"
+                placeholder="CRM / manager / team leader / all"
               />
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <TextFilter
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+              }}
+            >
+              <PermissionTextField
                 label="Office Scope"
                 value={permissionForm.office}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, office: value }))}
                 placeholder="Comma separated, empty = all"
               />
-              <TextFilter
+              <PermissionTextField
                 label="Desk Scope"
                 value={permissionForm.desk}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, desk: value }))}
                 placeholder="Comma separated, empty = all"
               />
-              <TextFilter
+              <PermissionTextField
                 label="Team Scope"
                 value={permissionForm.team}
                 onChange={(value) => setPermissionForm((prev) => ({ ...prev, team: value }))}
                 placeholder="Comma separated, empty = all"
               />
             </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className={styles.pillRow}>
               <button
                 type="submit"
                 disabled={permissionState.saving}
-                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                style={permissionState.saving ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
               >
-                {permissionEditRow ? "Update Permission" : "Grant / Save Permission"}
+                {permissionState.saving ? "Saving..." : permissionEditRow ? "Update Permission" : "Grant / Save Permission"}
               </button>
               <button
                 type="button"
@@ -981,19 +2275,19 @@ export default function DashboardPage() {
                   setPermissionEditRow(0);
                   setPermissionForm(EMPTY_PERMISSION_FORM);
                 }}
-                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+                className={`${styles.button} ${styles.buttonSecondary}`}
               >
                 Clear Form
               </button>
             </div>
           </form>
 
-          {permissionState.loading ? <p style={{ margin: 0 }}>Loading permissions...</p> : null}
-          {permissionState.saving ? <p style={{ margin: 0 }}>Saving permission...</p> : null}
-          {permissionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{permissionState.error}</p> : null}
+          {permissionState.loading ? <p className={styles.loadingInline}>Loading permissions...</p> : null}
+          {permissionState.error ? <p className={styles.errorText}>{permissionState.error}</p> : null}
           {!permissionState.loading ? (
             <PermissionRowsTable
               rows={permissionState.rows || []}
+              deletingRow={permissionState.deletingRow}
               onEdit={(row) => {
                 setPermissionEditRow(Number(row.rowNumber) || 0);
                 setPermissionForm({
@@ -1009,239 +2303,382 @@ export default function DashboardPage() {
               onDelete={removePermission}
             />
           ) : null}
-          {permissionState.deletingRow ? <p style={{ margin: 0 }}>Removing row {permissionState.deletingRow}...</p> : null}
         </section>
       ) : null}
 
       {needOfficeSelection ? (
-        <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
-          <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {officeOptions.map((office) => (
-              <button
-                key={office}
-                type="button"
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    officeScope: office,
-                    reportMode: "",
-                    monthKey: prev.monthKey || sessionState.bootstrap.defaultMonthKey || "",
-                    desk: "",
-                    country: "",
-                    brand: "",
-                    campaign: "",
-                    placement: "",
-                    status: "",
-                    teamLeader: "",
-                    agent: "",
-                  }))
-                }
-                style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
-              >
-                {office}
-              </button>
-            ))}
+        <section className={`${styles.panel} ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
+          <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
+          <div className={styles.officeGrid}>
+            {officeOptions.map((office) => {
+              const officeTheme = officeThemeForName(office);
+              return (
+                <button
+                  key={office}
+                  type="button"
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      officeScope: [office],
+                      reportMode: "",
+                      specificType: "builder",
+                      monthKey:
+                        Array.isArray(prev.monthKey) && prev.monthKey.length
+                          ? prev.monthKey
+                          : sessionState.bootstrap.defaultMonthKey
+                            ? [sessionState.bootstrap.defaultMonthKey]
+                            : [],
+                      date: [],
+                      hour: [],
+                      desk: [],
+                      country: [],
+                      brand: [],
+                      campaign: [],
+                      subCampaign: [],
+                      placement: [],
+                      status: [],
+                      teamLeader: [],
+                      agent: [],
+                      columnDimension: "",
+                      includeWorkTime: false,
+                    }))
+                  }
+                  className={styles.officeCard}
+                  style={officeTheme}
+                >
+                  <span className={styles.officeName}>{office}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
       ) : null}
 
       {needReportSelection ? (
-        <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <section className={`${styles.panel} ${styles.section} ${styles.stepCenter}`}>
+          <h2 className={styles.sectionTitle}>Step 2 — Select Report</h2>
+          <div className={styles.reportModeGrid}>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "hourly" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder", includeWorkTime: false }))
+              }
+              className={styles.reportModeCard}
             >
-              Monthly Report
+              <span className={styles.reportModeTitle}>{reportModeMeta("monthly").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("monthly").icon}</span>
             </button>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "last4", specificType: "hourly" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  reportMode: "last4",
+                  specificType: "builder",
+                  date: [],
+                  hour: [],
+                  country: [],
+                  brand: [],
+                  campaign: [],
+                  subCampaign: [],
+                  placement: [],
+                  status: [],
+                  columnDimension: "",
+                  includeWorkTime: false,
+                  groupBy: "agent",
+                }))
+              }
+              className={styles.reportModeCard}
             >
-              Last 4 Months Report
+              <span className={styles.reportModeTitle}>{reportModeMeta("last4").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
             </button>
             <button
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "hourly" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 999, padding: "8px 12px", background: "#fff", cursor: "pointer" }}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  reportMode: "specific",
+                  specificType: "builder",
+                  columnDimension: prev.columnDimension || "",
+                  includeWorkTime: Boolean(prev.includeWorkTime),
+                  rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
+                  metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
+                  totalDimensions: Array.isArray(prev.totalDimensions)
+                    ? prev.totalDimensions.filter((item) => {
+                        const selectedDimensions = prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions;
+                        const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                        return selectedDimensions.includes(item) && item !== lastSelected;
+                      })
+                    : EMPTY_FILTERS.totalDimensions,
+                }))
+              }
+              className={styles.reportModeCard}
             >
-              Specific Reports
+              <span className={styles.reportModeTitle}>{reportModeMeta("specific").title}</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("specific").icon}</span>
             </button>
           </div>
         </section>
       ) : null}
 
       {!needOfficeSelection && !needReportSelection ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 12, background: "#fff", padding: 14, display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ display: "grid", gap: 3 }}>
-              <h2 style={{ margin: 0, fontSize: 18 }}>Report Filters</h2>
-              <p style={{ margin: 0, color: "#64748b", fontSize: 12 }}>
-                Update filters below to refresh the selected report scope.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span
-                style={{
-                  border: "1px solid #dbe3ee",
-                  borderRadius: 999,
-                  padding: "5px 10px",
-                  fontSize: 12,
-                  color: "#334155",
-                  background: "#f8fafc",
-                }}
+        <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy}`}>
+          <div className={styles.toolbar}>
+            <h2 className={styles.sectionTitle}>Filters</h2>
+            <div className={styles.pillRow}>
+              {reportState.loading ? <span className={styles.loadingInline}>Updating filters...</span> : null}
+              <button
+                type="button"
+                onClick={handleApplyFilters}
+                disabled={reportState.loading || !hasPendingChanges}
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                style={reportState.loading || !hasPendingChanges ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
               >
-                Mode: {filters.reportMode === "monthly" ? "Monthly" : filters.reportMode === "last4" ? "Last 4 Months" : "Specific"}
-              </span>
+                {reportState.loading ? "Loading..." : "Load Report"}
+              </button>
               <button
                 type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
-                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+                className={`${styles.button} ${styles.buttonSecondary}`}
               >
                 Change Report Type
               </button>
             </div>
           </div>
-
-          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
-            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Core Filters</h3>
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-              <SelectFilter
+          {hasPendingChanges ? (
+            <p className={styles.inlineInfo}>
+              You changed filters. Click <strong>Load Report</strong> to apply.
+            </p>
+          ) : null}
+          <div className={styles.filterRows}>
+            <div className={styles.filterRow}>
+              <MultiSelectFilter
                 label="Office"
-                value={filters.officeScope}
+                values={filters.officeScope}
                 options={officeOptions.map((value) => ({ value, label: value }))}
+                loading={reportState.loading}
                 onChange={(value) =>
                   setFilters((prev) => ({
                     ...prev,
                     officeScope: value,
                     reportMode: "",
-                    desk: "",
-                    country: "",
-                    brand: "",
-                    campaign: "",
-                    placement: "",
-                    status: "",
-                    teamLeader: "",
-                    agent: "",
+                    specificType: "builder",
+                    date: [],
+                    hour: [],
+                    desk: [],
+                    country: [],
+                    brand: [],
+                    campaign: [],
+                    subCampaign: [],
+                    placement: [],
+                    status: [],
+                    teamLeader: [],
+                    agent: [],
+                    columnDimension: "",
                   }))
                 }
               />
-              {filters.reportMode !== "last4" ? (
-                <SelectFilter
+              {!isLast4Mode ? (
+                <MultiSelectFilter
                   label="Month"
-                  value={filters.monthKey}
+                  values={filters.monthKey}
                   options={monthOptions}
+                  loading={reportState.loading}
                   onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
                   placeholder="Select month"
                 />
               ) : null}
-              {filters.reportMode === "specific" ? (
-                <SelectFilter
-                  label="Specific Report"
-                  value={filters.specificType}
-                  options={[
-                    { value: "hourly", label: "By Hourly FTD" },
-                    { value: "best_agents", label: "Best Agents" },
-                  ]}
-                  onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
-                  placeholder="Select specific report"
+              {!isLast4Mode ? (
+                <MultiSelectFilter
+                  label="Date"
+                  values={filters.date}
+                  options={asOptions(options.dates || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("date", value)}
+                />
+              ) : null}
+              {!isLast4Mode ? (
+                <MultiSelectFilter
+                  label="Hour"
+                  values={filters.hour}
+                  options={asOptions(options.hours || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("hour", value)}
                 />
               ) : null}
             </div>
-          </section>
 
-          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
-            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Scope Filters</h3>
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))" }}>
-              <SelectFilter
+            <div className={styles.filterRow}>
+              <MultiSelectFilter
                 label="Desk"
-                value={filters.desk}
+                values={filters.desk}
                 options={asOptions(options.desks || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
+                loading={reportState.loading}
+                onChange={(value) => handleCascadingFilterChange("desk", value)}
               />
-              <SelectFilter
-                label="Team Leader"
-                value={filters.teamLeader}
-                options={asOptions(options.teamLeaders || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
-              />
-              <SelectFilter
+              {!isLast4Mode ? (
+                <MultiSelectFilter
+                  label="Brand"
+                  values={filters.brand}
+                  options={asOptions(options.brands || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("brand", value)}
+                />
+              ) : null}
+              <MultiSelectFilter
                 label="Agent"
-                value={filters.agent}
+                values={filters.agent}
                 options={asOptions(options.agents || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
+                loading={reportState.loading}
+                onChange={(value) => handleCascadingFilterChange("agent", value)}
               />
-              <SelectFilter
-                label="Country"
-                value={filters.country}
-                options={asOptions(options.countries || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
+              {!isLast4Mode ? (
+                <MultiSelectFilter
+                  label="Country"
+                  values={filters.country}
+                  options={asOptions(options.countries || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("country", value)}
+                />
+              ) : null}
+              <MultiSelectFilter
+                label="Team Leader"
+                values={filters.teamLeader}
+                options={asOptions(options.teamLeaders || [])}
+                loading={reportState.loading}
+                onChange={(value) => handleCascadingFilterChange("teamLeader", value)}
               />
-              <SelectFilter
-                label="Brand"
-                value={filters.brand}
-                options={asOptions(options.brands || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
-              />
-              <SelectFilter
-                label="Campaign"
-                value={filters.campaign}
-                options={asOptions(options.campaigns || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
-              />
-              <SelectFilter
-                label="Placement"
-                value={filters.placement}
-                options={asOptions(options.placements || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
-              />
-              <SelectFilter
-                label="Working Status"
-                value={filters.status}
-                options={asOptions(options.statuses || [])}
-                onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-              />
+              {!isLast4Mode ? (
+                <MultiSelectFilter
+                  label="Campaign"
+                  values={filters.campaign}
+                  options={asOptions(options.campaigns || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("campaign", value)}
+                />
+              ) : null}
             </div>
-          </section>
 
-          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
-            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Table Layout</h3>
-            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))" }}>
-              <SelectFilter
-                label="Table Group"
-                value={filters.groupBy}
-                options={[
-                  { value: "agent", label: "Agent" },
-                  { value: "teamLeader", label: "Team Leader" },
-                  { value: "desk", label: "Desk" },
-                  { value: "country", label: "Country" },
-                  { value: "brand", label: "Brand" },
-                  { value: "campaign", label: "Campaign" },
-                  { value: "placement", label: "Placement" },
-                ]}
-                onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
-                disabled={filters.reportMode === "last4"}
-              />
-            </div>
-          </section>
+            {!isLast4Mode ? (
+              <div className={styles.filterRow}>
+                <MultiSelectFilter
+                  label="Sub Campaign"
+                  values={filters.subCampaign}
+                  options={asOptions(options.subCampaigns || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("subCampaign", value)}
+                />
+                <MultiSelectFilter
+                  label="Placement"
+                  values={filters.placement}
+                  options={asOptions(options.placements || [])}
+                  loading={reportState.loading}
+                  onChange={(value) => handleCascadingFilterChange("placement", value)}
+                />
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
-      {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
-      {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
+      {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
+        <section className={`${styles.panel} ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Report Builder</h2>
+          <SingleChoiceChipGroup
+            label="Column"
+            items={builderColumnDimensionOptions}
+            selectedKey={filters.columnDimension}
+            onSelect={(value) => setFilters((prev) => ({ ...prev, columnDimension: value }))}
+            noLabel="No"
+          />
+          <RowDimensionGroup
+            label="Row / Group Dimensions"
+            items={builderDimensionOptions}
+            selectedItems={filters.rowDimensions || []}
+            selectedTotals={filters.totalDimensions || []}
+            onToggleDimension={(key) =>
+              setFilters((prev) => {
+                const current = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                if (!next.length) {
+                  return prev;
+                }
+                const lastSelected = next[next.length - 1];
+                const nextTotals = Array.isArray(prev.totalDimensions)
+                  ? prev.totalDimensions.filter((item) => next.includes(item) && item !== lastSelected)
+                  : [];
+                return { ...prev, rowDimensions: next, totalDimensions: nextTotals };
+              })
+            }
+            onToggleTotal={(key) =>
+              setFilters((prev) => {
+                const selectedDimensions = Array.isArray(prev.rowDimensions) ? prev.rowDimensions : [];
+                const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
+                if (!selectedDimensions.includes(key) || key === lastSelected) {
+                  return prev;
+                }
+                const currentTotals = Array.isArray(prev.totalDimensions) ? prev.totalDimensions : [];
+                const nextTotals = currentTotals.includes(key)
+                  ? currentTotals.filter((item) => item !== key)
+                  : [...currentTotals, key];
+                return { ...prev, totalDimensions: nextTotals };
+              })
+            }
+          />
+          <div className={styles.workTimeToggleRow}>
+            <span className={styles.workTimeToggleLabel}>Work Time</span>
+            <button
+              type="button"
+              className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
+              onClick={() => setFilters((prev) => ({ ...prev, includeWorkTime: !prev.includeWorkTime }))}
+            >
+              <span className={styles.workTimeToggleThumb} />
+              <span>{filters.includeWorkTime ? "ON" : "OFF"}</span>
+            </button>
+          </div>
+          <ToggleGroup
+            label="Metrics / Data Fields"
+            items={builderMetricOptions}
+            selectedItems={filters.metricFields || []}
+            onToggle={(key) =>
+              setFilters((prev) => {
+                const current = Array.isArray(prev.metricFields) ? prev.metricFields : [];
+                const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+                if (!next.length) {
+                  return prev;
+                }
+                return { ...prev, metricFields: next };
+              })
+            }
+          />
+        </section>
+      ) : null}
+
+      {reportState.loading ? <LoadingReportIndicator /> : null}
+      {reportState.error ? <p className={styles.errorText}>{reportState.error}</p> : null}
+      {exportState.error ? <p className={styles.errorText}>{exportState.error}</p> : null}
 
       {report ? (
-        <section style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>
-              {report.month?.label || "Selected month"} — {report.month?.office_name || filters.officeScope}
-            </h2>
-            <p style={{ margin: 0, color: "#64748b" }}>{report.tableTitle || "Report table"}</p>
+        <section className={styles.section} style={{ padding: 0 }}>
+          <div className={styles.reportHeader}>
+            <div>
+              <h2 className={styles.reportHeaderTitle}>
+                {report.month?.label || "Selected month"} —{" "}
+                {report.month?.office_name ||
+                  (Array.isArray(appliedFilters.officeScope) ? appliedFilters.officeScope.join(", ") : appliedFilters.officeScope)}
+              </h2>
+              <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportXlsx}
+              disabled={exportState.loading || reportState.loading || hasPendingChanges}
+              className={`${styles.button} ${styles.buttonSecondary}`}
+            >
+              {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}
+            </button>
           </div>
           <SummaryCards summary={report.summary || {}} />
           <StatusCards stats={report.stats || {}} />
@@ -1249,7 +2686,19 @@ export default function DashboardPage() {
           {report.tableType === "last4_matrix" ? (
             <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
           ) : null}
-          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" ? (
+          {report.tableType === "builder" ? (
+            <section className={styles.section} style={{ padding: 0 }}>
+              <h3 className={styles.sectionTitle}>Results Table</h3>
+              <BuilderTable
+                columns={builderColumns}
+                rows={sortedBuilderRows}
+                sortState={builderSort}
+                onSort={handleBuilderSort}
+                builder={report?.builder || {}}
+              />
+            </section>
+          ) : null}
+          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>
