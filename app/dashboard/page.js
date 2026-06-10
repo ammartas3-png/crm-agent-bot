@@ -1460,6 +1460,7 @@ const EMPTY_FILTERS = {
   columnDimension: "",
   includeWorkTime: false,
   hideNotWorking: false,
+  benchmarkMode: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: [
@@ -1496,6 +1497,7 @@ const QUICK_PRESET_TRAFFIC_METRICS = [
   "crTargetReach",
   "missingFtd",
 ];
+const QUICK_PRESET_BENCHMARK_METRICS = ["ftd", "agentAvgFtdPerWorkedMonth", "avgFtdByDeskLongTerm", "ftdBenchmarkRate"];
 const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
 
@@ -1763,6 +1765,7 @@ export default function DashboardPage() {
             columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: true,
+            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_MONTHLY_METRICS,
@@ -1779,6 +1782,7 @@ export default function DashboardPage() {
             columnDimension: "month",
             includeWorkTime: true,
             hideNotWorking: true,
+            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LAST4_METRICS,
@@ -1794,6 +1798,7 @@ export default function DashboardPage() {
             columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: true,
+            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TRAFFIC_METRICS,
@@ -1809,15 +1814,43 @@ export default function DashboardPage() {
             columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: true,
+            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COUNTRY_DAILY_METRICS,
           };
         }
+        if (preset === "benchmark") {
+          return {
+            ...prev,
+            officeScope: officeOptions,
+            reportMode: "specific",
+            specificType: "builder",
+            monthKey: availableMonthKeys,
+            date: [],
+            hour: [],
+            desk: [],
+            country: [],
+            brand: [],
+            campaign: [],
+            subCampaign: [],
+            placement: [],
+            status: [],
+            teamLeader: [],
+            agent: [],
+            columnDimension: "",
+            includeWorkTime: true,
+            hideNotWorking: false,
+            benchmarkMode: true,
+            rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_BENCHMARK_METRICS,
+          };
+        }
         return prev;
       });
     },
-    [availableMonthKeys],
+    [availableMonthKeys, officeOptions],
   );
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
@@ -2058,6 +2091,7 @@ export default function DashboardPage() {
                       columnDimension: "",
                       includeWorkTime: false,
                       hideNotWorking: false,
+                      benchmarkMode: false,
                     }));
                   }}
                   className={styles.officeCard}
@@ -2128,6 +2162,7 @@ export default function DashboardPage() {
                     columnDimension: "",
                     includeWorkTime: false,
                     hideNotWorking: false,
+                    benchmarkMode: false,
                   }));
                 }}
               />
@@ -2274,6 +2309,15 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Country Daily Watch</span>
               <span className={styles.reportModeIcon}>🌍</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("benchmark")}
+              className={styles.reportModeCard}
+              style={quickPreset === "benchmark" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Benchmark Report</span>
+              <span className={styles.reportModeIcon}>📈</span>
             </button>
           </div>
         </section>

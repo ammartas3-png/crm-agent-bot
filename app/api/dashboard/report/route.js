@@ -29,6 +29,7 @@ function queryParams(searchParams) {
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
+    benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
   };
 }
 
