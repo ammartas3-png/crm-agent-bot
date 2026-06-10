@@ -1484,6 +1484,18 @@ const EMPTY_FILTERS = {
 const QUICK_PRESET_MONTHLY_METRICS = ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
+const QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS = ["desk", "country", "campaign", "subCampaign", "placement"];
+const QUICK_PRESET_TRAFFIC_METRICS = [
+  "leads",
+  "leadShare",
+  "agentCount",
+  "avgLeadByAgentDaily",
+  "avgLeadByAgent",
+  "ftd",
+  "crTarget",
+  "crTargetReach",
+  "missingFtd",
+];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -1768,6 +1780,21 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LAST4_METRICS,
+          };
+        }
+        if (preset === "traffic") {
+          return {
+            ...prev,
+            reportMode: "specific",
+            specificType: "builder",
+            date: [],
+            hour: [],
+            columnDimension: "",
+            includeWorkTime: true,
+            hideNotWorking: true,
+            rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_TRAFFIC_METRICS,
           };
         }
         return prev;
@@ -2212,6 +2239,15 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Last 4 Months Quick</span>
               <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("traffic")}
+              className={styles.reportModeCard}
+              style={quickPreset === "traffic" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Traffic Reports</span>
+              <span className={styles.reportModeIcon}>🚦</span>
             </button>
           </div>
         </section>
