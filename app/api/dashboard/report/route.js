@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 
+export const maxDuration = 60;
+
 function queryParams(searchParams) {
   return {
     monthKey: String(searchParams.get("monthKey") || "").trim(),
@@ -26,6 +28,7 @@ function queryParams(searchParams) {
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
+    hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
   };
 }
 
