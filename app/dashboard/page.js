@@ -1496,6 +1496,8 @@ const QUICK_PRESET_TRAFFIC_METRICS = [
   "crTargetReach",
   "missingFtd",
 ];
+const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
+const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -1795,6 +1797,21 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TRAFFIC_METRICS,
+          };
+        }
+        if (preset === "country-daily") {
+          return {
+            ...prev,
+            reportMode: "specific",
+            specificType: "builder",
+            date: [],
+            hour: [],
+            columnDimension: "",
+            includeWorkTime: true,
+            hideNotWorking: true,
+            rowDimensions: QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_COUNTRY_DAILY_METRICS,
           };
         }
         return prev;
@@ -2248,6 +2265,15 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Traffic Reports</span>
               <span className={styles.reportModeIcon}>🚦</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("country-daily")}
+              className={styles.reportModeCard}
+              style={quickPreset === "country-daily" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Country Daily Watch</span>
+              <span className={styles.reportModeIcon}>🌍</span>
             </button>
           </div>
         </section>
