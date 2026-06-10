@@ -52,19 +52,20 @@ function TelegramLoginWidget({ botUsername, onAuth }) {
 
 function SelectFilter({ label, value, options, onChange, placeholder = "All", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 5, minWidth: 145, flex: 1 }}>
-      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>{label}</span>
+    <label style={{ display: "grid", gap: 6, minWidth: 165, flex: 1 }}>
+      <span style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         style={{
-          border: "1px solid #cbd5e1",
-          borderRadius: 8,
-          padding: "8px 10px",
-          background: disabled ? "#f8fafc" : "#fff",
+          border: "1px solid #d0d7e2",
+          borderRadius: 10,
+          padding: "9px 11px",
+          background: disabled ? "#f8fafc" : "#fbfdff",
           color: "#0f172a",
           fontSize: 13,
+          boxShadow: disabled ? "none" : "inset 0 1px 0 rgba(255,255,255,0.85)",
         }}
       >
         <option value="">{placeholder}</option>
@@ -80,20 +81,21 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
 
 function TextFilter({ label, value, onChange, placeholder = "", disabled = false }) {
   return (
-    <label style={{ display: "grid", gap: 5, minWidth: 145, flex: 1 }}>
-      <span style={{ fontSize: 11, color: "#475569", fontWeight: 700 }}>{label}</span>
+    <label style={{ display: "grid", gap: 6, minWidth: 165, flex: 1 }}>
+      <span style={{ fontSize: 12, color: "#334155", fontWeight: 700 }}>{label}</span>
       <input
         value={value}
         disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
         style={{
-          border: "1px solid #cbd5e1",
-          borderRadius: 8,
-          padding: "8px 10px",
-          background: disabled ? "#f8fafc" : "#fff",
+          border: "1px solid #d0d7e2",
+          borderRadius: 10,
+          padding: "9px 11px",
+          background: disabled ? "#f8fafc" : "#fbfdff",
           color: "#0f172a",
           fontSize: 13,
+          boxShadow: disabled ? "none" : "inset 0 1px 0 rgba(255,255,255,0.85)",
         }}
       />
     </label>
@@ -1075,123 +1077,158 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && !needReportSelection ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
+        <section style={{ border: "1px solid #dbe3ee", borderRadius: 12, background: "#fff", padding: 14, display: "grid", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
-            <button
-              type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
-              style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
-            >
-              Change Report Type
-            </button>
+            <div style={{ display: "grid", gap: 3 }}>
+              <h2 style={{ margin: 0, fontSize: 18 }}>Report Filters</h2>
+              <p style={{ margin: 0, color: "#64748b", fontSize: 12 }}>
+                Update filters below to refresh the selected report scope.
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span
+                style={{
+                  border: "1px solid #dbe3ee",
+                  borderRadius: 999,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  color: "#334155",
+                  background: "#f8fafc",
+                }}
+              >
+                Mode: {filters.reportMode === "monthly" ? "Monthly" : filters.reportMode === "last4" ? "Last 4 Months" : "Specific"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
+                style={{ border: "1px solid #cbd5e1", borderRadius: 8, padding: "7px 10px", background: "#fff", cursor: "pointer" }}
+              >
+                Change Report Type
+              </button>
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <SelectFilter
-              label="Office"
-              value={filters.officeScope}
-              options={officeOptions.map((value) => ({ value, label: value }))}
-              onChange={(value) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  officeScope: value,
-                  reportMode: "",
-                  desk: "",
-                  country: "",
-                  brand: "",
-                  campaign: "",
-                  placement: "",
-                  status: "",
-                  teamLeader: "",
-                  agent: "",
-                }))
-              }
-            />
-            {filters.reportMode !== "last4" ? (
+
+          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
+            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Core Filters</h3>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
               <SelectFilter
-                label="Month"
-                value={filters.monthKey}
-                options={monthOptions}
-                onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
-                placeholder="Select month"
+                label="Office"
+                value={filters.officeScope}
+                options={officeOptions.map((value) => ({ value, label: value }))}
+                onChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    officeScope: value,
+                    reportMode: "",
+                    desk: "",
+                    country: "",
+                    brand: "",
+                    campaign: "",
+                    placement: "",
+                    status: "",
+                    teamLeader: "",
+                    agent: "",
+                  }))
+                }
               />
-            ) : null}
-            {filters.reportMode === "specific" ? (
+              {filters.reportMode !== "last4" ? (
+                <SelectFilter
+                  label="Month"
+                  value={filters.monthKey}
+                  options={monthOptions}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, monthKey: value }))}
+                  placeholder="Select month"
+                />
+              ) : null}
+              {filters.reportMode === "specific" ? (
+                <SelectFilter
+                  label="Specific Report"
+                  value={filters.specificType}
+                  options={[
+                    { value: "hourly", label: "By Hourly FTD" },
+                    { value: "best_agents", label: "Best Agents" },
+                  ]}
+                  onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
+                  placeholder="Select specific report"
+                />
+              ) : null}
+            </div>
+          </section>
+
+          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
+            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Scope Filters</h3>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))" }}>
               <SelectFilter
-                label="Specific Report"
-                value={filters.specificType}
+                label="Desk"
+                value={filters.desk}
+                options={asOptions(options.desks || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
+              />
+              <SelectFilter
+                label="Team Leader"
+                value={filters.teamLeader}
+                options={asOptions(options.teamLeaders || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
+              />
+              <SelectFilter
+                label="Agent"
+                value={filters.agent}
+                options={asOptions(options.agents || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
+              />
+              <SelectFilter
+                label="Country"
+                value={filters.country}
+                options={asOptions(options.countries || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
+              />
+              <SelectFilter
+                label="Brand"
+                value={filters.brand}
+                options={asOptions(options.brands || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
+              />
+              <SelectFilter
+                label="Campaign"
+                value={filters.campaign}
+                options={asOptions(options.campaigns || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
+              />
+              <SelectFilter
+                label="Placement"
+                value={filters.placement}
+                options={asOptions(options.placements || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
+              />
+              <SelectFilter
+                label="Working Status"
+                value={filters.status}
+                options={asOptions(options.statuses || [])}
+                onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+              />
+            </div>
+          </section>
+
+          <section style={{ border: "1px solid #eef2f7", borderRadius: 10, padding: 10, display: "grid", gap: 9, background: "#fbfdff" }}>
+            <h3 style={{ margin: 0, fontSize: 13, color: "#334155" }}>Table Layout</h3>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))" }}>
+              <SelectFilter
+                label="Table Group"
+                value={filters.groupBy}
                 options={[
-                  { value: "hourly", label: "By Hourly FTD" },
-                  { value: "best_agents", label: "Best Agents" },
+                  { value: "agent", label: "Agent" },
+                  { value: "teamLeader", label: "Team Leader" },
+                  { value: "desk", label: "Desk" },
+                  { value: "country", label: "Country" },
+                  { value: "brand", label: "Brand" },
+                  { value: "campaign", label: "Campaign" },
+                  { value: "placement", label: "Placement" },
                 ]}
-                onChange={(value) => setFilters((prev) => ({ ...prev, specificType: value }))}
-                placeholder="Select specific report"
+                onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
+                disabled={filters.reportMode === "last4"}
               />
-            ) : null}
-            <SelectFilter
-              label="Desk"
-              value={filters.desk}
-              options={asOptions(options.desks || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, desk: value, teamLeader: "", agent: "" }))}
-            />
-            <SelectFilter
-              label="Team Leader"
-              value={filters.teamLeader}
-              options={asOptions(options.teamLeaders || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, teamLeader: value, agent: "" }))}
-            />
-            <SelectFilter
-              label="Agent"
-              value={filters.agent}
-              options={asOptions(options.agents || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, agent: value }))}
-            />
-            <SelectFilter
-              label="Country"
-              value={filters.country}
-              options={asOptions(options.countries || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, country: value }))}
-            />
-            <SelectFilter
-              label="Brand"
-              value={filters.brand}
-              options={asOptions(options.brands || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, brand: value }))}
-            />
-            <SelectFilter
-              label="Campaign"
-              value={filters.campaign}
-              options={asOptions(options.campaigns || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, campaign: value }))}
-            />
-            <SelectFilter
-              label="Placement"
-              value={filters.placement}
-              options={asOptions(options.placements || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, placement: value }))}
-            />
-            <SelectFilter
-              label="Working Status"
-              value={filters.status}
-              options={asOptions(options.statuses || [])}
-              onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-            />
-            <SelectFilter
-              label="Table Group"
-              value={filters.groupBy}
-              options={[
-                { value: "agent", label: "Agent" },
-                { value: "teamLeader", label: "Team Leader" },
-                { value: "desk", label: "Desk" },
-                { value: "country", label: "Country" },
-                { value: "brand", label: "Brand" },
-                { value: "campaign", label: "Campaign" },
-                { value: "placement", label: "Placement" },
-              ]}
-              onChange={(value) => setFilters((prev) => ({ ...prev, groupBy: value }))}
-              disabled={filters.reportMode === "last4"}
-            />
-          </div>
+            </div>
+          </section>
         </section>
       ) : null}
 
