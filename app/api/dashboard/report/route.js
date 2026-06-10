@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function queryParams(searchParams) {
   return {

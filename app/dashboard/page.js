@@ -399,6 +399,13 @@ async function readApiPayload(response) {
   try {
     return JSON.parse(rawText);
   } catch {
+    if (rawText.includes("__next_error__") || rawText.toLowerCase().includes("<!doctype html")) {
+      return {
+        ok: false,
+        error: "server_error_html_response",
+        message: "Server error occurred while loading report. Please retry. If it continues, reduce selected filters.",
+      };
+    }
     const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
     return {
       ok: false,
