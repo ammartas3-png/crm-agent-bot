@@ -14,6 +14,7 @@ import {
   summarizeTarget,
   targetForOffice,
   targetForTeamLeader,
+  targetAggregationForScope,
   targetReachPercent,
 } from "../lib/targets.js";
 
@@ -86,10 +87,10 @@ test("collectAgentNames reads agent field values", () => {
   assert.deepEqual(names, ["Ahmet", "Max"]);
 });
 
-test("agent alias maps Asli Gu to Annalena Gu", () => {
-  assert.equal(normalizeAgentName("Asli Gu"), "annalena gu");
+test("agent normalization does not apply hardcoded alias mapping", () => {
+  assert.equal(normalizeAgentName("Asli Gu"), "asli gu");
   assert.equal(normalizeAgentName(" annalena   gu "), "annalena gu");
-  assert.equal(canonicalAgentName("Asli Gu"), "Annalena Gu");
+  assert.equal(canonicalAgentName("Asli Gu"), "Asli Gu");
 });
 
 test("info agent context supports Active status and Desk column", () => {
@@ -111,4 +112,194 @@ test("info agent context supports Active status and Desk column", () => {
   ]);
   assert.deepEqual(infoAgentsLabelsForGroup(context, "office"), ["Indian Team - TR"]);
   assert.equal(targetForOffice(context, "Indian Team - TR"), 42);
+});
+
+test("info agent context reads start date from L-style column fallback", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      L: "25/09/2023",
+    },
+  ]);
+  const record = context.byAgent.get(normalizeAgentName("Asad kh"));
+  assert.equal(record?.start_date, "25/09/2023");
+});
+
+test("info agent context keeps start date map for rows with blank status", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      L: "25/09/2023",
+    },
+  ]);
+  assert.equal(context.byAgent.get(normalizeAgentName("Asad kh")), undefined);
+  assert.equal(context.startDateByAgent.get(normalizeAgentName("Asad kh")), "25/09/2023");
+});
+
+test("info agent context keeps earliest valid start date for duplicate agent rows", () => {
+  const context = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      "Starting Date": "03/01/2024",
+    },
+    {
+      "Working Status": "Working",
+      Agent: "Asad kh",
+      Desk: "Indian Team - TR",
+      "Team Leader": "Asad kh",
+      "Starting Date": "25/09/2023",
+    },
+  ]);
+  const record = context.byAgent.get(normalizeAgentName("Asad kh"));
+  assert.equal(record?.start_date, "25/09/2023");
+});
+
+test("targetAggregationForScope can force row-only targets for bucketed summaries", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "10",
+      "FTD MAKER": "x",
+      Created: "2026-04-03T08:00:00Z",
+      __sourceMonthKey: "2026-04",
+    },
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "30",
+      "FTD MAKER": "x",
+      Created: "2026-06-04T08:00:00Z",
+      __sourceMonthKey: "2026-06",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "A Agent",
+      "Agent Target": "30",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aprilRows = rows.filter((row) => row.__sourceMonthKey === "2026-04");
+  const april = targetAggregationForScope({
+    rows: aprilRows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      preferRowTargets: true,
+    },
+  });
+  const total = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      preferRowTargets: true,
+    },
+  });
+  assert.equal(april.includedTarget, 10);
+  assert.equal(total.includedTarget, 40);
+});
+
+test("targetAggregationForScope can force info-context targets for scoped rows", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "A Agent",
+      "Agent Target": "10",
+      "FTD MAKER": "x",
+      Created: "2026-04-03T08:00:00Z",
+      __sourceMonthKey: "2026-04",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "A Agent",
+      "Agent Target": "22",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aggregation = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["A Agent"],
+      restrictToRows: true,
+      preferInfoTargets: true,
+    },
+  });
+  assert.equal(aggregation.includedTarget, 22);
+});
+
+test("targetAggregationForScope reads dynamic non-CR target columns", () => {
+  const rows = [
+    {
+      "AGENT NAMES": "B Agent",
+      "Monthly Target": "14",
+      "CR TARGET": "10%",
+      "FTD MAKER": "x",
+      Created: "2026-05-03T08:00:00Z",
+      __sourceMonthKey: "2026-05",
+    },
+  ];
+  const infoContext = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "B Agent",
+      "Agent Target": "99",
+      Office: "Desk A",
+      "Team Leader": "TL A",
+    },
+  ]);
+  const aggregation = targetAggregationForScope({
+    rows,
+    tabConfig: {
+      fields: {
+        agentNames: "AGENT NAMES",
+        ftdMaker: "FTD MAKER",
+        created: "Created",
+      },
+    },
+    infoContext,
+    scope: {
+      groupField: "agentNames",
+      agent: ["B Agent"],
+      preferRowTargets: true,
+    },
+  });
+  assert.equal(aggregation.includedTarget, 14);
 });

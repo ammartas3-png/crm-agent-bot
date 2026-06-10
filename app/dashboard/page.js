@@ -235,76 +235,6 @@ function SelectFilter({ label, value, options, onChange, placeholder = "All", di
   );
 }
 
-function PermissionTextField({ label, value, onChange, placeholder = "", disabled = false }) {
-  return (
-    <label className={styles.selectWrap}>
-      <span className={styles.selectLabel}>{label}</span>
-      <input
-        type="text"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className={styles.selectInput}
-      />
-    </label>
-  );
-}
-
-function PermissionRowsTable({ rows = [], deletingRow = 0, onEdit, onDelete }) {
-  return (
-    <div className={`${styles.panel} ${styles.tableCard}`}>
-      <div className={styles.tableScroll}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              {["Row", "User Name", "Telegram", "Telegram ID", "Authority", "Office", "Desk", "Team", "Actions"].map((header) => (
-                <th key={header}>{header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={`${row.rowNumber}-${row.telegramId}-${row.telegramUsername}-${row.userName}`}>
-                <td>{row.rowNumber}</td>
-                <td className={styles.tableStrong}>{row.userName || "-"}</td>
-                <td>{row.telegramUsername || "-"}</td>
-                <td>{row.telegramId || "-"}</td>
-                <td>{row.authority || "CRM"}</td>
-                <td>{row.office || "all"}</td>
-                <td>{row.desk || "all"}</td>
-                <td>{row.team || "all"}</td>
-                <td>
-                  <div className={styles.pillRow}>
-                    <button type="button" onClick={() => onEdit(row)} className={`${styles.button} ${styles.buttonSecondary}`}>
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(row)}
-                      disabled={Number(deletingRow) === Number(row.rowNumber)}
-                      className={`${styles.button} ${styles.buttonSecondary}`}
-                    >
-                      {Number(deletingRow) === Number(row.rowNumber) ? "Removing..." : "Remove"}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {!rows.length ? (
-              <tr>
-                <td colSpan={9} className={styles.tableEmpty}>
-                  No permission rows found.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function MultiSelectFilter({
   label,
   values,
@@ -1550,22 +1480,6 @@ const EMPTY_FILTERS = {
   totalDimensions: [],
 };
 
-const EMPTY_PERMISSION_FILTERS = {
-  office: "",
-  desk: "",
-  team: "",
-};
-
-const EMPTY_PERMISSION_FORM = {
-  userName: "",
-  telegramUsername: "",
-  telegramId: "",
-  authority: "CRM",
-  office: "",
-  desk: "",
-  team: "",
-};
-
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
 }
@@ -1589,17 +1503,6 @@ export default function DashboardPage() {
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
-  const [permissionFilters, setPermissionFilters] = useState(EMPTY_PERMISSION_FILTERS);
-  const [permissionForm, setPermissionForm] = useState(EMPTY_PERMISSION_FORM);
-  const [permissionEditRow, setPermissionEditRow] = useState(0);
-  const [permissionState, setPermissionState] = useState({
-    loading: false,
-    saving: false,
-    deletingRow: 0,
-    rows: [],
-    options: { offices: [], desks: [], teams: [] },
-    error: "",
-  });
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -1690,149 +1593,6 @@ export default function DashboardPage() {
     }
   }, [appliedFilters, sessionState.authorized]);
 
-  const canManagePermissions = String(sessionState.user?.username || "").toLocaleLowerCase("en-US") === "antoniotsd";
-  const shouldShowPermissionManager =
-    canManagePermissions &&
-    ((!Array.isArray(filters.officeScope) || filters.officeScope.length === 0) || !filters.reportMode);
-
-  const requestPermissions = useCallback(async () => {
-    if (!sessionState.authorized || !shouldShowPermissionManager) {
-      return;
-    }
-    setPermissionState((prev) => ({ ...prev, loading: true, error: "" }));
-    try {
-      const query = new URLSearchParams();
-      if (permissionFilters.office) {
-        query.set("office", permissionFilters.office);
-      }
-      if (permissionFilters.desk) {
-        query.set("desk", permissionFilters.desk);
-      }
-      if (permissionFilters.team) {
-        query.set("team", permissionFilters.team);
-      }
-      const response = await fetch(`/api/dashboard/permissions?${query.toString()}`, { cache: "no-store" });
-      const payload = await readApiPayload(response);
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.message || payload?.error || "Could not load permissions.");
-      }
-      setPermissionState((prev) => ({
-        ...prev,
-        loading: false,
-        rows: Array.isArray(payload.rows) ? payload.rows : [],
-        options: payload.options || { offices: [], desks: [], teams: [] },
-        error: "",
-      }));
-      setPermissionFilters((prev) => {
-        const next = { ...prev };
-        const options = payload.options || {};
-        const checks = [
-          ["office", options.offices || []],
-          ["desk", options.desks || []],
-          ["team", options.teams || []],
-        ];
-        for (const [key, values] of checks) {
-          if (next[key] && !values.includes(next[key])) {
-            next[key] = "";
-          }
-        }
-        return next;
-      });
-    } catch (error) {
-      setPermissionState((prev) => ({
-        ...prev,
-        loading: false,
-        rows: [],
-        error: error?.message || "Could not load permissions.",
-      }));
-    }
-  }, [permissionFilters.desk, permissionFilters.office, permissionFilters.team, sessionState.authorized, shouldShowPermissionManager]);
-
-  const savePermission = useCallback(
-    async (event) => {
-      event.preventDefault();
-      if (!canManagePermissions) {
-        return;
-      }
-      setPermissionState((prev) => ({ ...prev, saving: true, error: "" }));
-      try {
-        const response = await fetch("/api/dashboard/permissions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...permissionForm,
-            filterOffice: permissionFilters.office,
-            filterDesk: permissionFilters.desk,
-            filterTeam: permissionFilters.team,
-          }),
-        });
-        const payload = await readApiPayload(response);
-        if (!response.ok || payload?.ok === false) {
-          throw new Error(payload?.message || payload?.error || "Could not save permission.");
-        }
-        setPermissionState((prev) => ({
-          ...prev,
-          saving: false,
-          rows: Array.isArray(payload.rows) ? payload.rows : [],
-          options: payload.options || prev.options,
-          error: "",
-        }));
-        setPermissionForm(EMPTY_PERMISSION_FORM);
-        setPermissionEditRow(0);
-      } catch (error) {
-        setPermissionState((prev) => ({
-          ...prev,
-          saving: false,
-          error: error?.message || "Could not save permission.",
-        }));
-      }
-    },
-    [canManagePermissions, permissionFilters.desk, permissionFilters.office, permissionFilters.team, permissionForm],
-  );
-
-  const removePermission = useCallback(
-    async (row) => {
-      if (!canManagePermissions || !row?.rowNumber) {
-        return;
-      }
-      setPermissionState((prev) => ({ ...prev, deletingRow: Number(row.rowNumber) || 0, error: "" }));
-      try {
-        const response = await fetch("/api/dashboard/permissions", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rowNumber: row.rowNumber,
-            filterOffice: permissionFilters.office,
-            filterDesk: permissionFilters.desk,
-            filterTeam: permissionFilters.team,
-          }),
-        });
-        const payload = await readApiPayload(response);
-        if (!response.ok || payload?.ok === false) {
-          throw new Error(payload?.message || payload?.error || "Could not remove permission.");
-        }
-        setPermissionState((prev) => ({
-          ...prev,
-          deletingRow: 0,
-          rows: Array.isArray(payload.rows) ? payload.rows : [],
-          options: payload.options || prev.options,
-          error: "",
-        }));
-        if (Number(permissionEditRow) === Number(row.rowNumber)) {
-          setPermissionEditRow(0);
-          setPermissionForm(EMPTY_PERMISSION_FORM);
-        }
-      } catch (error) {
-        setPermissionState((prev) => ({
-          ...prev,
-          deletingRow: 0,
-          error: error?.message || "Could not remove permission.",
-        }));
-      }
-    },
-    [canManagePermissions, permissionEditRow, permissionFilters.desk, permissionFilters.office, permissionFilters.team],
-  );
-
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
@@ -1840,10 +1600,6 @@ export default function DashboardPage() {
   useEffect(() => {
     requestReport();
   }, [requestReport]);
-
-  useEffect(() => {
-    requestPermissions();
-  }, [requestPermissions]);
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -1876,17 +1632,6 @@ export default function DashboardPage() {
     setExportState({ loading: false, error: "" });
     setFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
-    setPermissionFilters(EMPTY_PERMISSION_FILTERS);
-    setPermissionForm(EMPTY_PERMISSION_FORM);
-    setPermissionEditRow(0);
-    setPermissionState({
-      loading: false,
-      saving: false,
-      deletingRow: 0,
-      rows: [],
-      options: { offices: [], desks: [], teams: [] },
-      error: "",
-    });
     await fetchSession();
   }, [fetchSession]);
 
@@ -2161,150 +1906,6 @@ export default function DashboardPage() {
           Log out
         </button>
       </section>
-
-      {shouldShowPermissionManager ? (
-        <section className={`${styles.panel} ${styles.section}`}>
-          <div className={styles.toolbar}>
-            <div>
-              <h2 className={styles.sectionTitle}>Permissions</h2>
-              <p className={styles.sectionHint}>
-                Manage access with Office, Desk, Team scopes. Agents, countries, campaigns, sub campaigns, placements and metrics are
-                automatically allowed under that scope.
-              </p>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: 10,
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            }}
-          >
-            <SelectFilter
-              label="Office Filter"
-              value={permissionFilters.office}
-              options={asOptions(permissionState.options.offices || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, office: value, desk: "", team: "" }))}
-            />
-            <SelectFilter
-              label="Desk Filter"
-              value={permissionFilters.desk}
-              options={asOptions(permissionState.options.desks || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, desk: value, team: "" }))}
-            />
-            <SelectFilter
-              label="Team Filter"
-              value={permissionFilters.team}
-              options={asOptions(permissionState.options.teams || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, team: value }))}
-            />
-          </div>
-
-          <form onSubmit={savePermission} style={{ display: "grid", gap: 10 }}>
-            <div
-              style={{
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              }}
-            >
-              <PermissionTextField
-                label="User Name"
-                value={permissionForm.userName}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, userName: value }))}
-                placeholder="Display name"
-              />
-              <PermissionTextField
-                label="Telegram Username"
-                value={permissionForm.telegramUsername}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramUsername: value }))}
-                placeholder="@username"
-              />
-              <PermissionTextField
-                label="Telegram ID"
-                value={permissionForm.telegramId}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, telegramId: value }))}
-                placeholder="Numeric ID"
-              />
-              <PermissionTextField
-                label="Authority"
-                value={permissionForm.authority}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, authority: value }))}
-                placeholder="CRM / manager / team leader / all"
-              />
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gap: 10,
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              }}
-            >
-              <PermissionTextField
-                label="Office Scope"
-                value={permissionForm.office}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, office: value }))}
-                placeholder="Comma separated, empty = all"
-              />
-              <PermissionTextField
-                label="Desk Scope"
-                value={permissionForm.desk}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, desk: value }))}
-                placeholder="Comma separated, empty = all"
-              />
-              <PermissionTextField
-                label="Team Scope"
-                value={permissionForm.team}
-                onChange={(value) => setPermissionForm((prev) => ({ ...prev, team: value }))}
-                placeholder="Comma separated, empty = all"
-              />
-            </div>
-            <div className={styles.pillRow}>
-              <button
-                type="submit"
-                disabled={permissionState.saving}
-                className={`${styles.button} ${styles.buttonPrimary}`}
-                style={permissionState.saving ? { background: "#93c5fd", borderColor: "#93c5fd" } : undefined}
-              >
-                {permissionState.saving ? "Saving..." : permissionEditRow ? "Update Permission" : "Grant / Save Permission"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPermissionEditRow(0);
-                  setPermissionForm(EMPTY_PERMISSION_FORM);
-                }}
-                className={`${styles.button} ${styles.buttonSecondary}`}
-              >
-                Clear Form
-              </button>
-            </div>
-          </form>
-
-          {permissionState.loading ? <p className={styles.loadingInline}>Loading permissions...</p> : null}
-          {permissionState.error ? <p className={styles.errorText}>{permissionState.error}</p> : null}
-          {!permissionState.loading ? (
-            <PermissionRowsTable
-              rows={permissionState.rows || []}
-              deletingRow={permissionState.deletingRow}
-              onEdit={(row) => {
-                setPermissionEditRow(Number(row.rowNumber) || 0);
-                setPermissionForm({
-                  userName: String(row.userName || ""),
-                  telegramUsername: String(row.telegramUsername || ""),
-                  telegramId: String(row.telegramId || ""),
-                  authority: String(row.authority || "CRM"),
-                  office: row.office === "all" ? "" : String(row.office || ""),
-                  desk: row.desk === "all" ? "" : String(row.desk || ""),
-                  team: row.team === "all" ? "" : String(row.team || ""),
-                });
-              }}
-              onDelete={removePermission}
-            />
-          ) : null}
-        </section>
-      ) : null}
 
       {needOfficeSelection ? (
         <section className={`${styles.panel} ${styles.section}`}>

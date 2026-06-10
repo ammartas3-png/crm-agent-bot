@@ -35,15 +35,17 @@ const DEFAULT_TRANSACTION_COLUMNS = [
   "Type",
   "Country",
 ];
-const DEFAULT_INFO_AGENTS_COLUMNS = [
-  "Working Status",
-  null,
-  "Agent Name",
-  "Agent Target",
-  null,
-  "Office",
-  "Team Leader",
-];
+const DEFAULT_INFO_AGENTS_COLUMNS = (() => {
+  const columns = new Array(42).fill(null);
+  columns[0] = "Working Status";
+  columns[2] = "Agent Name";
+  columns[3] = "Agent Target";
+  columns[5] = "Office";
+  columns[6] = "Team Leader";
+  columns[11] = "Starting Date";
+  columns[41] = "Job Entry";
+  return columns;
+})();
 const DEFAULT_AGENT_DIRECTORY_COLUMNS = ["Agent Name", "Agent ID"];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
@@ -58,6 +60,28 @@ export function quoteSheetName(sheetName) {
 
 export function sheetRange(sheetName, columns = "A:Z") {
   return `${quoteSheetName(sheetName)}!${String(columns || "A:Z").trim()}`;
+}
+
+function columnLabelToIndex(label = "") {
+  return String(label || "")
+    .trim()
+    .toUpperCase()
+    .split("")
+    .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0);
+}
+
+function ensureMinEndColumnRange(range, sheetName, minimumEndColumn = "AP") {
+  const normalizedRange = String(range || "").trim();
+  const match = normalizedRange.match(/!([A-Z]+)\d*:([A-Z]+)\d*$/i);
+  if (!match) {
+    return normalizedRange || sheetRange(sheetName, `A:${minimumEndColumn}`);
+  }
+  const startColumn = String(match[1] || "A").toUpperCase();
+  const currentEndColumn = String(match[2] || minimumEndColumn).toUpperCase();
+  const minEnd = String(minimumEndColumn || "AP").toUpperCase();
+  const finalEndColumn =
+    columnLabelToIndex(currentEndColumn) >= columnLabelToIndex(minEnd) ? currentEndColumn : minEnd;
+  return sheetRange(sheetName, `${startColumn}:${finalEndColumn}`);
 }
 
 const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
@@ -128,7 +152,11 @@ export const sheetsConfig = {
     infoAgents: {
       key: "infoAgents",
       name: infoAgentsTabName,
-      range: process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:G"),
+      range: ensureMinEndColumnRange(
+        process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:AP"),
+        infoAgentsTabName,
+        "AP",
+      ),
       columns: DEFAULT_INFO_AGENTS_COLUMNS,
       fields: {
         workingStatus: "Working Status",

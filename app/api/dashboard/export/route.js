@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
 
 function queryParams(searchParams) {
   return {
@@ -29,6 +30,15 @@ function queryParams(searchParams) {
   };
 }
 
+function safeName(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+}
+
 export async function GET(request) {
   try {
     const resolved = await dashboardAccessFromRequest(request);
@@ -40,15 +50,28 @@ export async function GET(request) {
     }
     const query = queryParams(new URL(request.url).searchParams);
     const report = await loadDashboardReport(resolved.access, query);
-    return NextResponse.json({ ok: true, report });
+    const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
+    const office = safeName(report?.month?.office_name || query.officeScope || "office");
+    const month = safeName(report?.month?.key || query.monthKey || "month");
+    const mode = safeName(report?.reportMode || "report");
+    const filename = `crm-${mode}-${office}-${month}.xlsx`;
+    return new NextResponse(workbookBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
-        error: "report_route_failed",
-        message: error?.message || "Could not load report.",
+        error: "export_route_failed",
+        message: error?.message || "Could not export report.",
       },
       { status: 500 },
     );
   }
 }
+
