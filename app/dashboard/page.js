@@ -1405,7 +1405,7 @@ const DEFAULT_BUILDER_DIMENSIONS = [
   { key: "desk", label: "Desk", type: "text" },
   { key: "teamLeader", label: "Team Leader", type: "text" },
   { key: "agent", label: "Agent", type: "text" },
-  { key: "status", label: "Working Status", type: "text" },
+  { key: "status", label: "Status", type: "text" },
   { key: "country", label: "Country", type: "text" },
   { key: "campaign", label: "Campaign", type: "text" },
   { key: "subCampaign", label: "Sub Campaign", type: "text" },
@@ -1459,6 +1459,7 @@ const EMPTY_FILTERS = {
   agent: [],
   columnDimension: "",
   includeWorkTime: false,
+  hideNotWorking: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: [
@@ -1507,7 +1508,7 @@ export default function DashboardPage() {
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
-  const [quickPreset, setQuickPreset] = useState("custom");
+  const [quickPreset, setQuickPreset] = useState("");
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -1747,6 +1748,7 @@ export default function DashboardPage() {
             hour: [],
             columnDimension: "",
             includeWorkTime: false,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_MONTHLY_METRICS,
@@ -1762,23 +1764,13 @@ export default function DashboardPage() {
             hour: [],
             columnDimension: "month",
             includeWorkTime: true,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LAST4_METRICS,
           };
         }
-        return {
-          ...prev,
-          reportMode: "specific",
-          specificType: "builder",
-          date: [],
-          hour: [],
-          columnDimension: "",
-          includeWorkTime: false,
-          rowDimensions: EMPTY_FILTERS.rowDimensions,
-          metricFields: EMPTY_FILTERS.metricFields,
-          totalDimensions: EMPTY_FILTERS.totalDimensions,
-        };
+        return prev;
       });
     },
     [availableMonthKeys],
@@ -1996,7 +1988,7 @@ export default function DashboardPage() {
                   key={office}
                   type="button"
                   onClick={() => {
-                    setQuickPreset("custom");
+                    setQuickPreset("");
                     setFilters((prev) => ({
                       ...prev,
                       officeScope: [office],
@@ -2021,6 +2013,7 @@ export default function DashboardPage() {
                       agent: [],
                       columnDimension: "",
                       includeWorkTime: false,
+                      hideNotWorking: false,
                     }));
                   }}
                   className={styles.officeCard}
@@ -2051,7 +2044,7 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => applyQuickPreset("custom")}
+                onClick={() => setQuickPreset("")}
                 className={`${styles.button} ${styles.buttonSecondary}`}
               >
                 Reset Quick Reports
@@ -2071,7 +2064,7 @@ export default function DashboardPage() {
                 options={officeOptions.map((value) => ({ value, label: value }))}
                 loading={reportState.loading}
                 onChange={(value) => {
-                  setQuickPreset("custom");
+                  setQuickPreset("");
                   setFilters((prev) => ({
                     ...prev,
                     officeScope: value,
@@ -2089,6 +2082,8 @@ export default function DashboardPage() {
                     teamLeader: [],
                     agent: [],
                     columnDimension: "",
+                    includeWorkTime: false,
+                    hideNotWorking: false,
                   }));
                 }}
               />
@@ -2218,15 +2213,6 @@ export default function DashboardPage() {
               <span className={styles.reportModeTitle}>Last 4 Months Quick</span>
               <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
             </button>
-            <button
-              type="button"
-              onClick={() => applyQuickPreset("custom")}
-              className={styles.reportModeCard}
-              style={quickPreset === "custom" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
-            >
-              <span className={styles.reportModeTitle}>Custom Builder</span>
-              <span className={styles.reportModeIcon}>{reportModeMeta("specific").icon}</span>
-            </button>
           </div>
         </section>
       ) : null}
@@ -2280,11 +2266,30 @@ export default function DashboardPage() {
             <button
               type="button"
               className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
-              onClick={() => setFilters((prev) => ({ ...prev, includeWorkTime: !prev.includeWorkTime }))}
+              onClick={() =>
+                setFilters((prev) => ({
+                  ...prev,
+                  includeWorkTime: !prev.includeWorkTime,
+                  hideNotWorking: prev.includeWorkTime ? false : prev.hideNotWorking,
+                }))
+              }
             >
               <span className={styles.workTimeToggleThumb} />
               <span>{filters.includeWorkTime ? "ON" : "OFF"}</span>
             </button>
+            {filters.includeWorkTime ? (
+              <>
+                <span className={styles.workTimeToggleLabel}>Hide Not Working</span>
+                <button
+                  type="button"
+                  className={`${styles.workTimeToggle} ${filters.hideNotWorking ? styles.workTimeToggleOn : ""}`}
+                  onClick={() => setFilters((prev) => ({ ...prev, hideNotWorking: !prev.hideNotWorking }))}
+                >
+                  <span className={styles.workTimeToggleThumb} />
+                  <span>{filters.hideNotWorking ? "ON" : "OFF"}</span>
+                </button>
+              </>
+            ) : null}
           </div>
           <ToggleGroup
             label="Metrics / Data Fields"
