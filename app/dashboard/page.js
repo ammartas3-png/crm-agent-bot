@@ -344,46 +344,6 @@ function FragmentMetricCells({ metric = {} }) {
   );
 }
 
-function PermissionsTable({ rows = [], autoAllowedFields = [] }) {
-  return (
-    <div style={{ overflowX: "auto", border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-        <thead>
-          <tr style={{ background: "#f8fafc" }}>
-            {["User", "Telegram ID", "Authority", "Office", "Desk", "Team", "Auto Allowed"].map((header) => (
-              <th key={header} style={{ textAlign: "left", padding: "9px 12px", borderBottom: "1px solid #dbe3ee", fontSize: 12 }}>
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={`${row.rowNumber}-${row.telegramId}-${row.user}`}>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 }}>{row.user}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.telegramId || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.authority || "-"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.office || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.desk || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7" }}>{row.team || "all"}</td>
-              <td style={{ padding: "8px 12px", borderBottom: "1px solid #eef2f7", color: "#0f766e" }}>
-                {(row.autoAllowed || autoAllowedFields || []).join(", ")}
-              </td>
-            </tr>
-          ))}
-          {!rows.length ? (
-            <tr>
-              <td colSpan={7} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
-                No permission rows found.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 const EMPTY_FILTERS = {
   officeScope: "",
   reportMode: "",
@@ -400,18 +360,11 @@ const EMPTY_FILTERS = {
   groupBy: "agent",
 };
 
-const EMPTY_PERMISSION_FILTERS = {
-  office: "",
-  desk: "",
-  team: "",
-};
-
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
 }
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState("report");
   const [sessionState, setSessionState] = useState({
     loading: true,
     authenticated: false,
@@ -425,15 +378,6 @@ export default function DashboardPage() {
   const [reportState, setReportState] = useState({
     loading: false,
     report: null,
-    error: "",
-  });
-  const [permissionFilters, setPermissionFilters] = useState(EMPTY_PERMISSION_FILTERS);
-  const [permissionState, setPermissionState] = useState({
-    loading: false,
-    rows: [],
-    options: { offices: [], desks: [], teams: [] },
-    autoAllowedFields: [],
-    viewerCanSeeAllUsers: false,
     error: "",
   });
 
@@ -467,9 +411,6 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (activeTab !== "report") {
-      return;
-    }
     if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
@@ -526,67 +467,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [activeTab, filters, sessionState.authorized]);
-
-  const requestPermissions = useCallback(async () => {
-    if (activeTab !== "permissions") {
-      return;
-    }
-    if (!sessionState.authorized) {
-      setPermissionState((prev) => ({
-        ...prev,
-        loading: false,
-        rows: [],
-        error: "",
-      }));
-      return;
-    }
-    setPermissionState((prev) => ({ ...prev, loading: true, error: "" }));
-    try {
-      const query = new URLSearchParams();
-      for (const [key, value] of Object.entries(permissionFilters)) {
-        const normalized = String(value || "").trim();
-        if (normalized) {
-          query.set(key, normalized);
-        }
-      }
-      const response = await fetch(`/api/dashboard/permissions?${query.toString()}`, { cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload?.message || payload?.error || "Could not load permissions.");
-      }
-      setPermissionState({
-        loading: false,
-        rows: payload.rows || [],
-        options: payload.options || { offices: [], desks: [], teams: [] },
-        autoAllowedFields: payload.autoAllowedFields || [],
-        viewerCanSeeAllUsers: Boolean(payload.viewerCanSeeAllUsers),
-        error: "",
-      });
-      setPermissionFilters((prev) => {
-        const next = { ...prev };
-        const options = payload.options || {};
-        const checks = [
-          ["office", options.offices || []],
-          ["desk", options.desks || []],
-          ["team", options.teams || []],
-        ];
-        for (const [key, values] of checks) {
-          if (next[key] && !values.includes(next[key])) {
-            next[key] = "";
-          }
-        }
-        return next;
-      });
-    } catch (error) {
-      setPermissionState((prev) => ({
-        ...prev,
-        loading: false,
-        rows: [],
-        error: error?.message || "Could not load permissions.",
-      }));
-    }
-  }, [activeTab, permissionFilters, sessionState.authorized]);
+  }, [filters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -595,10 +476,6 @@ export default function DashboardPage() {
   useEffect(() => {
     requestReport();
   }, [requestReport]);
-
-  useEffect(() => {
-    requestPermissions();
-  }, [requestPermissions]);
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -629,16 +506,6 @@ export default function DashboardPage() {
     await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
     setReportState({ loading: false, report: null, error: "" });
     setFilters(EMPTY_FILTERS);
-    setPermissionFilters(EMPTY_PERMISSION_FILTERS);
-    setPermissionState({
-      loading: false,
-      rows: [],
-      options: { offices: [], desks: [], teams: [] },
-      autoAllowedFields: [],
-      viewerCanSeeAllUsers: false,
-      error: "",
-    });
-    setActiveTab("report");
     await fetchSession();
   }, [fetchSession]);
 
@@ -761,48 +628,7 @@ export default function DashboardPage() {
         </button>
       </section>
 
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid #dbe3ee",
-          borderRadius: 10,
-          padding: 10,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab("report")}
-          style={{
-            border: "1px solid #cbd5e1",
-            borderRadius: 999,
-            padding: "7px 12px",
-            cursor: "pointer",
-            background: activeTab === "report" ? "#0f172a" : "#fff",
-            color: activeTab === "report" ? "#fff" : "#0f172a",
-          }}
-        >
-          Reports
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("permissions")}
-          style={{
-            border: "1px solid #cbd5e1",
-            borderRadius: 999,
-            padding: "7px 12px",
-            cursor: "pointer",
-            background: activeTab === "permissions" ? "#0f172a" : "#fff",
-            color: activeTab === "permissions" ? "#fff" : "#0f172a",
-          }}
-        >
-          Permissions
-        </button>
-      </section>
-
-      {activeTab === "report" && needOfficeSelection ? (
+      {needOfficeSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
           <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
@@ -836,7 +662,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && needReportSelection ? (
+      {needReportSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -865,7 +691,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && !needOfficeSelection && !needReportSelection ? (
+      {!needOfficeSelection && !needReportSelection ? (
         <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
@@ -986,10 +812,10 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
-      {activeTab === "report" && reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
+      {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
+      {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
 
-      {activeTab === "report" && report ? (
+      {report ? (
         <section style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 4 }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>
@@ -1005,46 +831,6 @@ export default function DashboardPage() {
           ) : null}
           {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" ? (
             <SimpleTable rows={report.table || []} />
-          ) : null}
-        </section>
-      ) : null}
-
-      {activeTab === "permissions" ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Permissions</h2>
-            <p style={{ margin: 0, color: "#64748b" }}>
-              Main access filters are Office, Desk, Team. Agent, Country, Campaign, Sub Campaign, Placement and Metrics are auto-allowed
-              under those scopes.
-            </p>
-            {!permissionState.viewerCanSeeAllUsers ? (
-              <p style={{ margin: 0, color: "#92400e" }}>You are seeing your own permission rows.</p>
-            ) : null}
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <SelectFilter
-              label="Office Scope"
-              value={permissionFilters.office}
-              options={asOptions(permissionState.options.offices || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, office: value, desk: "", team: "" }))}
-            />
-            <SelectFilter
-              label="Desk Scope"
-              value={permissionFilters.desk}
-              options={asOptions(permissionState.options.desks || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, desk: value, team: "" }))}
-            />
-            <SelectFilter
-              label="Team Scope"
-              value={permissionFilters.team}
-              options={asOptions(permissionState.options.teams || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, team: value }))}
-            />
-          </div>
-          {permissionState.loading ? <p style={{ margin: 0 }}>Loading permissions...</p> : null}
-          {permissionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{permissionState.error}</p> : null}
-          {!permissionState.loading && !permissionState.error ? (
-            <PermissionsTable rows={permissionState.rows || []} autoAllowedFields={permissionState.autoAllowedFields || []} />
           ) : null}
         </section>
       ) : null}
