@@ -1443,7 +1443,7 @@ const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
 
 const EMPTY_FILTERS = {
   officeScope: [],
-  reportMode: "",
+  reportMode: "specific",
   specificType: "builder",
   monthKey: [],
   date: [],
@@ -1480,6 +1480,10 @@ const EMPTY_FILTERS = {
   totalDimensions: [],
 };
 
+const QUICK_PRESET_MONTHLY_METRICS = ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_LAST4_METRICS = ["crTargetReach", "leads", "ftd"];
+const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
+
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
 }
@@ -1503,6 +1507,7 @@ export default function DashboardPage() {
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
+  const [quickPreset, setQuickPreset] = useState("custom");
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -1600,6 +1605,14 @@ export default function DashboardPage() {
   useEffect(() => {
     requestReport();
   }, [requestReport]);
+
+  useEffect(() => {
+    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
+    if (!hasOfficeScope || filters.reportMode) {
+      return;
+    }
+    setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "builder" }));
+  }, [filters.officeScope, filters.reportMode]);
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -1718,6 +1731,58 @@ export default function DashboardPage() {
       })(),
     }));
   }, [options.months, sessionState.bootstrap.months]);
+  const availableMonthKeys = useMemo(() => monthOptions.map((item) => item.value).filter(Boolean), [monthOptions]);
+  const applyQuickPreset = useCallback(
+    (preset) => {
+      setQuickPreset(preset);
+      setFilters((prev) => {
+        const defaultMonth = availableMonthKeys[0] ? [availableMonthKeys[0]] : prev.monthKey || [];
+        if (preset === "monthly") {
+          return {
+            ...prev,
+            reportMode: "specific",
+            specificType: "builder",
+            monthKey: defaultMonth,
+            date: [],
+            hour: [],
+            columnDimension: "",
+            includeWorkTime: false,
+            rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_MONTHLY_METRICS,
+          };
+        }
+        if (preset === "last4") {
+          return {
+            ...prev,
+            reportMode: "specific",
+            specificType: "builder",
+            monthKey: availableMonthKeys.slice(0, 4),
+            date: [],
+            hour: [],
+            columnDimension: "month",
+            includeWorkTime: true,
+            rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_LAST4_METRICS,
+          };
+        }
+        return {
+          ...prev,
+          reportMode: "specific",
+          specificType: "builder",
+          date: [],
+          hour: [],
+          columnDimension: "",
+          includeWorkTime: false,
+          rowDimensions: EMPTY_FILTERS.rowDimensions,
+          metricFields: EMPTY_FILTERS.metricFields,
+          totalDimensions: EMPTY_FILTERS.totalDimensions,
+        };
+      });
+    },
+    [availableMonthKeys],
+  );
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
   const hasPendingChanges = draftQueryKey !== appliedQueryKey;
@@ -1903,7 +1968,6 @@ export default function DashboardPage() {
   }
 
   const needOfficeSelection = !Array.isArray(filters.officeScope) || filters.officeScope.length === 0;
-  const needReportSelection = !needOfficeSelection && !filters.reportMode;
   const isLast4Mode = filters.reportMode === "last4";
 
   return (
@@ -1923,7 +1987,7 @@ export default function DashboardPage() {
       {needOfficeSelection ? (
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
-          <p className={styles.sectionHint}>Choose your office first, then report type and filters will open.</p>
+          <p className={styles.sectionHint}>Choose your office first, then filters and quick reports will open.</p>
           <div className={styles.officeGrid}>
             {officeOptions.map((office) => {
               const officeTheme = officeThemeForName(office);
@@ -1931,11 +1995,12 @@ export default function DashboardPage() {
                 <button
                   key={office}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    setQuickPreset("custom");
                     setFilters((prev) => ({
                       ...prev,
                       officeScope: [office],
-                      reportMode: "",
+                      reportMode: "specific",
                       specificType: "builder",
                       monthKey:
                         Array.isArray(prev.monthKey) && prev.monthKey.length
@@ -1956,8 +2021,8 @@ export default function DashboardPage() {
                       agent: [],
                       columnDimension: "",
                       includeWorkTime: false,
-                    }))
-                  }
+                    }));
+                  }}
                   className={styles.officeCard}
                   style={officeTheme}
                 >
@@ -1969,75 +2034,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {needReportSelection ? (
-        <section className={`${styles.panel} ${styles.section} ${styles.stepCenter}`}>
-          <h2 className={styles.sectionTitle}>Step 2 — Select Report</h2>
-          <div className={styles.reportModeGrid}>
-            <button
-              type="button"
-              onClick={() =>
-                setFilters((prev) => ({ ...prev, reportMode: "monthly", specificType: "builder", includeWorkTime: false }))
-              }
-              className={styles.reportModeCard}
-            >
-              <span className={styles.reportModeTitle}>{reportModeMeta("monthly").title}</span>
-              <span className={styles.reportModeIcon}>{reportModeMeta("monthly").icon}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  reportMode: "last4",
-                  specificType: "builder",
-                  date: [],
-                  hour: [],
-                  country: [],
-                  brand: [],
-                  campaign: [],
-                  subCampaign: [],
-                  placement: [],
-                  status: [],
-                  columnDimension: "",
-                  includeWorkTime: false,
-                  groupBy: "agent",
-                }))
-              }
-              className={styles.reportModeCard}
-            >
-              <span className={styles.reportModeTitle}>{reportModeMeta("last4").title}</span>
-              <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setFilters((prev) => ({
-                  ...prev,
-                  reportMode: "specific",
-                  specificType: "builder",
-                  columnDimension: prev.columnDimension || "",
-                  includeWorkTime: Boolean(prev.includeWorkTime),
-                  rowDimensions: prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions,
-                  metricFields: prev.metricFields?.length ? prev.metricFields : EMPTY_FILTERS.metricFields,
-                  totalDimensions: Array.isArray(prev.totalDimensions)
-                    ? prev.totalDimensions.filter((item) => {
-                        const selectedDimensions = prev.rowDimensions?.length ? prev.rowDimensions : EMPTY_FILTERS.rowDimensions;
-                        const lastSelected = selectedDimensions[selectedDimensions.length - 1] || "";
-                        return selectedDimensions.includes(item) && item !== lastSelected;
-                      })
-                    : EMPTY_FILTERS.totalDimensions,
-                }))
-              }
-              className={styles.reportModeCard}
-            >
-              <span className={styles.reportModeTitle}>{reportModeMeta("specific").title}</span>
-              <span className={styles.reportModeIcon}>{reportModeMeta("specific").icon}</span>
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {!needOfficeSelection && !needReportSelection ? (
+      {!needOfficeSelection ? (
         <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy}`}>
           <div className={styles.toolbar}>
             <h2 className={styles.sectionTitle}>Filters</h2>
@@ -2054,10 +2051,10 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setFilters((prev) => ({ ...prev, reportMode: "" }))}
+                onClick={() => applyQuickPreset("custom")}
                 className={`${styles.button} ${styles.buttonSecondary}`}
               >
-                Change Report Type
+                Reset Quick Reports
               </button>
             </div>
           </div>
@@ -2073,11 +2070,12 @@ export default function DashboardPage() {
                 values={filters.officeScope}
                 options={officeOptions.map((value) => ({ value, label: value }))}
                 loading={reportState.loading}
-                onChange={(value) =>
+                onChange={(value) => {
+                  setQuickPreset("custom");
                   setFilters((prev) => ({
                     ...prev,
                     officeScope: value,
-                    reportMode: "",
+                    reportMode: "specific",
                     specificType: "builder",
                     date: [],
                     hour: [],
@@ -2091,8 +2089,8 @@ export default function DashboardPage() {
                     teamLeader: [],
                     agent: [],
                     columnDimension: "",
-                  }))
-                }
+                  }));
+                }}
               />
               {!isLast4Mode ? (
                 <MultiSelectFilter
@@ -2197,7 +2195,43 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {!needOfficeSelection && !needReportSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
+      {!needOfficeSelection ? (
+        <section className={`${styles.panel} ${styles.section} ${styles.stepCenter}`}>
+          <h2 className={styles.sectionTitle}>Quick Reports</h2>
+          <p className={styles.sectionHint}>Use presets to auto-fill filters and builder selections.</p>
+          <div className={styles.reportModeGrid}>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("monthly")}
+              className={styles.reportModeCard}
+              style={quickPreset === "monthly" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Monthly Quick</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("monthly").icon}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("last4")}
+              className={styles.reportModeCard}
+              style={quickPreset === "last4" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Last 4 Months Quick</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("last4").icon}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("custom")}
+              className={styles.reportModeCard}
+              style={quickPreset === "custom" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Custom Builder</span>
+              <span className={styles.reportModeIcon}>{reportModeMeta("specific").icon}</span>
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {!needOfficeSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
         <section className={`${styles.panel} ${styles.section}`}>
           <h2 className={styles.sectionTitle}>Report Builder</h2>
           <SingleChoiceChipGroup
