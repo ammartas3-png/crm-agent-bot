@@ -411,7 +411,6 @@ function asOptions(values = []) {
 }
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState("report");
   const [sessionState, setSessionState] = useState({
     loading: true,
     authenticated: false,
@@ -467,9 +466,6 @@ export default function DashboardPage() {
   }, []);
 
   const requestReport = useCallback(async () => {
-    if (activeTab !== "report") {
-      return;
-    }
     if (!sessionState.authorized || !filters.officeScope || !filters.reportMode) {
       setReportState((prev) => ({ ...prev, report: null, loading: false }));
       return;
@@ -526,10 +522,11 @@ export default function DashboardPage() {
         error: error?.message || "Could not load report.",
       });
     }
-  }, [activeTab, filters, sessionState.authorized]);
+  }, [filters, sessionState.authorized]);
 
   const requestPermissions = useCallback(async () => {
-    if (activeTab !== "permissions") {
+    const shouldShowPermissionsPreDashboard = !filters.officeScope || !filters.reportMode;
+    if (!shouldShowPermissionsPreDashboard) {
       return;
     }
     if (!sessionState.authorized) {
@@ -586,7 +583,7 @@ export default function DashboardPage() {
         error: error?.message || "Could not load permissions.",
       }));
     }
-  }, [activeTab, permissionFilters, sessionState.authorized]);
+  }, [filters.officeScope, filters.reportMode, permissionFilters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -638,7 +635,6 @@ export default function DashboardPage() {
       viewerCanSeeAllUsers: false,
       error: "",
     });
-    setActiveTab("report");
     await fetchSession();
   }, [fetchSession]);
 
@@ -761,48 +757,47 @@ export default function DashboardPage() {
         </button>
       </section>
 
-      <section
-        style={{
-          background: "#fff",
-          border: "1px solid #dbe3ee",
-          borderRadius: 10,
-          padding: 10,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveTab("report")}
-          style={{
-            border: "1px solid #cbd5e1",
-            borderRadius: 999,
-            padding: "7px 12px",
-            cursor: "pointer",
-            background: activeTab === "report" ? "#0f172a" : "#fff",
-            color: activeTab === "report" ? "#fff" : "#0f172a",
-          }}
-        >
-          Reports
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("permissions")}
-          style={{
-            border: "1px solid #cbd5e1",
-            borderRadius: 999,
-            padding: "7px 12px",
-            cursor: "pointer",
-            background: activeTab === "permissions" ? "#0f172a" : "#fff",
-            color: activeTab === "permissions" ? "#fff" : "#0f172a",
-          }}
-        >
-          Permissions
-        </button>
-      </section>
+      {needOfficeSelection || needReportSelection ? (
+        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 17 }}>Permissions</h2>
+            <p style={{ margin: 0, color: "#64748b" }}>
+              Main access filters are Office, Desk, Team. Agent, Country, Campaign, Sub Campaign, Placement and Metrics are auto-allowed
+              under those scopes.
+            </p>
+            {!permissionState.viewerCanSeeAllUsers ? (
+              <p style={{ margin: 0, color: "#92400e" }}>You are seeing your own permission rows.</p>
+            ) : null}
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <SelectFilter
+              label="Office Scope"
+              value={permissionFilters.office}
+              options={asOptions(permissionState.options.offices || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, office: value, desk: "", team: "" }))}
+            />
+            <SelectFilter
+              label="Desk Scope"
+              value={permissionFilters.desk}
+              options={asOptions(permissionState.options.desks || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, desk: value, team: "" }))}
+            />
+            <SelectFilter
+              label="Team Scope"
+              value={permissionFilters.team}
+              options={asOptions(permissionState.options.teams || [])}
+              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, team: value }))}
+            />
+          </div>
+          {permissionState.loading ? <p style={{ margin: 0 }}>Loading permissions...</p> : null}
+          {permissionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{permissionState.error}</p> : null}
+          {!permissionState.loading && !permissionState.error ? (
+            <PermissionsTable rows={permissionState.rows || []} autoAllowedFields={permissionState.autoAllowedFields || []} />
+          ) : null}
+        </section>
+      ) : null}
 
-      {activeTab === "report" && needOfficeSelection ? (
+      {needOfficeSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 1 — Select Office</h2>
           <p style={{ margin: 0, color: "#64748b" }}>Choose your office first, then report type and filters will open.</p>
@@ -836,7 +831,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && needReportSelection ? (
+      {needReportSelection ? (
         <section style={{ background: "#fff", border: "1px solid #dbe3ee", borderRadius: 10, padding: 16, display: "grid", gap: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Step 2 — Select Report</h2>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -865,7 +860,7 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && !needOfficeSelection && !needReportSelection ? (
+      {!needOfficeSelection && !needReportSelection ? (
         <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 17 }}>Filters</h2>
@@ -986,10 +981,10 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {activeTab === "report" && reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
-      {activeTab === "report" && reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
+      {reportState.loading ? <p style={{ margin: 0 }}>Loading report...</p> : null}
+      {reportState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{reportState.error}</p> : null}
 
-      {activeTab === "report" && report ? (
+      {report ? (
         <section style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 4 }}>
             <h2 style={{ margin: 0, fontSize: 18 }}>
@@ -1005,46 +1000,6 @@ export default function DashboardPage() {
           ) : null}
           {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" ? (
             <SimpleTable rows={report.table || []} />
-          ) : null}
-        </section>
-      ) : null}
-
-      {activeTab === "permissions" ? (
-        <section style={{ border: "1px solid #dbe3ee", borderRadius: 10, background: "#fff", padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 17 }}>Permissions</h2>
-            <p style={{ margin: 0, color: "#64748b" }}>
-              Main access filters are Office, Desk, Team. Agent, Country, Campaign, Sub Campaign, Placement and Metrics are auto-allowed
-              under those scopes.
-            </p>
-            {!permissionState.viewerCanSeeAllUsers ? (
-              <p style={{ margin: 0, color: "#92400e" }}>You are seeing your own permission rows.</p>
-            ) : null}
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <SelectFilter
-              label="Office Scope"
-              value={permissionFilters.office}
-              options={asOptions(permissionState.options.offices || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, office: value, desk: "", team: "" }))}
-            />
-            <SelectFilter
-              label="Desk Scope"
-              value={permissionFilters.desk}
-              options={asOptions(permissionState.options.desks || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, desk: value, team: "" }))}
-            />
-            <SelectFilter
-              label="Team Scope"
-              value={permissionFilters.team}
-              options={asOptions(permissionState.options.teams || [])}
-              onChange={(value) => setPermissionFilters((prev) => ({ ...prev, team: value }))}
-            />
-          </div>
-          {permissionState.loading ? <p style={{ margin: 0 }}>Loading permissions...</p> : null}
-          {permissionState.error ? <p style={{ margin: 0, color: "#b91c1c" }}>{permissionState.error}</p> : null}
-          {!permissionState.loading && !permissionState.error ? (
-            <PermissionsTable rows={permissionState.rows || []} autoAllowedFields={permissionState.autoAllowedFields || []} />
           ) : null}
         </section>
       ) : null}
