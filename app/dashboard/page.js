@@ -1928,18 +1928,33 @@ export default function DashboardPage() {
       setQuickPreset(preset);
       setFilters((prev) => {
         const defaultMonth = availableMonthKeys[0] ? [availableMonthKeys[0]] : prev.monthKey || [];
+        const clearedTopFilters = {
+          date: [],
+          hour: [],
+          desk: [],
+          country: [],
+          brand: [],
+          campaign: [],
+          subCampaign: [],
+          placement: [],
+          status: [],
+          teamLeader: [],
+          agent: [],
+        };
+        const basePreset = {
+          ...prev,
+          reportMode: "specific",
+          specificType: "builder",
+          benchmarkMode: false,
+          columnDimension: "",
+          ...clearedTopFilters,
+        };
         if (preset === "monthly") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
+            ...basePreset,
             monthKey: defaultMonth,
-            date: [],
-            hour: [],
-            columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: true,
-            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_MONTHLY_METRICS,
@@ -1947,16 +1962,11 @@ export default function DashboardPage() {
         }
         if (preset === "last4") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
+            ...basePreset,
             monthKey: availableMonthKeys.slice(0, 4),
-            date: [],
-            hour: [],
             columnDimension: "month",
             includeWorkTime: true,
             hideNotWorking: true,
-            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LAST4_METRICS,
@@ -1964,15 +1974,10 @@ export default function DashboardPage() {
         }
         if (preset === "traffic") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
-            date: [],
-            hour: [],
-            columnDimension: "",
+            ...basePreset,
+            monthKey: defaultMonth,
             includeWorkTime: true,
             hideNotWorking: true,
-            benchmarkMode: false,
             rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TRAFFIC_METRICS,
@@ -1980,15 +1985,10 @@ export default function DashboardPage() {
         }
         if (preset === "country-daily") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
-            date: [],
-            hour: [],
-            columnDimension: "",
-            includeWorkTime: true,
-            hideNotWorking: true,
-            benchmarkMode: false,
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: false,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COUNTRY_DAILY_METRICS,
@@ -1996,23 +1996,9 @@ export default function DashboardPage() {
         }
         if (preset === "benchmark") {
           return {
-            ...prev,
+            ...basePreset,
             officeScope: officeOptions,
-            reportMode: "specific",
-            specificType: "builder",
             monthKey: availableMonthKeys,
-            date: [],
-            hour: [],
-            desk: [],
-            country: [],
-            brand: [],
-            campaign: [],
-            subCampaign: [],
-            placement: [],
-            status: [],
-            teamLeader: [],
-            agent: [],
-            columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: false,
             benchmarkMode: true,
