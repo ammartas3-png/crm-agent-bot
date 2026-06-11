@@ -45,6 +45,14 @@ function reachColor(value) {
   return "#b91c1c";
 }
 
+function reachCellStyle(value) {
+  const number = Number(value || 0);
+  if (number >= 100) {
+    return { background: "#dcfce7", color: "#166534" };
+  }
+  return { background: "#fee2e2", color: "#b91c1c" };
+}
+
 function benchmarkRateStyle(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -825,7 +833,7 @@ function SimpleTable({ rows = [] }) {
                       : column.type === "percent" || column.type === "percentReach"
                         ? formatPercent(value)
                         : formatNumber(value);
-                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
                   return (
                     <td
                       key={`${rowKey}-${column.key}`}
@@ -833,7 +841,7 @@ function SimpleTable({ rows = [] }) {
                       className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                         column.key === "label" ? styles.tableStrong : ""
                       }`}
-                      style={widthStyle(column.key, color ? { color } : {})}
+                      style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
                     >
                       {content}
                     </td>
@@ -911,7 +919,7 @@ function PivotTable({ rows = [], summary = {} }) {
                       : ["desk", "teamLeader", "agent"].includes(column.key)
                         ? String(value || "-")
                         : formatNumber(value);
-                  const color = column.type === "percentReach" ? reachColor(value) : undefined;
+                  const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
                   return (
                     <td
                       key={`${rowKey}-${column.key}`}
@@ -919,7 +927,7 @@ function PivotTable({ rows = [], summary = {} }) {
                       className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                         column.key === "agent" ? styles.tableStrong : ""
                       }`}
-                      style={widthStyle(column.key, color ? { color } : {})}
+                      style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
                     >
                       {content}
                     </td>
@@ -938,11 +946,11 @@ function PivotTable({ rows = [], summary = {} }) {
             <td className={styles.tableStrong}>{formatNumber(summary.lateFtd)}</td>
             <td className={styles.tableStrong}>{formatPercent(summary.cr)}</td>
             <td className={styles.tableStrong}>{formatPercent(summary.crTarget)}</td>
-            <td className={styles.tableStrong} style={{ color: reachColor(summary.crTargetReach) }}>
+            <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.crTargetReach), fontWeight: 700 }}>
               {formatPercent(summary.crTargetReach)}
             </td>
             <td className={styles.tableStrong}>{formatNumber(summary.ftdTarget)}</td>
-            <td className={styles.tableStrong} style={{ color: reachColor(summary.ftdTargetReach) }}>
+            <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.ftdTargetReach), fontWeight: 700 }}>
               {formatPercent(summary.ftdTargetReach)}
             </td>
           </tr>
@@ -1271,8 +1279,8 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
     { key: "ftd", render: (value) => formatNumber(value) },
     { key: "cr", render: (value) => formatPercent(value) },
     { key: "crTarget", render: (value) => formatPercent(value) },
-    { key: "crTargetReach", render: (value) => formatPercent(value), color: reachColor(crReach), bold: crReach >= 100 },
-    { key: "ftdTargetReach", render: (value) => formatPercent(value), color: reachColor(ftdReach), bold: ftdReach >= 100 },
+    { key: "crTargetReach", render: (value) => formatPercent(value), reachStyle: reachCellStyle(crReach) },
+    { key: "ftdTargetReach", render: (value) => formatPercent(value), reachStyle: reachCellStyle(ftdReach) },
   ];
   return (
     <>
@@ -1288,8 +1296,8 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
               ...baseStyle,
               ...(index === 0 ? { borderLeft: `1px solid ${theme?.line || "#334155"}` } : {}),
               ...(index === metricColumns.length - 1 ? { borderRight: `1px solid ${theme?.line || "#334155"}` } : {}),
-              ...(column.color ? { color: column.color } : {}),
-              ...(column.bold ? { fontWeight: 700 } : {}),
+              ...(column.reachStyle ? { background: column.reachStyle.background, color: column.reachStyle.color } : {}),
+              ...(column.reachStyle ? { fontWeight: 700 } : {}),
               ...(widthStyle ? widthStyle(columnKey) : {}),
             }}
           >
@@ -1541,6 +1549,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   const isHistoricalBeforeStartMonth =
                     canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
                   const value = row[column.key];
+                  const reachStyle = isReach ? reachCellStyle(value) : null;
                   const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
                   const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
                   const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
@@ -1557,7 +1566,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                             : isBenchmarkRate
                               ? benchmarkStyle.color
                               : isReach
-                                ? reachColor(value)
+                                ? reachStyle.color
                                 : "#0f172a",
                         background: isHistoricalBeforeStartMonth
                           ? "#f8fafc"
@@ -1565,6 +1574,8 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                             ? statusStyle.background
                             : isBenchmarkRate
                               ? benchmarkStyle.background
+                              : isReach
+                                ? reachStyle.background
                               : undefined,
                         borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
                         fontWeight: isHistoricalBeforeStartMonth ? 500 : isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
