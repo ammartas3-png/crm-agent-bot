@@ -32,6 +32,8 @@ function queryParams(searchParams) {
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
+    page: String(searchParams.get("page") || "").trim(),
+    rowLimit: String(searchParams.get("rowLimit") || "").trim(),
   };
 }
 
@@ -48,13 +50,16 @@ export async function GET(request) {
     const report = await loadDashboardReport(resolved.access, query);
     return NextResponse.json({ ok: true, report });
   } catch (error) {
+    const errorCode = String(error?.code || "").trim();
+    const isTooHeavy = errorCode === "report_too_heavy";
     return NextResponse.json(
       {
         ok: false,
-        error: "report_route_failed",
+        error: isTooHeavy ? "report_too_heavy" : "report_route_failed",
         message: error?.message || "Could not load report.",
+        stage: error?.stage || "",
       },
-      { status: 500 },
+      { status: isTooHeavy ? 422 : 500 },
     );
   }
 }
