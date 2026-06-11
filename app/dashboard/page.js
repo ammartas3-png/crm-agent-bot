@@ -1528,6 +1528,8 @@ const QUICK_PRESET_TRAFFIC_METRICS = [
 const QUICK_PRESET_BENCHMARK_METRICS = ["ftd", "agentAvgFtdPerWorkedMonth", "avgFtdByDeskLongTerm", "ftdBenchmarkRate"];
 const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
+const QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS = ["desk", "country"];
+const QUICK_PRESET_DESK_COUNTRY_CR_METRICS = ["ftd", "crTargetReach", "cr"];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -2013,6 +2015,18 @@ export default function DashboardPage() {
             metricFields: QUICK_PRESET_BENCHMARK_METRICS,
           };
         }
+        if (preset === "desk-country-cr") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            columnDimension: "date",
+            includeWorkTime: false,
+            hideNotWorking: false,
+            rowDimensions: QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_DESK_COUNTRY_CR_METRICS,
+          };
+        }
         return prev;
       });
     },
@@ -2486,6 +2500,15 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Benchmark Report</span>
               <span className={styles.reportModeIcon}>📈</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("desk-country-cr")}
+              className={styles.reportModeCard}
+              style={quickPreset === "desk-country-cr" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Desk Country CR Watch</span>
+              <span className={styles.reportModeIcon}>🧭</span>
             </button>
           </div>
         </section>
