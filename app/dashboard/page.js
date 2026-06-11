@@ -378,6 +378,121 @@ function MultiSelectFilter({
   );
 }
 
+function DateRangeFilter({ label, values, options, onChange, disabled = false, loading = false }) {
+  const availableDates = useMemo(() => {
+    const unique = new Set();
+    for (const option of options || []) {
+      const value = String(option?.value || "").trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        unique.add(value);
+      }
+    }
+    return [...unique].sort((left, right) => left.localeCompare(right));
+  }, [options]);
+
+  const selectedDates = useMemo(() => {
+    const selected = Array.isArray(values) ? values : [];
+    const availableSet = new Set(availableDates);
+    return selected
+      .map((item) => String(item || "").trim())
+      .filter((item) => availableSet.has(item))
+      .sort((left, right) => left.localeCompare(right));
+  }, [availableDates, values]);
+
+  const selectedFrom = selectedDates[0] || "";
+  const selectedTo = selectedDates[selectedDates.length - 1] || "";
+  const [fromDate, setFromDate] = useState(selectedFrom);
+  const [toDate, setToDate] = useState(selectedTo);
+
+  useEffect(() => {
+    setFromDate(selectedFrom);
+    setToDate(selectedTo);
+  }, [selectedFrom, selectedTo]);
+
+  const applyRange = useCallback(
+    (nextFrom, nextTo) => {
+      if (!availableDates.length) {
+        onChange([]);
+        return;
+      }
+      if (!nextFrom && !nextTo) {
+        onChange([]);
+        return;
+      }
+      let start = nextFrom || nextTo;
+      let end = nextTo || nextFrom;
+      if (start > end) {
+        [start, end] = [end, start];
+      }
+      const ranged = availableDates.filter((date) => date >= start && date <= end);
+      onChange(ranged);
+    },
+    [availableDates, onChange],
+  );
+
+  const summaryText = useMemo(() => {
+    if (!selectedDates.length) {
+      return "All";
+    }
+    if (selectedFrom && selectedTo) {
+      return `${selectedFrom} → ${selectedTo}`;
+    }
+    return selectedFrom || selectedTo;
+  }, [selectedDates.length, selectedFrom, selectedTo]);
+
+  return (
+    <div className={`${styles.selectWrap} ${styles.dateRangeWrap}`}>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
+      </span>
+      <div className={styles.dateRangeInputs}>
+        <input
+          type="date"
+          value={fromDate}
+          disabled={disabled || !availableDates.length}
+          min={availableDates[0] || ""}
+          max={availableDates[availableDates.length - 1] || ""}
+          onChange={(event) => {
+            const nextValue = String(event.target.value || "");
+            setFromDate(nextValue);
+            applyRange(nextValue, toDate);
+          }}
+          className={`${styles.selectInput} ${styles.dateRangeInput}`}
+        />
+        <input
+          type="date"
+          value={toDate}
+          disabled={disabled || !availableDates.length}
+          min={availableDates[0] || ""}
+          max={availableDates[availableDates.length - 1] || ""}
+          onChange={(event) => {
+            const nextValue = String(event.target.value || "");
+            setToDate(nextValue);
+            applyRange(fromDate, nextValue);
+          }}
+          className={`${styles.selectInput} ${styles.dateRangeInput}`}
+        />
+      </div>
+      <div className={styles.dateRangeFooter}>
+        <span className={styles.dateRangeSummary}>{summaryText}</span>
+        <button
+          type="button"
+          disabled={disabled || !selectedDates.length}
+          onClick={() => {
+            setFromDate("");
+            setToDate("");
+            onChange([]);
+          }}
+          className={styles.dateRangeClear}
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function buildReportQuery(filters = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters || {})) {
@@ -2373,7 +2488,7 @@ export default function DashboardPage() {
                 />
               ) : null}
               {!isLast4Mode ? (
-                <MultiSelectFilter
+                <DateRangeFilter
                   label="Date"
                   values={filters.date}
                   options={asOptions(options.dates || [])}

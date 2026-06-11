@@ -392,6 +392,53 @@
   color: #64748b;
 }
 
+.dateRangeWrap {
+  min-width: 190px;
+}
+
+.dateRangeInputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dateRangeInput {
+  font-size: 12px;
+  padding: 6px 7px;
+}
+
+.dateRangeFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dateRangeSummary {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dateRangeClear {
+  border: 1px solid #c7d2de;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.dateRangeClear:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .inlineInfo {
   margin: 0;
   color: #1e40af;
