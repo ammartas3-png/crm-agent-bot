@@ -1661,6 +1661,7 @@ const EMPTY_FILTERS = {
   teamLeader: [],
   agent: [],
   columnDimension: "",
+  includeColumnGrandTotal: false,
   includeWorkTime: false,
   hideNotWorking: false,
   benchmarkMode: false,
@@ -2133,6 +2134,7 @@ export default function DashboardPage() {
           specificType: "builder",
           benchmarkMode: false,
           columnDimension: "",
+          includeColumnGrandTotal: false,
           ...clearedTopFilters,
         };
         if (preset === "monthly") {
@@ -2459,6 +2461,7 @@ export default function DashboardPage() {
                       teamLeader: [],
                       agent: [],
                       columnDimension: "",
+                      includeColumnGrandTotal: false,
                       includeWorkTime: false,
                       hideNotWorking: false,
                       benchmarkMode: false,
@@ -2530,6 +2533,7 @@ export default function DashboardPage() {
                     teamLeader: [],
                     agent: [],
                     columnDimension: "",
+                    includeColumnGrandTotal: false,
                     includeWorkTime: false,
                     hideNotWorking: false,
                     benchmarkMode: false,
@@ -2723,7 +2727,13 @@ export default function DashboardPage() {
             label="Column"
             items={builderColumnDimensionOptions}
             selectedKey={filters.columnDimension}
-            onSelect={(value) => setFilters((prev) => ({ ...prev, columnDimension: value }))}
+            onSelect={(value) =>
+              setFilters((prev) => ({
+                ...prev,
+                columnDimension: value,
+                includeColumnGrandTotal: value ? prev.includeColumnGrandTotal : false,
+              }))
+            }
             noLabel="No"
           />
           <RowDimensionGroup
@@ -2761,6 +2771,24 @@ export default function DashboardPage() {
             }
           />
           <div className={styles.workTimeToggleRow}>
+            {filters.columnDimension ? (
+              <>
+                <span className={styles.workTimeToggleLabel}>Column Grand Total</span>
+                <button
+                  type="button"
+                  className={`${styles.workTimeToggle} ${filters.includeColumnGrandTotal ? styles.workTimeToggleOn : ""}`}
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      includeColumnGrandTotal: !prev.includeColumnGrandTotal,
+                    }))
+                  }
+                >
+                  <span className={styles.workTimeToggleThumb} />
+                  <span>{filters.includeColumnGrandTotal ? "ON" : "OFF"}</span>
+                </button>
+              </>
+            ) : null}
             <span className={styles.workTimeToggleLabel}>Work Time</span>
             <button
               type="button"

@@ -26,6 +26,7 @@ function queryParams(searchParams) {
     metricFields: String(searchParams.get("metricFields") || "").trim(),
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
+    includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
   };
 }
