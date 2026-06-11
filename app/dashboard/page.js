@@ -2507,7 +2507,7 @@ export default function DashboardPage() {
               className={styles.reportModeCard}
               style={quickPreset === "desk-country-cr" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
             >
-              <span className={styles.reportModeTitle}>Desk Country CR Watch</span>
+              <span className={styles.reportModeTitle}>Desk Country Daily CR Watch</span>
               <span className={styles.reportModeIcon}>🧭</span>
             </button>
           </div>
