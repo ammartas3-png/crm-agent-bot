@@ -433,7 +433,7 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
         ? [String(next.officeScope || "").trim()]
         : [];
     const filteredOffices = officeValues.filter((value) => options.officeScopes.includes(value));
-    next.officeScope = filteredOffices.length ? filteredOffices : [options.officeScopes[0]];
+    next.officeScope = filteredOffices.length ? [filteredOffices[0]] : [options.officeScopes[0]];
   }
   if (Array.isArray(options.months) && options.months.length) {
     const monthValues = Array.isArray(next.monthKey)
@@ -1591,12 +1591,12 @@ export default function DashboardPage() {
       const monthDefault = payload.bootstrap?.defaultMonthKey ? [payload.bootstrap.defaultMonthKey] : [];
       setFilters((prev) => ({
         ...prev,
-        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? [prev.officeScope[0]] : officeScopeDefault,
         monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
       }));
       setAppliedFilters((prev) => ({
         ...prev,
-        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? prev.officeScope : officeScopeDefault,
+        officeScope: Array.isArray(prev.officeScope) && prev.officeScope.length ? [prev.officeScope[0]] : officeScopeDefault,
         monthKey: Array.isArray(prev.monthKey) && prev.monthKey.length ? prev.monthKey : monthDefault,
       }));
     } catch {
@@ -1928,6 +1928,12 @@ export default function DashboardPage() {
       setQuickPreset(preset);
       setFilters((prev) => {
         const defaultMonth = availableMonthKeys[0] ? [availableMonthKeys[0]] : prev.monthKey || [];
+        const selectedOfficeScope =
+          Array.isArray(prev.officeScope) && prev.officeScope.length
+            ? [prev.officeScope[0]]
+            : officeOptions[0]
+              ? [officeOptions[0]]
+              : [];
         const clearedTopFilters = {
           date: [],
           hour: [],
@@ -1943,6 +1949,7 @@ export default function DashboardPage() {
         };
         const basePreset = {
           ...prev,
+          officeScope: selectedOfficeScope,
           reportMode: "specific",
           specificType: "builder",
           benchmarkMode: false,
@@ -1997,7 +2004,6 @@ export default function DashboardPage() {
         if (preset === "benchmark") {
           return {
             ...basePreset,
-            officeScope: officeOptions,
             monthKey: availableMonthKeys,
             includeWorkTime: true,
             hideNotWorking: false,
@@ -2197,6 +2203,7 @@ export default function DashboardPage() {
   }
 
   const needOfficeSelection = !Array.isArray(filters.officeScope) || filters.officeScope.length === 0;
+  const selectedOfficeValue = Array.isArray(filters.officeScope) ? filters.officeScope[0] || "" : String(filters.officeScope || "");
   const isLast4Mode = filters.reportMode === "last4";
 
   return (
@@ -2296,16 +2303,16 @@ export default function DashboardPage() {
           ) : null}
           <div className={styles.filterRows}>
             <div className={styles.filterRow}>
-              <MultiSelectFilter
+              <SelectFilter
                 label="Office"
-                values={filters.officeScope}
+                value={selectedOfficeValue}
                 options={officeOptions.map((value) => ({ value, label: value }))}
                 loading={reportState.loading}
                 onChange={(value) => {
                   setQuickPreset("");
                   setFilters((prev) => ({
                     ...prev,
-                    officeScope: value,
+                    officeScope: value ? [value] : [],
                     reportMode: "specific",
                     specificType: "builder",
                     date: [],
@@ -2325,6 +2332,7 @@ export default function DashboardPage() {
                     benchmarkMode: false,
                   }));
                 }}
+                placeholder="Select office"
               />
               {!isLast4Mode ? (
                 <MultiSelectFilter
