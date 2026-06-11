@@ -31,6 +31,7 @@ function queryParams(searchParams) {
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
+    debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
   };
 }
 
