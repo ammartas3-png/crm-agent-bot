@@ -693,7 +693,17 @@ function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onTogg
   );
 }
 
-function SingleChoiceChipGroup({ label, items, selectedKey, onSelect, noLabel = "No" }) {
+function SingleChoiceChipGroup({
+  label,
+  items,
+  selectedKey,
+  onSelect,
+  noLabel = "No",
+  grandTotalLabel = "",
+  grandTotalEnabled = false,
+  onToggleGrandTotal = null,
+}) {
+  const canToggleGrandTotal = Boolean(selectedKey && onToggleGrandTotal);
   return (
     <div className={styles.chipSection}>
       <div className={styles.chipTitle}>{label}</div>
@@ -719,6 +729,39 @@ function SingleChoiceChipGroup({ label, items, selectedKey, onSelect, noLabel = 
             </button>
           );
         })}
+        {onToggleGrandTotal ? (
+          <div className={styles.chipWithSwitch}>
+            <button
+              type="button"
+              onClick={() => onToggleGrandTotal(!grandTotalEnabled)}
+              disabled={!canToggleGrandTotal}
+              className={`${styles.chip} ${grandTotalEnabled ? styles.chipActive : ""}`}
+              title={canToggleGrandTotal ? "Show/Hide column grand total" : "Select a column first"}
+            >
+              <span className={styles.chipInner}>
+                {grandTotalEnabled ? <span className={styles.chipCheck}>✓</span> : null}
+                <span>{grandTotalLabel || "Grand Total"}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              aria-label={grandTotalLabel || "Grand Total"}
+              aria-pressed={grandTotalEnabled}
+              disabled={!canToggleGrandTotal}
+              onClick={() => onToggleGrandTotal(!grandTotalEnabled)}
+              className={`${styles.totalSwitch} ${
+                !canToggleGrandTotal ? styles.totalSwitchDisabled : grandTotalEnabled ? styles.totalSwitchOn : styles.totalSwitchOff
+              }`}
+              title={canToggleGrandTotal ? "Show/Hide column grand total" : "Select a column first"}
+            >
+              <span
+                className={`${styles.totalSwitchThumb} ${
+                  grandTotalEnabled ? styles.totalSwitchThumbOn : styles.totalSwitchThumbOff
+                }`}
+              />
+            </button>
+          </div>
+        ) : null}
       </div>
       <div className={styles.orderPreview}>
         <div className={styles.orderLabel}>{label}</div>
@@ -2735,6 +2778,14 @@ export default function DashboardPage() {
               }))
             }
             noLabel="No"
+            grandTotalLabel="Column Grand Total"
+            grandTotalEnabled={Boolean(filters.includeColumnGrandTotal)}
+            onToggleGrandTotal={(nextEnabled) =>
+              setFilters((prev) => ({
+                ...prev,
+                includeColumnGrandTotal: prev.columnDimension ? Boolean(nextEnabled) : false,
+              }))
+            }
           />
           <RowDimensionGroup
             label="Row / Group Dimensions"
@@ -2771,24 +2822,6 @@ export default function DashboardPage() {
             }
           />
           <div className={styles.workTimeToggleRow}>
-            {filters.columnDimension ? (
-              <>
-                <span className={styles.workTimeToggleLabel}>Column Grand Total</span>
-                <button
-                  type="button"
-                  className={`${styles.workTimeToggle} ${filters.includeColumnGrandTotal ? styles.workTimeToggleOn : ""}`}
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      includeColumnGrandTotal: !prev.includeColumnGrandTotal,
-                    }))
-                  }
-                >
-                  <span className={styles.workTimeToggleThumb} />
-                  <span>{filters.includeColumnGrandTotal ? "ON" : "OFF"}</span>
-                </button>
-              </>
-            ) : null}
             <span className={styles.workTimeToggleLabel}>Work Time</span>
             <button
               type="button"
