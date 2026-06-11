@@ -216,7 +216,7 @@ Optional tab/range overrides:
 `vercel.json` includes a cron entry that calls `/api/dashboard/benchmark-cache`
 every day at `12:00` (UTC). This endpoint recalculates benchmark values from
 all mapped office/month leads data and writes them to the `Language` tab
-(`A:D`, with `LESS THAN 2 MONTHS` in column `C` and `MORE THAN MONTHS` in
+(`A:D`, with `LESS THAN 2 MONTHS` in column `C` and `MORE THAN 2 MONTHS` in
 column `D`) of the Office Agents spreadsheet.
 
 Set `BENCHMARK_CRON_SECRET` in Vercel and use the same value as a Bearer token
