@@ -1206,6 +1206,9 @@ function LoadingReportIndicator({ monitor = {} }) {
         Rows loaded: {formatNumber(monitor.totalRowsLoaded || 0)} | After filters: {formatNumber(monitor.rowsAfterFiltering || 0)} |
         Processed: {formatNumber(monitor.rowsProcessed || 0)}
       </p>
+      <p className={styles.loadingHint}>
+        Sheet: <strong>{monitor.currentSheet || "-"}</strong> | Tab: <strong>{monitor.currentTab || "-"}</strong>
+      </p>
     </section>
   );
 }
@@ -1557,6 +1560,8 @@ export default function DashboardPage() {
     totalRowsLoaded: 0,
     rowsAfterFiltering: 0,
     rowsProcessed: 0,
+    currentSheet: "",
+    currentTab: "",
     error: "",
     failedStep: "",
   });
@@ -1629,6 +1634,8 @@ export default function DashboardPage() {
       totalRowsLoaded: 0,
       rowsAfterFiltering: 0,
       rowsProcessed: 0,
+      currentSheet: "",
+      currentTab: "",
       error: "",
       failedStep: "",
     });
@@ -1681,6 +1688,8 @@ export default function DashboardPage() {
                 totalRowsLoaded: Number(event.totalRowsLoaded || prev.totalRowsLoaded || 0),
                 rowsAfterFiltering: Number(event.rowsAfterFiltering || prev.rowsAfterFiltering || 0),
                 rowsProcessed: Number(event.rowsProcessed || prev.rowsProcessed || 0),
+                currentSheet: String(event.currentSheet || prev.currentSheet || ""),
+                currentTab: String(event.currentTab || prev.currentTab || ""),
               }));
               continue;
             }
@@ -1703,12 +1712,22 @@ export default function DashboardPage() {
             error: errorMessage,
             failedStep,
             rowsProcessed: Number(streamError?.rowsProcessed || prev.rowsProcessed || 0),
+            currentSheet: String(streamError?.currentSheet || prev.currentSheet || ""),
+            currentTab: String(streamError?.currentTab || prev.currentTab || ""),
           }));
           throw new Error(errorMessage);
         }
       }
       if (!reportPayload) {
-        throw new Error("Could not load report.");
+        const interruptedMessage = "Report stream ended before completion (likely timeout).";
+        setExecutionMonitor((prev) => ({
+          ...prev,
+          active: false,
+          elapsedMs: Date.now() - startedAtMs,
+          error: interruptedMessage,
+          failedStep: prev.failedStep || prev.currentStep || "",
+        }));
+        throw new Error(interruptedMessage);
       }
       setReportState({
         loading: false,
@@ -2585,6 +2604,9 @@ export default function DashboardPage() {
           <p className={styles.loadingHint}>
             Elapsed: {formatElapsedMs(executionMonitor.elapsedMs)} | Rows loaded: {formatNumber(executionMonitor.totalRowsLoaded || 0)} |
             After filters: {formatNumber(executionMonitor.rowsAfterFiltering || 0)} | Processed: {formatNumber(executionMonitor.rowsProcessed || 0)}
+          </p>
+          <p className={styles.loadingHint}>
+            Sheet: <strong>{executionMonitor.currentSheet || "-"}</strong> | Tab: <strong>{executionMonitor.currentTab || "-"}</strong>
           </p>
         </section>
       ) : null}

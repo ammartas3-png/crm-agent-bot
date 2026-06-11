@@ -93,6 +93,8 @@ export async function GET(request) {
               totalRowsLoaded: latestProgress.totalRowsLoaded || 0,
               rowsAfterFiltering: latestProgress.rowsAfterFiltering || 0,
               rowsProcessed: latestProgress.rowsProcessed || 0,
+              currentSheet: latestProgress.currentSheet || "",
+              currentTab: latestProgress.currentTab || "",
             });
           } finally {
             controller.close();
