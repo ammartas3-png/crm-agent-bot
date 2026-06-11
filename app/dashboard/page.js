@@ -1751,6 +1751,8 @@ const QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS = ["desk", "country"];
 const QUICK_PRESET_DESK_COUNTRY_CR_METRICS = ["ftd", "crTargetReach", "cr"];
 const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["country", "campaign"];
 const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["ftd", "cr", "leads", "crTargetReach"];
+const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
+const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -2261,6 +2263,17 @@ export default function DashboardPage() {
             metricFields: QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS,
           };
         }
+        if (preset === "status-watch") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: false,
+            hideNotWorking: false,
+            rowDimensions: QUICK_PRESET_STATUS_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_STATUS_METRICS,
+          };
+        }
         return prev;
       });
     },
@@ -2758,6 +2771,15 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Country Campaign Hourly CR Watch</span>
               <span className={styles.reportModeIcon}>🕒</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("status-watch")}
+              className={styles.reportModeCard}
+              style={quickPreset === "status-watch" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Status Performance Watch</span>
+              <span className={styles.reportModeIcon}>🏷️</span>
             </button>
           </div>
         </section>
