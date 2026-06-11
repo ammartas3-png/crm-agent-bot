@@ -30,6 +30,7 @@ function queryParams(searchParams) {
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
+    benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
   };
 }
 
