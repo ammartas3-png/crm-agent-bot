@@ -1530,6 +1530,8 @@ const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
 const QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS = ["desk", "country"];
 const QUICK_PRESET_DESK_COUNTRY_CR_METRICS = ["ftd", "crTargetReach", "cr"];
+const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["country", "campaign"];
+const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["ftd", "cr", "leads", "crTargetReach"];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -2027,6 +2029,18 @@ export default function DashboardPage() {
             metricFields: QUICK_PRESET_DESK_COUNTRY_CR_METRICS,
           };
         }
+        if (preset === "country-campaign-hourly-cr") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            columnDimension: "hour",
+            includeWorkTime: false,
+            hideNotWorking: false,
+            rowDimensions: QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS,
+          };
+        }
         return prev;
       });
     },
@@ -2509,6 +2523,19 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Desk Country Daily CR Watch</span>
               <span className={styles.reportModeIcon}>🧭</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("country-campaign-hourly-cr")}
+              className={styles.reportModeCard}
+              style={
+                quickPreset === "country-campaign-hourly-cr"
+                  ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" }
+                  : undefined
+              }
+            >
+              <span className={styles.reportModeTitle}>Country Campaign Hourly CR Watch</span>
+              <span className={styles.reportModeIcon}>🕒</span>
             </button>
           </div>
         </section>
