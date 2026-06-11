@@ -25,6 +25,15 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
 
+function formatElapsedMs(value) {
+  const totalMs = Math.max(0, Number(value || 0));
+  const totalSeconds = Math.floor(totalMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const millis = Math.floor((totalMs % 1000) / 100);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${millis}`;
+}
+
 function reachColor(value) {
   const number = Number(value || 0);
   if (number >= 100) {
@@ -1177,17 +1186,26 @@ function FragmentMetricCells({ metric = {}, theme, monthKey = "", hoveredColumnK
   );
 }
 
-function LoadingReportIndicator() {
+function LoadingReportIndicator({ monitor = {} }) {
+  const progress = Number(monitor.progress || 0);
+  const safeProgress = Math.max(0, Math.min(100, progress));
   return (
     <section className={`${styles.panel} ${styles.loadingCard}`}>
       <div className={styles.loadingTitle}>
         <span className={styles.loadingIcon}>🤖</span>
-        <span>Building your report...</span>
+        <span>{monitor.currentStep || "Building your report..."}</span>
       </div>
       <div className={styles.loadingTrack}>
-        <div className={styles.loadingBar} />
+        <div className={styles.loadingBar} style={{ width: `${safeProgress || 35}%`, animation: "none" }} />
       </div>
-      <p className={styles.loadingHint}>Please wait, data is being fetched and calculated.</p>
+      <p className={styles.loadingHint}>
+        Start: {monitor.startTime ? new Date(monitor.startTime).toLocaleTimeString() : "-"} | Elapsed:{" "}
+        {formatElapsedMs(monitor.elapsedMs)} | Progress: {safeProgress.toFixed(0)}%
+      </p>
+      <p className={styles.loadingHint}>
+        Rows loaded: {formatNumber(monitor.totalRowsLoaded || 0)} | After filters: {formatNumber(monitor.rowsAfterFiltering || 0)} |
+        Processed: {formatNumber(monitor.rowsProcessed || 0)}
+      </p>
     </section>
   );
 }
@@ -1529,6 +1547,19 @@ export default function DashboardPage() {
     report: null,
     error: "",
   });
+  const [executionMonitor, setExecutionMonitor] = useState({
+    active: false,
+    startTime: "",
+    startedAtMs: 0,
+    elapsedMs: 0,
+    currentStep: "",
+    progress: 0,
+    totalRowsLoaded: 0,
+    rowsAfterFiltering: 0,
+    rowsProcessed: 0,
+    error: "",
+    failedStep: "",
+  });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
@@ -1587,20 +1618,113 @@ export default function DashboardPage() {
       report: null,
       error: "",
     });
+    const startedAtMs = Date.now();
+    setExecutionMonitor({
+      active: true,
+      startTime: new Date(startedAtMs).toISOString(),
+      startedAtMs,
+      elapsedMs: 0,
+      currentStep: "Loading Google Sheets",
+      progress: 5,
+      totalRowsLoaded: 0,
+      rowsAfterFiltering: 0,
+      rowsProcessed: 0,
+      error: "",
+      failedStep: "",
+    });
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
       const query = buildReportQuery(appliedFilters);
+      query.set("monitor", "1");
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
-      const payload = await readApiPayload(response);
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload?.message || payload?.error || "Could not load report.");
+      const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      let reportPayload = null;
+      if (!response.body || !contentType.includes("application/x-ndjson")) {
+        const payload = await readApiPayload(response);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload?.message || payload?.error || "Could not load report.");
+        }
+        reportPayload = payload.report;
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamError = null;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = String(line || "").trim();
+            if (!trimmed) {
+              continue;
+            }
+            let event = null;
+            try {
+              event = JSON.parse(trimmed);
+            } catch {
+              continue;
+            }
+            if (event?.type === "progress") {
+              setExecutionMonitor((prev) => ({
+                ...prev,
+                active: true,
+                startTime: event.startTime || prev.startTime,
+                startedAtMs: event.startTime ? Date.parse(event.startTime) || prev.startedAtMs : prev.startedAtMs,
+                elapsedMs: Number(event.elapsedMs || prev.elapsedMs || 0),
+                currentStep: event.step || prev.currentStep,
+                progress: Number(event.progress || prev.progress || 0),
+                totalRowsLoaded: Number(event.totalRowsLoaded || prev.totalRowsLoaded || 0),
+                rowsAfterFiltering: Number(event.rowsAfterFiltering || prev.rowsAfterFiltering || 0),
+                rowsProcessed: Number(event.rowsProcessed || prev.rowsProcessed || 0),
+              }));
+              continue;
+            }
+            if (event?.type === "error") {
+              streamError = event;
+              continue;
+            }
+            if (event?.type === "result") {
+              reportPayload = event.report;
+            }
+          }
+        }
+        if (streamError) {
+          const errorMessage = streamError?.message || streamError?.error || "Could not load report.";
+          const failedStep = streamError?.stage || streamError?.step || "";
+          setExecutionMonitor((prev) => ({
+            ...prev,
+            active: false,
+            elapsedMs: Number(streamError?.elapsedMs || Date.now() - startedAtMs),
+            error: errorMessage,
+            failedStep,
+            rowsProcessed: Number(streamError?.rowsProcessed || prev.rowsProcessed || 0),
+          }));
+          throw new Error(errorMessage);
+        }
+      }
+      if (!reportPayload) {
+        throw new Error("Could not load report.");
       }
       setReportState({
         loading: false,
-        report: payload.report,
+        report: reportPayload,
         error: "",
       });
-      const options = payload.report?.options || {};
+      setExecutionMonitor((prev) => ({
+        ...prev,
+        active: false,
+        elapsedMs: Date.now() - startedAtMs,
+        currentStep: "Completed",
+        progress: 100,
+        error: "",
+        failedStep: "",
+      }));
+      const options = reportPayload?.options || {};
       setFilters((prev) => {
         const sanitized = sanitizeFiltersWithOptions(prev, options);
         const prevKey = buildReportQuery(prev).toString();
@@ -1619,6 +1743,13 @@ export default function DashboardPage() {
         report: null,
         error: error?.message || "Could not load report.",
       });
+      setExecutionMonitor((prev) => ({
+        ...prev,
+        active: false,
+        elapsedMs: Date.now() - startedAtMs,
+        error: error?.message || "Could not load report.",
+        failedStep: prev.failedStep || prev.currentStep || "",
+      }));
     }
   }, [appliedFilters, sessionState.authorized]);
 
@@ -1629,6 +1760,23 @@ export default function DashboardPage() {
   useEffect(() => {
     requestReport();
   }, [requestReport]);
+
+  useEffect(() => {
+    if (!executionMonitor.active || !executionMonitor.startedAtMs) {
+      return undefined;
+    }
+    const intervalId = setInterval(() => {
+      setExecutionMonitor((prev) =>
+        prev.active
+          ? {
+              ...prev,
+              elapsedMs: Date.now() - Number(prev.startedAtMs || Date.now()),
+            }
+          : prev,
+      );
+    }, 200);
+    return () => clearInterval(intervalId);
+  }, [executionMonitor.active, executionMonitor.startedAtMs]);
 
   useEffect(() => {
     const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
@@ -2422,7 +2570,24 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      {reportState.loading ? <LoadingReportIndicator /> : null}
+      {reportState.loading ? <LoadingReportIndicator monitor={executionMonitor} /> : null}
+      {!reportState.loading && executionMonitor.error ? (
+        <section className={`${styles.panel} ${styles.loadingCard}`}>
+          <div className={styles.loadingTitle}>
+            <span>Report Execution Failed</span>
+          </div>
+          <p className={styles.loadingHint}>
+            Failed Step: <strong>{executionMonitor.failedStep || executionMonitor.currentStep || "-"}</strong>
+          </p>
+          <p className={styles.loadingHint}>
+            Error: <strong>{executionMonitor.error}</strong>
+          </p>
+          <p className={styles.loadingHint}>
+            Elapsed: {formatElapsedMs(executionMonitor.elapsedMs)} | Rows loaded: {formatNumber(executionMonitor.totalRowsLoaded || 0)} |
+            After filters: {formatNumber(executionMonitor.rowsAfterFiltering || 0)} | Processed: {formatNumber(executionMonitor.rowsProcessed || 0)}
+          </p>
+        </section>
+      ) : null}
       {reportState.error ? <p className={styles.errorText}>{reportState.error}</p> : null}
       {exportState.error ? <p className={styles.errorText}>{exportState.error}</p> : null}
 
