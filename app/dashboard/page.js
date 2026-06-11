@@ -1346,6 +1346,39 @@ function formatBuilderCell(value, type) {
   return String(value ?? "-");
 }
 
+function monthKeyFromDateValue(value = "") {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  const isoMonthMatch = normalized.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (isoMonthMatch) {
+    return `${isoMonthMatch[1]}-${isoMonthMatch[2]}`;
+  }
+  const dmyMatch = normalized.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
+  if (dmyMatch) {
+    const [, , month, year] = dmyMatch;
+    return `${year}-${String(month).padStart(2, "0")}`;
+  }
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthKeyFromPivotColumnKey(columnKey = "") {
+  const matched = String(columnKey || "").match(/^month_(.+?)__/);
+  if (!matched) {
+    return "";
+  }
+  const monthKey = String(matched[1] || "").trim();
+  if (!monthKey || monthKey === "__grand_total__") {
+    return "";
+  }
+  return monthKey;
+}
+
 function compareBuilderValues(left, right, type) {
   if (type === "number" || type === "percent") {
     return Number(left || 0) - Number(right || 0);
@@ -1484,6 +1517,14 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           {rows.map((row, index) => {
             const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${index}`);
             const selected = selectedRowKey === rowKey;
+            const rowStartMonthKey = monthKeyFromDateValue(row.workStartDate);
+            const rowAgentName = String(row.agent || "").trim();
+            const canApplyHistoricalBlank =
+              builder?.columnDimension === "month" &&
+              row.__rowKind !== "total" &&
+              rowStartMonthKey &&
+              rowAgentName &&
+              rowAgentName !== "-";
             return (
               <tr
                 key={`builder-${rowKey}`}
@@ -1496,7 +1537,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                   const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
                   const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                  const columnMonthKey = monthKeyFromPivotColumnKey(column.key);
+                  const isHistoricalBeforeStartMonth =
+                    canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
                   const value = row[column.key];
+                  const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
                   const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
                   const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
                   return (
@@ -1505,23 +1550,27 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       onMouseEnter={() => setHoveredColumnKey(column.key)}
                       className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                       style={widthStyle(column.key, {
-                        color: isWorkCurrentStatus
-                          ? statusStyle.color
-                          : isBenchmarkRate
-                            ? benchmarkStyle.color
-                            : isReach
-                              ? reachColor(value)
-                              : "#0f172a",
-                        background: isWorkCurrentStatus
-                          ? statusStyle.background
-                          : isBenchmarkRate
-                            ? benchmarkStyle.background
-                            : undefined,
+                        color: isHistoricalBeforeStartMonth
+                          ? "#94a3b8"
+                          : isWorkCurrentStatus
+                            ? statusStyle.color
+                            : isBenchmarkRate
+                              ? benchmarkStyle.color
+                              : isReach
+                                ? reachColor(value)
+                                : "#0f172a",
+                        background: isHistoricalBeforeStartMonth
+                          ? "#f8fafc"
+                          : isWorkCurrentStatus
+                            ? statusStyle.background
+                            : isBenchmarkRate
+                              ? benchmarkStyle.background
+                              : undefined,
                         borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
-                        fontWeight: isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
+                        fontWeight: isHistoricalBeforeStartMonth ? 500 : isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
                       })}
                     >
-                      {formatBuilderCell(value, column.type)}
+                      {displayValue}
                     </td>
                   );
                 })}
