@@ -1725,6 +1725,7 @@ const EMPTY_FILTERS = {
   agent: [],
   columnDimension: "",
   includeColumnGrandTotal: false,
+  agentProductivityPlanMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
   benchmarkMode: false,
