@@ -2666,8 +2666,9 @@ export default function DashboardPage() {
         if (preset === "last4") {
           return {
             ...basePreset,
+            reportMode: "last4",
+            specificType: "",
             monthKey: availableMonthKeys.slice(0, 4),
-            columnDimension: "month",
             includeWorkTime: true,
             hideNotWorking: true,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
