@@ -147,6 +147,7 @@ test("last4 export uses grouped month headers and working position column", asyn
         desk: "Turkey Africa",
         teamLeader: "Alice",
         agent: "Alice",
+        startDate: "2026-04-10",
         months: {
           "2026-03": {
             target: 10,
@@ -180,4 +181,10 @@ test("last4 export uses grouped month headers and working position column", asyn
   assert.equal(worksheet.getCell("F2").value, "FTD Target");
   assert.equal(worksheet.getCell("G2").value, "FTD Target Reach");
   assert.equal(worksheet.getCell("A3").value, "Team Leader");
+  assert.equal(worksheet.getCell("E3").value, "");
+  assert.equal(String(worksheet.getCell("E3").fill?.fgColor?.argb || ""), "FF6B7280");
+  assert.notEqual(
+    String(worksheet.getCell("E1").fill?.fgColor?.argb || ""),
+    String(worksheet.getCell("K1").fill?.fgColor?.argb || ""),
+  );
 });
