@@ -63,6 +63,44 @@ test("builder pivot export groups month headers on top row", async () => {
   assert.equal(worksheet.getCell("E2").value, "FTD");
 });
 
+test("builder pivot export blanks months before work start", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columnDimension: "month",
+      columnValues: ["2026-03", "2026-04"],
+      columnMetrics: [{ key: "ftd", label: "FTD", type: "number" }],
+      columns: [
+        { key: "desk", label: "Desk", type: "text", kind: "dimension" },
+        { key: "month_2026-03__ftd", label: "2026-03 FTD", type: "number", kind: "metric" },
+        { key: "month_2026-04__ftd", label: "2026-04 FTD", type: "number", kind: "metric" },
+        { key: "workStartDate", label: "Start Date", type: "text", kind: "worktime" },
+      ],
+    },
+    table: [
+      {
+        desk: "Turkey",
+        "month_2026-03__ftd": 20,
+        "month_2026-04__ftd": 10,
+        workStartDate: "2026-04-03",
+      },
+    ],
+    month: { label: "June 2026", office_name: "Turkiye Office", key: "2026-06" },
+    summary: {},
+    reportMode: "specific",
+    specificType: "builder",
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, {});
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(worksheet.getCell("B3").value, "");
+  assert.equal(String(worksheet.getCell("B3").fill?.fgColor?.argb || ""), "FF6B7280");
+  assert.equal(Number(worksheet.getCell("C3").value || 0), 10);
+});
+
 test("agent productivity export renders country blocks with metric rows", async () => {
   const report = {
     tableType: "builder",
