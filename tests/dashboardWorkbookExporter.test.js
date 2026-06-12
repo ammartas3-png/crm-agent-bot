@@ -101,6 +101,40 @@ test("builder pivot export blanks months before work start", async () => {
   assert.equal(Number(worksheet.getCell("C3").value || 0), 10);
 });
 
+test("builder pivot export adds working position column in last4 quick mode", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columnDimension: "month",
+      columnValues: ["2026-03"],
+      columnMetrics: [{ key: "ftd", label: "FTD", type: "number" }],
+      columns: [
+        { key: "desk", label: "Desk", type: "text", kind: "dimension" },
+        { key: "teamLeader", label: "Team Leader", type: "text", kind: "dimension" },
+        { key: "agent", label: "Agent", type: "text", kind: "dimension" },
+        { key: "month_2026-03__ftd", label: "2026-03 FTD", type: "number", kind: "metric" },
+      ],
+    },
+    table: [
+      {
+        desk: "Turkey",
+        teamLeader: "Alice",
+        agent: "Alice",
+        "month_2026-03__ftd": 12,
+      },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, { last4QuickMode: "1" });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(worksheet.getCell("A1").value, "Working Position");
+  assert.equal(worksheet.getCell("A3").value, "Team Leader");
+  assert.equal(worksheet.getCell("B1").value, "Desk");
+});
+
 test("agent productivity export renders country blocks with metric rows", async () => {
   const report = {
     tableType: "builder",
