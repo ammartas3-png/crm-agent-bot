@@ -848,6 +848,31 @@
   background: #f0fdf4;
 }
 
+.chipActiveLocked {
+  border-color: #2563eb !important;
+  color: #1e3a8a !important;
+  background: #dbeafe !important;
+}
+
+.chipActiveLocked .chipCheck {
+  background: #2563eb;
+}
+
+.chipActiveLocked .chipOrder {
+  border-color: #2563eb;
+  background: #bfdbfe;
+  color: #1e3a8a;
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.chipActiveLocked:disabled {
+  opacity: 1;
+}
+
 .chipInner {
   display: inline-flex;
   align-items: center;

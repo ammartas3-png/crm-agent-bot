@@ -593,7 +593,7 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
   return next;
 }
 
-function ToggleGroup({ label, items, selectedItems, onToggle }) {
+function ToggleGroup({ label, items, selectedItems, onToggle, locked = false, activeClassName = "" }) {
   const selectedLabels = selectedItems
     .map((key) => items.find((item) => item.key === key)?.label || "")
     .filter(Boolean);
@@ -608,8 +608,9 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
             <button
               key={item.key}
               type="button"
+              disabled={locked}
               onClick={() => onToggle(item.key)}
-              className={`${styles.chip} ${active ? styles.chipActive : ""}`}
+              className={`${styles.chip} ${active ? styles.chipActive : ""} ${active ? activeClassName : ""}`}
             >
               <span className={styles.chipInner}>
                 {active ? <span className={styles.chipCheck}>✓</span> : null}
@@ -630,7 +631,16 @@ function ToggleGroup({ label, items, selectedItems, onToggle }) {
   );
 }
 
-function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onToggleDimension, onToggleTotal }) {
+function RowDimensionGroup({
+  label,
+  items,
+  selectedItems,
+  selectedTotals,
+  onToggleDimension,
+  onToggleTotal,
+  locked = false,
+  activeClassName = "",
+}) {
   const selectedSet = new Set(selectedItems || []);
   const totalSet = new Set(selectedTotals || []);
   const lastSelectedKey = selectedItems?.[selectedItems.length - 1] || "";
@@ -649,8 +659,9 @@ function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onTogg
             <div key={`row-dim-${item.key}`} className={styles.chipWithSwitch}>
               <button
                 type="button"
+                disabled={locked}
                 onClick={() => onToggleDimension(item.key)}
-                className={`${styles.chip} ${activeDimension ? styles.chipActive : ""}`}
+                className={`${styles.chip} ${activeDimension ? styles.chipActive : ""} ${activeDimension ? activeClassName : ""}`}
               >
                 <span className={styles.chipInner}>
                   {activeDimension ? <span className={styles.chipCheck}>✓</span> : null}
@@ -662,7 +673,7 @@ function RowDimensionGroup({ label, items, selectedItems, selectedTotals, onTogg
                 type="button"
                 aria-label={`${item.label} total`}
                 aria-pressed={totalActive}
-                disabled={!totalEnabled}
+                disabled={!totalEnabled || locked}
                 onClick={() => onToggleTotal(item.key)}
                 className={`${styles.totalSwitch} ${
                   !totalEnabled ? styles.totalSwitchDisabled : totalActive ? styles.totalSwitchOn : styles.totalSwitchOff
@@ -702,16 +713,19 @@ function SingleChoiceChipGroup({
   grandTotalLabel = "",
   grandTotalEnabled = false,
   onToggleGrandTotal = null,
+  locked = false,
+  activeClassName = "",
 }) {
-  const canToggleGrandTotal = Boolean(selectedKey && onToggleGrandTotal);
+  const canToggleGrandTotal = Boolean(selectedKey && onToggleGrandTotal && !locked);
   return (
     <div className={styles.chipSection}>
       <div className={styles.chipTitle}>{label}</div>
       <div className={styles.chipList}>
         <button
           type="button"
+          disabled={locked}
           onClick={() => onSelect("")}
-          className={`${styles.chip} ${!selectedKey ? styles.chipActive : ""}`}
+          className={`${styles.chip} ${!selectedKey ? styles.chipActive : ""} ${!selectedKey ? activeClassName : ""}`}
         >
           <span className={styles.chipInner}>
             {!selectedKey ? <span className={styles.chipCheck}>✓</span> : null}
@@ -721,7 +735,13 @@ function SingleChoiceChipGroup({
         {items.map((item) => {
           const active = selectedKey === item.key;
           return (
-            <button key={item.key} type="button" onClick={() => onSelect(item.key)} className={`${styles.chip} ${active ? styles.chipActive : ""}`}>
+            <button
+              key={item.key}
+              type="button"
+              disabled={locked}
+              onClick={() => onSelect(item.key)}
+              className={`${styles.chip} ${active ? styles.chipActive : ""} ${active ? activeClassName : ""}`}
+            >
               <span className={styles.chipInner}>
                 {active ? <span className={styles.chipCheck}>✓</span> : null}
                 <span>{item.label}</span>
@@ -735,7 +755,7 @@ function SingleChoiceChipGroup({
               type="button"
               onClick={() => onToggleGrandTotal(!grandTotalEnabled)}
               disabled={!canToggleGrandTotal}
-              className={`${styles.chip} ${grandTotalEnabled ? styles.chipActive : ""}`}
+              className={`${styles.chip} ${grandTotalEnabled ? styles.chipActive : ""} ${grandTotalEnabled ? activeClassName : ""}`}
               title={canToggleGrandTotal ? "Show/Hide column grand total" : "Select a column first"}
             >
               <span className={styles.chipInner}>
@@ -2355,6 +2375,7 @@ export default function DashboardPage() {
 
   const report = reportState.report;
   const options = report?.options || {};
+  const isComparisonPreset = quickPreset === "comparison-report";
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
   const monthOptions = useMemo(() => {
@@ -3063,6 +3084,8 @@ export default function DashboardPage() {
                 includeColumnGrandTotal: prev.columnDimension ? Boolean(nextEnabled) : false,
               }))
             }
+            locked={isComparisonPreset}
+            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
           />
           <RowDimensionGroup
             label="Row / Group Dimensions"
@@ -3097,11 +3120,14 @@ export default function DashboardPage() {
                 return { ...prev, totalDimensions: nextTotals };
               })
             }
+            locked={isComparisonPreset}
+            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
           />
           <div className={styles.workTimeToggleRow}>
             <span className={styles.workTimeToggleLabel}>Work Time</span>
             <button
               type="button"
+              disabled={isComparisonPreset}
               className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
               onClick={() =>
                 setFilters((prev) => ({
@@ -3114,7 +3140,7 @@ export default function DashboardPage() {
               <span className={styles.workTimeToggleThumb} />
               <span>{filters.includeWorkTime ? "ON" : "OFF"}</span>
             </button>
-            {filters.includeWorkTime ? (
+            {filters.includeWorkTime && !isComparisonPreset ? (
               <>
                 <span className={styles.workTimeToggleLabel}>Hide Not Working</span>
                 <button
@@ -3142,6 +3168,8 @@ export default function DashboardPage() {
                 return { ...prev, metricFields: next };
               })
             }
+            locked={isComparisonPreset}
+            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
           />
         </section>
       ) : null}
