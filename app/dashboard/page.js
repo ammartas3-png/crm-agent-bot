@@ -593,17 +593,47 @@ function sanitizeFiltersWithOptions(sourceFilters = {}, options = {}) {
   return next;
 }
 
-function ToggleGroup({ label, items, selectedItems, onToggle, locked = false, activeClassName = "" }) {
-  const selectedLabels = selectedItems
+function ToggleGroup({
+  label,
+  items,
+  selectedItems,
+  onToggle,
+  noLabel = "No",
+  showNoOption = false,
+  onSelectNo = null,
+  locked = false,
+  activeClassName = "",
+}) {
+  const safeSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+  const selectedLabels = safeSelectedItems
     .map((key) => items.find((item) => item.key === key)?.label || "")
     .filter(Boolean);
   return (
     <div className={styles.chipSection}>
       <div className={styles.chipTitle}>{label}</div>
       <div className={styles.chipList}>
+        {showNoOption ? (
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => {
+              if (typeof onSelectNo === "function") {
+                onSelectNo();
+              }
+            }}
+            className={`${styles.chip} ${!safeSelectedItems.length ? styles.chipActive : ""} ${
+              !safeSelectedItems.length ? activeClassName : ""
+            }`}
+          >
+            <span className={styles.chipInner}>
+              {!safeSelectedItems.length ? <span className={styles.chipCheck}>✓</span> : null}
+              <span>{noLabel}</span>
+            </span>
+          </button>
+        ) : null}
         {items.map((item) => {
-          const active = selectedItems.includes(item.key);
-          const orderIndex = selectedItems.indexOf(item.key);
+          const active = safeSelectedItems.includes(item.key);
+          const orderIndex = safeSelectedItems.indexOf(item.key);
           return (
             <button
               key={item.key}
@@ -624,7 +654,7 @@ function ToggleGroup({ label, items, selectedItems, onToggle, locked = false, ac
       <div className={styles.orderPreview}>
         <div className={styles.orderLabel}>{label} Order</div>
         <div className={styles.orderValue}>
-          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : "No selection"}
+          {selectedLabels.length ? selectedLabels.map((item, index) => `${index + 1}. ${item}`).join("  •  ") : noLabel}
         </div>
       </div>
     </div>
@@ -3193,6 +3223,9 @@ export default function DashboardPage() {
             label="Metrics / Data Fields"
             items={builderMetricOptions}
             selectedItems={filters.metricFields || []}
+            noLabel="No"
+            showNoOption
+            onSelectNo={() => setFilters((prev) => ({ ...prev, metricFields: [] }))}
             onToggle={(key) =>
               setFilters((prev) => {
                 const current = Array.isArray(prev.metricFields) ? prev.metricFields : [];
