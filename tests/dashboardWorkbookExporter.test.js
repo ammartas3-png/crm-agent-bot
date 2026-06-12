@@ -175,7 +175,7 @@ test("last4 export uses grouped month headers and working position column", asyn
   const worksheet = workbook.getWorksheet("Report");
 
   assert.equal(worksheet.getCell("A1").value, "Working Position");
-  assert.equal(worksheet.getCell("E1").value, "2026-03");
+  assert.equal(worksheet.getCell("E1").value, "Mar-26");
   assert.equal(worksheet.getCell("E2").value, "FTD");
   assert.equal(worksheet.getCell("F2").value, "FTD Target");
   assert.equal(worksheet.getCell("G2").value, "FTD Target Reach");
