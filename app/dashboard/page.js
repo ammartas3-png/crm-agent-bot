@@ -1745,6 +1745,9 @@ const EMPTY_FILTERS = {
   teamLeader: [],
   agent: [],
   columnDimension: "",
+  includeColumnGrandTotal: false,
+  agentProductivityPlanMode: false,
+  last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
   groupBy: "agent",
@@ -2039,15 +2042,41 @@ export default function DashboardPage() {
       setQuickPreset(preset);
       setFilters((prev) => {
         const defaultMonth = availableMonthKeys[0] ? [availableMonthKeys[0]] : prev.monthKey || [];
+        const selectedOfficeScope =
+          Array.isArray(prev.officeScope) && prev.officeScope.length
+            ? [prev.officeScope[0]]
+            : officeOptions[0]
+              ? [officeOptions[0]]
+              : [];
+        const clearedTopFilters = {
+          date: [],
+          hour: [],
+          desk: [],
+          country: [],
+          brand: [],
+          campaign: [],
+          subCampaign: [],
+          placement: [],
+          status: [],
+          teamLeader: [],
+          agent: [],
+        };
+        const basePreset = {
+          ...prev,
+          officeScope: selectedOfficeScope,
+          reportMode: "specific",
+          specificType: "builder",
+          benchmarkMode: false,
+          agentProductivityPlanMode: false,
+          last4QuickMode: false,
+          columnDimension: "",
+          includeColumnGrandTotal: false,
+          ...clearedTopFilters,
+        };
         if (preset === "monthly") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
+            ...basePreset,
             monthKey: defaultMonth,
-            date: [],
-            hour: [],
-            columnDimension: "",
             includeWorkTime: true,
             hideNotWorking: true,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
@@ -2057,13 +2086,12 @@ export default function DashboardPage() {
         }
         if (preset === "last4") {
           return {
-            ...prev,
+            ...basePreset,
             reportMode: "specific",
             specificType: "builder",
             monthKey: availableMonthKeys.slice(0, 4),
-            date: [],
-            hour: [],
             columnDimension: "month",
+            last4QuickMode: true,
             includeWorkTime: true,
             hideNotWorking: true,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
@@ -2073,12 +2101,7 @@ export default function DashboardPage() {
         }
         if (preset === "traffic") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
-            date: [],
-            hour: [],
-            columnDimension: "",
+            ...basePreset,
             includeWorkTime: true,
             hideNotWorking: true,
             rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
@@ -2088,12 +2111,7 @@ export default function DashboardPage() {
         }
         if (preset === "country-daily") {
           return {
-            ...prev,
-            reportMode: "specific",
-            specificType: "builder",
-            date: [],
-            hour: [],
-            columnDimension: "",
+            ...basePreset,
             includeWorkTime: true,
             hideNotWorking: true,
             rowDimensions: QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS,
@@ -2104,7 +2122,7 @@ export default function DashboardPage() {
         return prev;
       });
     },
-    [availableMonthKeys],
+    [availableMonthKeys, officeOptions],
   );
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
@@ -2343,6 +2361,9 @@ export default function DashboardPage() {
                       teamLeader: [],
                       agent: [],
                       columnDimension: "",
+                      includeColumnGrandTotal: false,
+                      agentProductivityPlanMode: false,
+                      last4QuickMode: false,
                       includeWorkTime: false,
                       hideNotWorking: false,
                     }));
@@ -2413,6 +2434,9 @@ export default function DashboardPage() {
                     teamLeader: [],
                     agent: [],
                     columnDimension: "",
+                    includeColumnGrandTotal: false,
+                    agentProductivityPlanMode: false,
+                    last4QuickMode: false,
                     includeWorkTime: false,
                     hideNotWorking: false,
                   }));
