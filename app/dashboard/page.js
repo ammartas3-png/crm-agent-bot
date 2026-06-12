@@ -21,6 +21,19 @@ function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
 }
 
+function formatDecimal(value, digits = 2) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric)
+    ? numeric.toLocaleString("en-US", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      })
+    : Number(0).toLocaleString("en-US", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+}
+
 function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
@@ -1511,6 +1524,28 @@ function monthDaysFromMonthKey(monthKey = "") {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+function dailyLeadDivisorFromMonthKey(monthKey = "", now = new Date()) {
+  const matched = String(monthKey || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})$/);
+  if (!matched) {
+    return 30;
+  }
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return 30;
+  }
+  const fullMonthDays = monthDaysFromMonthKey(monthKey);
+  const isCurrentMonth = now.getUTCFullYear() === year && now.getUTCMonth() + 1 === month;
+  if (!isCurrentMonth) {
+    return fullMonthDays;
+  }
+  // Current month uses completed days only (up to yesterday).
+  const completedDayCount = Math.max(1, now.getUTCDate() - 1);
+  return Math.max(1, Math.min(fullMonthDays, completedDayCount));
+}
+
 function monthShortLabel(monthKey = "", fallbackLabel = "") {
   const matched = String(monthKey || "")
     .trim()
@@ -1554,8 +1589,8 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
     {
       label: "Daily leads per agent",
       render: (context) => {
-        const value = context.monthDays > 0 ? context.leads / context.monthDays : 0;
-        return formatNumber(Math.round(value));
+        const value = context.dailyLeadDivisor > 0 ? context.leads / context.dailyLeadDivisor : 0;
+        return formatDecimal(value, 2);
       },
     },
     {
@@ -1600,8 +1635,10 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
                       <th className={styles.agentProductivityMetricCell}>{metric.label}</th>
                       {monthKeys.map((monthKey) => {
                         const monthDays = monthDaysFromMonthKey(monthKey);
+                        const dailyLeadDivisor = dailyLeadDivisorFromMonthKey(monthKey);
                         const context = {
                           monthDays,
+                          dailyLeadDivisor,
                           leads: builderMonthMetricValue(row, monthKey, "leads"),
                           ftd: builderMonthMetricValue(row, monthKey, "ftd"),
                           cr: builderMonthMetricValue(row, monthKey, "cr"),
