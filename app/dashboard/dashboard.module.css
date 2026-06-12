@@ -571,6 +571,52 @@
   user-select: none;
 }
 
+.comparisonTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.comparisonTable th:first-child,
+.comparisonTable td:first-child {
+  width: 40%;
+}
+
+.comparisonTable th:nth-child(2),
+.comparisonTable td:nth-child(2),
+.comparisonTable th:nth-child(3),
+.comparisonTable td:nth-child(3),
+.comparisonTable th:nth-child(4),
+.comparisonTable td:nth-child(4),
+.comparisonTable th:nth-child(5),
+.comparisonTable td:nth-child(5) {
+  width: 15%;
+}
+
+.comparisonTable th:not(:first-child),
+.comparisonTable td:not(:first-child) {
+  text-align: center;
+}
+
+.comparisonNameCell {
+  white-space: normal !important;
+}
+
+.comparisonNameText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
 .tableScroll {
   overflow: auto;
   max-height: 58vh;

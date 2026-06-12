@@ -1957,7 +1957,9 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
                           className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
                           onClick={() => onToggleSelection?.(table.key, row.label)}
                         >
-                          <td className={styles.tableStrong}>{row.label}</td>
+                          <td className={`${styles.tableStrong} ${styles.comparisonNameCell}`}>
+                            <span className={styles.comparisonNameText}>{row.label}</span>
+                          </td>
                           <td>{formatNumber(row.leads)}</td>
                           <td>{formatNumber(row.ftd)}</td>
                           <td>{formatPercent(row.cr)}</td>
