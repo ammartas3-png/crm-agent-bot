@@ -1755,9 +1755,160 @@ const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
+const COMPARISON_TABLE_DIMENSIONS = [
+  { key: "country", label: "Country" },
+  { key: "campaign", label: "Campaign" },
+  { key: "placement", label: "Placement" },
+  { key: "subCampaign", label: "Sub-Campaign" },
+  { key: "teamLeader", label: "Team Leader" },
+  { key: "agent", label: "Agent" },
+];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
+}
+
+function toMetricNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }) {
+  const cleanRows = useMemo(
+    () => (Array.isArray(rows) ? rows.filter((row) => row && row.__rowKind !== "total") : []),
+    [rows],
+  );
+
+  const tables = useMemo(() => {
+    return COMPARISON_TABLE_DIMENSIONS.map((dimension) => {
+      const filteredRows = cleanRows.filter((row) =>
+        COMPARISON_TABLE_DIMENSIONS.every((dimensionItem) => {
+          if (dimensionItem.key === dimension.key) {
+            return true;
+          }
+          const selectedValue = String(selections?.[dimensionItem.key] || "").trim();
+          if (!selectedValue) {
+            return true;
+          }
+          const rowValue = String(row?.[dimensionItem.key] || "").trim();
+          return rowValue === selectedValue;
+        }),
+      );
+
+      const grouped = new Map();
+      for (const row of filteredRows) {
+        const label = String(row?.[dimension.key] || "").trim();
+        if (!label || label === "-") {
+          continue;
+        }
+        if (!grouped.has(label)) {
+          grouped.set(label, { label, leads: 0, ftd: 0, targetBase: 0 });
+        }
+        const bucket = grouped.get(label);
+        const leads = toMetricNumber(row?.leads);
+        const ftd = toMetricNumber(row?.ftd);
+        const crTarget = toMetricNumber(row?.crTarget);
+        const crTargetReach = toMetricNumber(row?.crTargetReach);
+        bucket.leads += leads;
+        bucket.ftd += ftd;
+        if (crTarget > 0) {
+          bucket.targetBase += leads * (crTarget / 100);
+        } else if (crTargetReach > 0 && ftd > 0) {
+          bucket.targetBase += ftd / (crTargetReach / 100);
+        }
+      }
+
+      const data = [...grouped.values()]
+        .map((item) => ({
+          ...item,
+          cr: item.leads > 0 ? (item.ftd / item.leads) * 100 : 0,
+          crTargetReach: item.targetBase > 0 ? (item.ftd / item.targetBase) * 100 : 0,
+        }))
+        .sort((left, right) => {
+          const leadsCompare = right.leads - left.leads;
+          if (leadsCompare !== 0) {
+            return leadsCompare;
+          }
+          const ftdCompare = right.ftd - left.ftd;
+          if (ftdCompare !== 0) {
+            return ftdCompare;
+          }
+          return left.label.localeCompare(right.label);
+        });
+
+      return {
+        ...dimension,
+        rows: data,
+      };
+    });
+  }, [cleanRows, selections]);
+
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <h3 className={styles.sectionTitle}>Comparison Tables</h3>
+      <div className={styles.comparisonGrid}>
+        {tables.map((table) => {
+          const selectedValue = String(selections?.[table.key] || "").trim();
+          return (
+            <div key={`comparison-${table.key}`} className={`${styles.panel} ${styles.tableCard}`}>
+              <div className={styles.comparisonHeader}>
+                <h4 className={styles.comparisonTitle}>{table.label}</h4>
+                {selectedValue ? (
+                  <button
+                    type="button"
+                    className={`${styles.button} ${styles.buttonSecondary}`}
+                    style={{ padding: "4px 8px", fontSize: 11 }}
+                    onClick={() => onToggleSelection?.(table.key, selectedValue)}
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              <div className={styles.tableScroll}>
+                <table className={`${styles.table} ${styles.tableSticky}`}>
+                  <thead>
+                    <tr>
+                      <th>{table.label}</th>
+                      <th>Leads</th>
+                      <th>FTD</th>
+                      <th>CR</th>
+                      <th>CR Target Reach</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.rows.map((row, index) => {
+                      const isSelected = selectedValue && selectedValue === row.label;
+                      const reachStyle = reachCellStyle(row.crTargetReach);
+                      return (
+                        <tr
+                          key={`${table.key}-${row.label}-${index}`}
+                          className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                          onClick={() => onToggleSelection?.(table.key, row.label)}
+                        >
+                          <td className={styles.tableStrong}>{row.label}</td>
+                          <td>{formatNumber(row.leads)}</td>
+                          <td>{formatNumber(row.ftd)}</td>
+                          <td>{formatPercent(row.cr)}</td>
+                          <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
+                        </tr>
+                      );
+                    })}
+                    {!table.rows.length ? (
+                      <tr>
+                        <td colSpan={5} className={styles.tableEmpty}>
+                          No rows found.
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export default function DashboardPage() {
@@ -1795,6 +1946,7 @@ export default function DashboardPage() {
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
+  const [comparisonSelections, setComparisonSelections] = useState({});
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -2025,6 +2177,12 @@ export default function DashboardPage() {
   }, [executionMonitor.active, executionMonitor.startedAtMs]);
 
   useEffect(() => {
+    if (quickPreset !== "comparison-report") {
+      setComparisonSelections({});
+    }
+  }, [quickPreset]);
+
+  useEffect(() => {
     const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
     if (!hasOfficeScope || filters.reportMode) {
       return;
@@ -2099,6 +2257,23 @@ export default function DashboardPage() {
     setAppliedFilters({ ...filters });
   }, [filters]);
 
+  const handleComparisonSelectionToggle = useCallback((dimensionKey, value) => {
+    const normalizedKey = String(dimensionKey || "").trim();
+    const normalizedValue = String(value || "").trim();
+    if (!normalizedKey || !normalizedValue) {
+      return;
+    }
+    setComparisonSelections((prev) => {
+      const next = { ...prev };
+      if (String(next[normalizedKey] || "").trim() === normalizedValue) {
+        delete next[normalizedKey];
+      } else {
+        next[normalizedKey] = normalizedValue;
+      }
+      return next;
+    });
+  }, []);
+
   const handleExportXlsx = useCallback(async () => {
     setExportState({ loading: true, error: "" });
     try {
@@ -2128,6 +2303,7 @@ export default function DashboardPage() {
 
   const report = reportState.report;
   const options = report?.options || {};
+  const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
   const monthOptions = useMemo(() => {
     const source = options.months || sessionState.bootstrap.months || [];
@@ -2295,6 +2471,11 @@ export default function DashboardPage() {
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
   const hasPendingChanges = draftQueryKey !== appliedQueryKey;
+  useEffect(() => {
+    if (quickPreset === "comparison-report") {
+      setComparisonSelections({});
+    }
+  }, [appliedQueryKey, quickPreset]);
   const builderDimensionOptions = options.builderDimensions || DEFAULT_BUILDER_DIMENSIONS;
   const builderMetricOptions = options.builderMetrics || DEFAULT_BUILDER_METRICS;
   const builderColumnDimensionOptions = options.builderColumnDimensions || DEFAULT_BUILDER_COLUMN_DIMENSIONS;
@@ -2800,7 +2981,7 @@ export default function DashboardPage() {
               className={styles.reportModeCard}
               style={quickPreset === "comparison-report" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
             >
-              <span className={styles.reportModeTitle}>Karsilastirma Raporu</span>
+              <span className={styles.reportModeTitle}>Comparison Report</span>
               <span className={styles.reportModeIcon}>⚖️</span>
             </button>
           </div>
@@ -2957,22 +3138,32 @@ export default function DashboardPage() {
               {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}
             </button>
           </div>
-          <SummaryCards summary={report.summary || {}} />
-          <StatusCards stats={report.stats || {}} />
+          {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
+          {!isComparisonReportView ? <StatusCards stats={report.stats || {}} /> : null}
           {report.tableType === "pivot" ? <PivotTable rows={report.table || []} summary={report.summary || {}} /> : null}
           {report.tableType === "last4_matrix" ? (
             <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
           ) : null}
           {report.tableType === "builder" ? (
             <section className={styles.section} style={{ padding: 0 }}>
-              <h3 className={styles.sectionTitle}>Results Table</h3>
-              <BuilderTable
-                columns={builderColumns}
-                rows={sortedBuilderRows}
-                sortState={builderSort}
-                onSort={handleBuilderSort}
-                builder={report?.builder || {}}
-              />
+              {isComparisonReportView ? (
+                <ComparisonTablesPanel
+                  rows={report.table || []}
+                  selections={comparisonSelections}
+                  onToggleSelection={handleComparisonSelectionToggle}
+                />
+              ) : (
+                <>
+                  <h3 className={styles.sectionTitle}>Results Table</h3>
+                  <BuilderTable
+                    columns={builderColumns}
+                    rows={sortedBuilderRows}
+                    sortState={builderSort}
+                    onSort={handleBuilderSort}
+                    builder={report?.builder || {}}
+                  />
+                </>
+              )}
             </section>
           ) : null}
           {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (

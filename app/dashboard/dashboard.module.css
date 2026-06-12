@@ -537,6 +537,28 @@
   overflow: hidden;
 }
 
+.comparisonGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.comparisonHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid #e6edf5;
+}
+
+.comparisonTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .tableScroll {
   overflow: auto;
   max-height: 58vh;
@@ -678,6 +700,10 @@
   .filterRows {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .comparisonGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 940px) {
@@ -697,6 +723,10 @@
   .reportModeCard {
     min-width: 0;
     width: calc(50% - 6px);
+  }
+
+  .comparisonGrid {
+    grid-template-columns: 1fr;
   }
 
   .officeGrid {
