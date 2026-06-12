@@ -1757,11 +1757,19 @@ const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placemen
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
 const COMPARISON_TABLE_DIMENSIONS = [
   { key: "country", label: "Country" },
+  { key: "teamLeader", label: "Team Leader" },
+  { key: "agent", label: "Agent" },
   { key: "campaign", label: "Campaign" },
   { key: "placement", label: "Placement" },
   { key: "subCampaign", label: "Sub-Campaign" },
-  { key: "teamLeader", label: "Team Leader" },
-  { key: "agent", label: "Agent" },
+];
+const COMPARISON_DEFAULT_SORT = { key: "leads", direction: "desc" };
+const COMPARISON_COLUMNS = [
+  { key: "label", label: "Name", type: "text" },
+  { key: "leads", label: "Leads", type: "number" },
+  { key: "ftd", label: "FTD", type: "number" },
+  { key: "cr", label: "CR", type: "number" },
+  { key: "crTargetReach", label: "CR Target Reach", type: "number" },
 ];
 
 function asOptions(values = []) {
@@ -1774,10 +1782,33 @@ function toMetricNumber(value) {
 }
 
 function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }) {
+  const [sortByTable, setSortByTable] = useState(() =>
+    Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
+  );
   const cleanRows = useMemo(
     () => (Array.isArray(rows) ? rows.filter((row) => row && row.__rowKind !== "total") : []),
     [rows],
   );
+
+  const toggleSort = useCallback((tableKey, columnKey) => {
+    const safeTableKey = String(tableKey || "").trim();
+    const safeColumnKey = String(columnKey || "").trim();
+    if (!safeTableKey || !safeColumnKey) {
+      return;
+    }
+    setSortByTable((prev) => {
+      const current = prev[safeTableKey] || COMPARISON_DEFAULT_SORT;
+      const nextDirection =
+        current.key === safeColumnKey ? (current.direction === "asc" ? "desc" : "asc") : safeColumnKey === "label" ? "asc" : "desc";
+      return {
+        ...prev,
+        [safeTableKey]: {
+          key: safeColumnKey,
+          direction: nextDirection,
+        },
+      };
+    });
+  }, []);
 
   const tables = useMemo(() => {
     return COMPARISON_TABLE_DIMENSIONS.map((dimension) => {
@@ -1825,23 +1856,34 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
           crTargetReach: item.targetBase > 0 ? (item.ftd / item.targetBase) * 100 : 0,
         }))
         .sort((left, right) => {
-          const leadsCompare = right.leads - left.leads;
-          if (leadsCompare !== 0) {
-            return leadsCompare;
+          const sortState = sortByTable?.[dimension.key] || COMPARISON_DEFAULT_SORT;
+          const sortKey = sortState.key || "leads";
+          const sortDirection = sortState.direction === "asc" ? "asc" : "desc";
+          let baseCompare = 0;
+          if (sortKey === "label") {
+            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
+              numeric: true,
+              sensitivity: "base",
+            });
+          } else {
+            baseCompare = toMetricNumber(left[sortKey]) - toMetricNumber(right[sortKey]);
           }
-          const ftdCompare = right.ftd - left.ftd;
-          if (ftdCompare !== 0) {
-            return ftdCompare;
+          if (baseCompare === 0) {
+            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
+              numeric: true,
+              sensitivity: "base",
+            });
           }
-          return left.label.localeCompare(right.label);
+          return sortDirection === "asc" ? baseCompare : -baseCompare;
         });
 
       return {
         ...dimension,
         rows: data,
+        sort: sortByTable?.[dimension.key] || COMPARISON_DEFAULT_SORT,
       };
     });
-  }, [cleanRows, selections]);
+  }, [cleanRows, selections, sortByTable]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -1865,14 +1907,24 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
                 ) : null}
               </div>
               <div className={styles.tableScroll}>
-                <table className={`${styles.table} ${styles.tableSticky}`}>
+                <table className={`${styles.table} ${styles.tableSticky} ${styles.comparisonTable}`}>
                   <thead>
                     <tr>
-                      <th>{table.label}</th>
-                      <th>Leads</th>
-                      <th>FTD</th>
-                      <th>CR</th>
-                      <th>CR Target Reach</th>
+                      {COMPARISON_COLUMNS.map((column) => {
+                        const isActive = table.sort?.key === column.key;
+                        const sortSuffix = isActive ? (table.sort?.direction === "asc" ? " ▲" : " ▼") : "";
+                        const headerLabel = column.key === "label" ? table.label : column.label;
+                        return (
+                          <th
+                            key={`${table.key}-header-${column.key}`}
+                            onClick={() => toggleSort(table.key, column.key)}
+                            className={styles.comparisonSortableHeader}
+                          >
+                            {headerLabel}
+                            {sortSuffix}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
