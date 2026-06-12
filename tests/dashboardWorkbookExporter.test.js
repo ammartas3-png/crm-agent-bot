@@ -132,3 +132,50 @@ test("agent productivity export renders country blocks with metric rows", async 
     false,
   );
 });
+
+test("last4 export uses grouped month headers and working position column", async () => {
+  const report = {
+    tableType: "last4_matrix",
+    monthBlocks: [
+      { key: "2026-03", label: "Mar-26" },
+      { key: "2026-04", label: "Apr-26" },
+    ],
+    table: [
+      {
+        desk: "Turkey Africa",
+        teamLeader: "Alice",
+        agent: "Alice",
+        months: {
+          "2026-03": {
+            target: 10,
+            ftd: 8,
+            cr: 4,
+            crTarget: 5,
+            crTargetReach: 80,
+            ftdTargetReach: 80,
+          },
+          "2026-04": {
+            target: 12,
+            ftd: 11,
+            cr: 5,
+            crTarget: 5,
+            crTargetReach: 100,
+            ftdTargetReach: 92,
+          },
+        },
+      },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, {});
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(worksheet.getCell("A1").value, "Working Position");
+  assert.equal(worksheet.getCell("E1").value, "Mar-26");
+  assert.equal(worksheet.getCell("E2").value, "FTD");
+  assert.equal(worksheet.getCell("F2").value, "FTD Target");
+  assert.equal(worksheet.getCell("G2").value, "FTD Target Reach");
+  assert.equal(worksheet.getCell("A3").value, "Team Leader");
+});

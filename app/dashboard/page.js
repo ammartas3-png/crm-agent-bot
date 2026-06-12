@@ -3432,7 +3432,12 @@ export default function DashboardPage() {
               disabled={exportState.loading || reportState.loading || hasPendingChanges}
               className={`${styles.button} ${styles.buttonSecondary}`}
             >
-              {exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}
+              <span className={styles.exportButtonContent}>
+                <span className={styles.exportExcelLogo} aria-hidden="true">
+                  XLSX
+                </span>
+                <span>{exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}</span>
+              </span>
             </button>
           </div>
           {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}

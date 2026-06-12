@@ -95,6 +95,29 @@
   background: #fff;
 }
 
+.exportButtonContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exportExcelLogo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  color: #ffffff;
+  background: #1d6f42;
+  border: 1px solid #155a34;
+}
+
 .pillRow {
   display: flex;
   flex-wrap: wrap;
