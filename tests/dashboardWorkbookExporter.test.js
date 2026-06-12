@@ -113,6 +113,7 @@ test("builder pivot export adds working position column in last4 quick mode", as
         { key: "teamLeader", label: "Team Leader", type: "text", kind: "dimension" },
         { key: "agent", label: "Agent", type: "text", kind: "dimension" },
         { key: "month_2026-03__ftd", label: "2026-03 FTD", type: "number", kind: "metric" },
+        { key: "workDays", label: "Days", type: "number", kind: "worktime" },
       ],
     },
     table: [
@@ -121,6 +122,21 @@ test("builder pivot export adds working position column in last4 quick mode", as
         teamLeader: "Alice",
         agent: "Alice",
         "month_2026-03__ftd": 12,
+        workDays: 30,
+      },
+      {
+        desk: "Turkey",
+        teamLeader: "Alice",
+        agent: "Bob",
+        "month_2026-03__ftd": 7,
+        workDays: 10,
+      },
+      {
+        desk: "Turkey",
+        teamLeader: "Alice",
+        agent: "Carol",
+        "month_2026-03__ftd": 9,
+        workDays: 20,
       },
     ],
   };
@@ -133,6 +149,10 @@ test("builder pivot export adds working position column in last4 quick mode", as
   assert.equal(worksheet.getCell("A1").value, "Working Position");
   assert.equal(worksheet.getCell("A3").value, "Team Leader");
   assert.equal(worksheet.getCell("B1").value, "Desk");
+  assert.equal(worksheet.getCell("D4").value, "Carol");
+  assert.equal(worksheet.getCell("D5").value, "Bob");
+  assert.equal(Number(worksheet.getColumn(5).width || 0), 15);
+  assert.equal(Array.isArray(worksheet.views) ? Number(worksheet.views[0]?.ySplit || 0) : 0, 2);
 });
 
 test("agent productivity export renders country blocks with metric rows", async () => {
