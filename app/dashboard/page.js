@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./dashboard.module.css";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
@@ -1491,6 +1491,148 @@ function formatColumnGroupLabel(value = "") {
   return String(value || "") === "__grand_total__" ? "Grand Total" : String(value || "");
 }
 
+function numberOrZero(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function monthDaysFromMonthKey(monthKey = "") {
+  const matched = String(monthKey || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})$/);
+  if (!matched) {
+    return 30;
+  }
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return 30;
+  }
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function monthShortLabel(monthKey = "", fallbackLabel = "") {
+  const matched = String(monthKey || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})$/);
+  if (!matched) {
+    return String(fallbackLabel || monthKey || "");
+  }
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return String(fallbackLabel || monthKey || "");
+  }
+  const shortMonth = new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  });
+  return `${shortMonth}-${String(year).slice(-2)}`;
+}
+
+function builderMonthMetricValue(row = {}, monthKey = "", metricKey = "") {
+  return numberOrZero(row?.[`month_${monthKey}__${metricKey}`]);
+}
+
+function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
+  const monthValues = Array.isArray(builder?.columnValues) ? builder.columnValues : [];
+  const monthKeys = monthValues.filter((value) => {
+    const normalized = String(value || "").trim();
+    return normalized && normalized !== "__grand_total__";
+  });
+  const monthLabelByKey = new Map(
+    (months || []).map((item) => [String(item?.key || "").trim(), String(item?.month_label || item?.key || "").trim()]),
+  );
+  const orderedRows = [...(Array.isArray(rows) ? rows : [])]
+    .filter((row) => row && row.__rowKind !== "total" && String(row.country || "").trim())
+    .sort((left, right) => String(left.country || "").localeCompare(String(right.country || ""), undefined, { sensitivity: "base" }));
+  const metricRows = [
+    {
+      label: "Lead per agent according mark. Plan",
+      render: () => "",
+    },
+    {
+      label: "Daily leads per agent",
+      render: (context) => {
+        const value = context.monthDays > 0 ? context.leads / context.monthDays : 0;
+        return formatNumber(Math.round(value));
+      },
+    },
+    {
+      label: "Actual leads per agent",
+      render: (context) => formatNumber(Math.round(context.leads)),
+    },
+    {
+      label: "FTDs total",
+      render: (context) => formatNumber(Math.round(context.ftd)),
+    },
+    {
+      label: "CR%",
+      render: (context) => `${Math.round(context.cr)}%`,
+    },
+    {
+      label: "PSPs working?",
+      render: () => "",
+    },
+  ];
+
+  return (
+    <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
+      <div className={styles.tableScroll}>
+        <table className={`${styles.table} ${styles.agentProductivityTable}`}>
+          <tbody>
+            {orderedRows.length ? (
+              orderedRows.map((row, rowIndex) => (
+                <Fragment key={`country-block-${String(row.country || rowIndex)}`}>
+                  <tr className={styles.agentProductivityCountryRow}>
+                    <th colSpan={monthKeys.length + 1}>{String(row.country || "-")}</th>
+                  </tr>
+                  <tr className={styles.agentProductivityMonthRow}>
+                    <th className={styles.agentProductivityMetricCell} />
+                    {monthKeys.map((monthKey) => (
+                      <th key={`month-${rowIndex}-${monthKey}`}>
+                        {monthShortLabel(monthKey, monthLabelByKey.get(monthKey) || monthKey)}
+                      </th>
+                    ))}
+                  </tr>
+                  {metricRows.map((metric) => (
+                    <tr key={`metric-${rowIndex}-${metric.label}`}>
+                      <th className={styles.agentProductivityMetricCell}>{metric.label}</th>
+                      {monthKeys.map((monthKey) => {
+                        const monthDays = monthDaysFromMonthKey(monthKey);
+                        const context = {
+                          monthDays,
+                          leads: builderMonthMetricValue(row, monthKey, "leads"),
+                          ftd: builderMonthMetricValue(row, monthKey, "ftd"),
+                          cr: builderMonthMetricValue(row, monthKey, "cr"),
+                        };
+                        return (
+                          <td key={`metric-value-${rowIndex}-${metric.label}-${monthKey}`} className={styles.agentProductivityValueCell}>
+                            {metric.render(context)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {rowIndex < orderedRows.length - 1 ? (
+                    <tr className={styles.agentProductivitySpacerRow}>
+                      <td colSpan={monthKeys.length + 1} />
+                    </tr>
+                  ) : null}
+                </Fragment>
+              ))
+            ) : (
+              <tr>
+                <td className={styles.tableEmpty}>No rows found.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
@@ -2411,7 +2553,11 @@ export default function DashboardPage() {
   const report = reportState.report;
   const options = report?.options || {};
   const isComparisonPreset = quickPreset === "comparison-report";
+  const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
+  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
+  const isAgentProductivityReportView =
+    report?.tableType === "builder" && (isAgentProductivityPreset || Boolean(appliedFilters?.agentProductivityPlanMode));
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
   const monthOptions = useMemo(() => {
     const source = options.months || sessionState.bootstrap.months || [];
@@ -3127,7 +3273,10 @@ export default function DashboardPage() {
       ) : null}
 
       {!needOfficeSelection && filters.reportMode === "specific" && filters.specificType === "builder" ? (
-        <section className={`${styles.panel} ${styles.section}`}>
+        <section
+          className={`${styles.panel} ${styles.section} ${isAgentProductivityPreset ? styles.reportBuilderLocked : ""}`}
+          aria-disabled={isAgentProductivityPreset}
+        >
           <h2 className={styles.sectionTitle}>Report Builder</h2>
           <SingleChoiceChipGroup
             label="Column"
@@ -3149,8 +3298,8 @@ export default function DashboardPage() {
                 includeColumnGrandTotal: prev.columnDimension ? Boolean(nextEnabled) : false,
               }))
             }
-            locked={isComparisonPreset}
-            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
+            locked={isBuilderLockedPreset}
+            activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
           />
           <RowDimensionGroup
             label="Row / Group Dimensions"
@@ -3185,14 +3334,14 @@ export default function DashboardPage() {
                 return { ...prev, totalDimensions: nextTotals };
               })
             }
-            locked={isComparisonPreset}
-            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
+            locked={isBuilderLockedPreset}
+            activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
           />
           <div className={styles.workTimeToggleRow}>
             <span className={styles.workTimeToggleLabel}>Work Time</span>
             <button
               type="button"
-              disabled={isComparisonPreset}
+              disabled={isBuilderLockedPreset}
               className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
               onClick={() =>
                 setFilters((prev) => ({
@@ -3205,7 +3354,7 @@ export default function DashboardPage() {
               <span className={styles.workTimeToggleThumb} />
               <span>{filters.includeWorkTime ? "ON" : "OFF"}</span>
             </button>
-            {filters.includeWorkTime && !isComparisonPreset ? (
+            {filters.includeWorkTime && !isBuilderLockedPreset ? (
               <>
                 <span className={styles.workTimeToggleLabel}>Hide Not Working</span>
                 <button
@@ -3236,8 +3385,8 @@ export default function DashboardPage() {
                 return { ...prev, metricFields: next };
               })
             }
-            locked={isComparisonPreset}
-            activeClassName={isComparisonPreset ? styles.chipActiveLocked : ""}
+            locked={isBuilderLockedPreset}
+            activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
           />
         </section>
       ) : null}
@@ -3300,6 +3449,15 @@ export default function DashboardPage() {
                   selections={comparisonSelections}
                   onToggleSelection={handleComparisonSelectionToggle}
                 />
+              ) : isAgentProductivityReportView ? (
+                <>
+                  <h3 className={styles.sectionTitle}>Results Table</h3>
+                  <AgentProductivityPlanTable
+                    rows={sortedBuilderRows}
+                    builder={report?.builder || {}}
+                    months={report?.options?.months || []}
+                  />
+                </>
               ) : (
                 <>
                   <h3 className={styles.sectionTitle}>Results Table</h3>

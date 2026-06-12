@@ -748,6 +748,59 @@
   border-left: 1px solid #bfdbfe !important;
 }
 
+.reportBuilderLocked {
+  pointer-events: none;
+  opacity: 0.84;
+}
+
+.agentProductivityTable {
+  min-width: 760px;
+}
+
+.agentProductivityTable th,
+.agentProductivityTable td {
+  border: 1px solid #8f9cab;
+  text-align: center;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.agentProductivityCountryRow th {
+  background: #c0c9d5 !important;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  text-align: center !important;
+}
+
+.agentProductivityMonthRow th {
+  background: #c6ced9 !important;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.agentProductivityMetricCell {
+  background: #c0c9d5 !important;
+  color: #0f172a;
+  text-align: left !important;
+  font-weight: 700;
+  min-width: 270px;
+}
+
+.agentProductivityValueCell {
+  background: #ccebf9;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.agentProductivitySpacerRow td {
+  border: none;
+  background: #ffffff;
+  height: 14px;
+  padding: 0;
+}
+
 @media (max-width: 1500px) {
   .filterRows {
     grid-template-columns: repeat(5, minmax(0, 1fr));
