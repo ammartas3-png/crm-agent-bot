@@ -125,4 +125,10 @@ test("agent productivity export renders country blocks with metric rows", async 
   assert.equal(worksheet.getCell("A4").value, "Daily leads per agent");
   assert.equal(worksheet.getCell("A7").value, "CR%");
   assert.equal(worksheet.getCell("A8").value, "PSPs working?");
+  assert.ok(worksheet.getCell("B3").value === "" || worksheet.getCell("B3").value === null);
+  assert.ok(worksheet.getCell("B8").value === "" || worksheet.getCell("B8").value === null);
+  assert.equal(
+    Array.isArray(worksheet.views) ? worksheet.views.some((view) => String(view?.state || "") === "frozen") : false,
+    false,
+  );
 });
