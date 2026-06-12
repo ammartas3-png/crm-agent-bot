@@ -62,3 +62,67 @@ test("builder pivot export groups month headers on top row", async () => {
   assert.equal(worksheet.getCell("D2").value, "FTD Target Reach");
   assert.equal(worksheet.getCell("E2").value, "FTD");
 });
+
+test("agent productivity export renders country blocks with metric rows", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columnDimension: "month",
+      columnValues: ["2026-06", "2026-07"],
+      columns: [
+        { key: "country", label: "Country", type: "text", kind: "dimension" },
+        { key: "month_2026-06__leads", label: "2026-06 Leads", type: "number", kind: "metric" },
+        { key: "month_2026-06__ftd", label: "2026-06 FTD", type: "number", kind: "metric" },
+        { key: "month_2026-06__cr", label: "2026-06 CR", type: "percent", kind: "metric" },
+        { key: "month_2026-06__crTarget", label: "2026-06 CR Target", type: "percent", kind: "metric" },
+        { key: "month_2026-06__crTargetReach", label: "2026-06 CR Target Reach", type: "percent", kind: "metric" },
+        { key: "month_2026-06__ftdTarget", label: "2026-06 FTD Target", type: "number", kind: "metric" },
+        { key: "month_2026-06__agentCount", label: "2026-06 Agent Count", type: "number", kind: "metric" },
+        { key: "month_2026-07__leads", label: "2026-07 Leads", type: "number", kind: "metric" },
+        { key: "month_2026-07__ftd", label: "2026-07 FTD", type: "number", kind: "metric" },
+        { key: "month_2026-07__cr", label: "2026-07 CR", type: "percent", kind: "metric" },
+        { key: "month_2026-07__crTarget", label: "2026-07 CR Target", type: "percent", kind: "metric" },
+        { key: "month_2026-07__crTargetReach", label: "2026-07 CR Target Reach", type: "percent", kind: "metric" },
+        { key: "month_2026-07__ftdTarget", label: "2026-07 FTD Target", type: "number", kind: "metric" },
+        { key: "month_2026-07__agentCount", label: "2026-07 Agent Count", type: "number", kind: "metric" },
+      ],
+    },
+    table: [
+      {
+        country: "India",
+        "month_2026-06__leads": 3000,
+        "month_2026-06__ftd": 300,
+        "month_2026-06__cr": 10,
+        "month_2026-06__crTarget": 8,
+        "month_2026-06__crTargetReach": 125,
+        "month_2026-06__ftdTarget": 240,
+        "month_2026-06__agentCount": 20,
+        "month_2026-07__leads": 3100,
+        "month_2026-07__ftd": 279,
+        "month_2026-07__cr": 9,
+        "month_2026-07__crTarget": 8,
+        "month_2026-07__crTargetReach": 112.5,
+        "month_2026-07__ftdTarget": 248,
+        "month_2026-07__agentCount": 20,
+      },
+    ],
+    options: {
+      months: [
+        { key: "2026-06", month_label: "June 2026" },
+        { key: "2026-07", month_label: "July 2026" },
+      ],
+    },
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, { agentProductivityPlanMode: "1" });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(worksheet.getCell("A1").value, "India");
+  assert.equal(worksheet.getCell("B2").value, "Jun-26");
+  assert.equal(worksheet.getCell("A3").value, "Lead per agent according mark. Plan");
+  assert.equal(worksheet.getCell("A4").value, "Daily leads per agent");
+  assert.equal(worksheet.getCell("A7").value, "CR%");
+  assert.equal(worksheet.getCell("A8").value, "PSPs working?");
+});

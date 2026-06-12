@@ -1775,6 +1775,8 @@ const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
+const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
+const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
   { key: "country", label: "Country" },
   { key: "teamLeader", label: "Team Leader" },
@@ -2431,6 +2433,7 @@ export default function DashboardPage() {
           reportMode: "specific",
           specificType: "builder",
           benchmarkMode: false,
+          agentProductivityPlanMode: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -2536,6 +2539,20 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_COMPARISON_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COMPARISON_METRICS,
+          };
+        }
+        if (preset === "agent-productivity-plan") {
+          return {
+            ...basePreset,
+            monthKey: availableMonthKeys,
+            columnDimension: "month",
+            includeColumnGrandTotal: false,
+            includeWorkTime: false,
+            hideNotWorking: false,
+            agentProductivityPlanMode: true,
+            rowDimensions: QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS,
           };
         }
         return prev;
@@ -2787,6 +2804,7 @@ export default function DashboardPage() {
                       agent: [],
                       columnDimension: "",
                       includeColumnGrandTotal: false,
+                      agentProductivityPlanMode: false,
                       includeWorkTime: false,
                       hideNotWorking: false,
                       benchmarkMode: false,
@@ -2859,6 +2877,7 @@ export default function DashboardPage() {
                     agent: [],
                     columnDimension: "",
                     includeColumnGrandTotal: false,
+                    agentProductivityPlanMode: false,
                     includeWorkTime: false,
                     hideNotWorking: false,
                     benchmarkMode: false,
@@ -3058,6 +3077,19 @@ export default function DashboardPage() {
             >
               <span className={styles.reportModeTitle}>Comparison Report</span>
               <span className={styles.reportModeIcon}>⚖️</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("agent-productivity-plan")}
+              className={styles.reportModeCard}
+              style={
+                quickPreset === "agent-productivity-plan"
+                  ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" }
+                  : undefined
+              }
+            >
+              <span className={styles.reportModeTitle}>Agent Productivity vs Plan Report</span>
+              <span className={styles.reportModeIcon}>📊</span>
             </button>
           </div>
         </section>

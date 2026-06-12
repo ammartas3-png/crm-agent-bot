@@ -28,6 +28,7 @@ function queryParams(searchParams) {
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
+    agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
