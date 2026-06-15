@@ -2599,6 +2599,10 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     });
     return `${safeValue <= 0 ? "+" : "-"} ${absFormatted} FTD`;
   }, []);
+  const isPlaceholderGroupLabel = useCallback((value) => {
+    const normalized = normalizeGroupText(value).replace(/\s+/g, "");
+    return !normalized || normalized === "-" || normalized === "—" || normalized === "n/a";
+  }, []);
   const buildCollapsedSummaryRow = useCallback(
     (sourceRows = [], depth = 0, key = "") => {
       const payload = {};
@@ -2607,13 +2611,14 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
         if (column.kind === "dimension") {
           const dimensionIndex = dimensionIndexByKey.get(String(column.key || ""));
           if (!Number.isInteger(dimensionIndex)) {
-            payload[column.key] = "-";
+            payload[column.key] = "";
           } else if (dimensionIndex < depth) {
-            payload[column.key] = parts[dimensionIndex] || "-";
+            payload[column.key] = isPlaceholderGroupLabel(parts[dimensionIndex]) ? "" : parts[dimensionIndex];
           } else if (dimensionIndex === depth) {
-            payload[column.key] = `${parts[dimensionIndex] || "-"} Total`;
+            const label = parts[dimensionIndex];
+            payload[column.key] = isPlaceholderGroupLabel(label) ? "Total" : `${label} Total`;
           } else {
-            payload[column.key] = "-";
+            payload[column.key] = "";
           }
           continue;
         }
@@ -2626,13 +2631,13 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           payload[column.key] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
           continue;
         }
-        payload[column.key] = "-";
+        payload[column.key] = "";
       }
       payload.__rowKind = "total";
       payload.__collapsedSummary = true;
       return payload;
     },
-    [groupMeta.depthPartsMaps, columns, dimensionIndexByKey],
+    [groupMeta.depthPartsMaps, columns, dimensionIndexByKey, isPlaceholderGroupLabel],
   );
 
   return (
@@ -2784,6 +2789,10 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                           if (isGroupCollapsed(parentDepth, rowMeta.keys[parentDepth])) {
                             return false;
                           }
+                        }
+                        const labelValue = groupMeta.depthLabelMaps[depth]?.get(rowMeta.keys[depth]) || rowMeta.parts[depth] || "";
+                        if (isPlaceholderGroupLabel(labelValue)) {
+                          return false;
                         }
                         return true;
                       });
