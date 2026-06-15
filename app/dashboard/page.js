@@ -2432,6 +2432,535 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
   );
 }
 
+function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, builder = {} }) {
+  const [hoveredColumnKey, setHoveredColumnKey] = useState("");
+  const [selectedRowKey, setSelectedRowKey] = useState("");
+  const [tableExpanded, setTableExpanded] = useState(true);
+  const { startResize, widthStyle } = useResizableColumns();
+
+  const isColumnPivot =
+    Boolean(builder?.columnDimension) &&
+    Array.isArray(builder?.columnValues) &&
+    builder.columnValues.length > 0 &&
+    Array.isArray(builder?.columnMetrics) &&
+    builder.columnMetrics.length > 0;
+  const dimensionColumns = columns.filter((column) => column.kind === "dimension");
+  const pivotMetricColumns = isColumnPivot
+    ? builder.columnValues.flatMap((columnValue) =>
+        builder.columnMetrics
+          .map((metric) => columns.find((column) => column.key === `${builder.columnDimension}_${columnValue}__${metric.key}`))
+          .filter(Boolean),
+      )
+    : [];
+  const pivotMetricKeySet = new Set(pivotMetricColumns.map((column) => column.key));
+  const pivotTailColumns = isColumnPivot
+    ? columns.filter((column) => !pivotMetricKeySet.has(column.key) && column.kind !== "dimension")
+    : [];
+  const perGroupMetricCount = builder.columnMetrics?.length || 0;
+  const pivotGroupStartKeySet = new Set(
+    isColumnPivot && perGroupMetricCount > 0
+      ? pivotMetricColumns.filter((_, index) => index % perGroupMetricCount === 0).map((column) => column.key)
+      : [],
+  );
+  const dimensionIndexByKey = useMemo(
+    () => new Map(dimensionColumns.map((column, index) => [String(column.key || ""), index])),
+    [dimensionColumns],
+  );
+  const groupMeta = useMemo(() => {
+    const depthCount = dimensionColumns.length;
+    const depthRowsMaps = Array.from({ length: depthCount }, () => new Map());
+    const depthOrder = Array.from({ length: depthCount }, () => []);
+    const depthLabelMaps = Array.from({ length: depthCount }, () => new Map());
+    const depthPartsMaps = Array.from({ length: depthCount }, () => new Map());
+    const rowMetaByIndex = rows.map(() => null);
+    const previousDepthKeys = Array(depthCount).fill("");
+    rows.forEach((row, index) => {
+      if (row?.__rowKind === "total") {
+        return;
+      }
+      const parts = dimensionColumns.map((column) => {
+        const raw = String(row?.[column.key] ?? "-").trim() || "-";
+        const cleaned = raw.replace(/\s+total$/i, "").trim();
+        return cleaned || raw;
+      });
+      const keys = [];
+      const starts = [];
+      for (let depth = 0; depth < depthCount; depth += 1) {
+        const path = parts.slice(0, depth + 1).map((piece) => normalizeGroupText(piece)).join("::");
+        const key = `depth${depth}:${path || "all"}`;
+        keys.push(key);
+        starts.push(index === 0 || key !== previousDepthKeys[depth]);
+        previousDepthKeys[depth] = key;
+        if (!depthRowsMaps[depth].has(key)) {
+          depthRowsMaps[depth].set(key, []);
+          depthOrder[depth].push(key);
+        }
+        depthRowsMaps[depth].get(key).push(row);
+        if (!depthLabelMaps[depth].has(key)) {
+          depthLabelMaps[depth].set(key, parts[depth] || "-");
+        }
+        if (!depthPartsMaps[depth].has(key)) {
+          depthPartsMaps[depth].set(key, parts.slice(0, depth + 1));
+        }
+      }
+      rowMetaByIndex[index] = { parts, keys, starts };
+    });
+    return {
+      depthCount,
+      depthRowsMaps,
+      depthOrder,
+      depthLabelMaps,
+      depthPartsMaps,
+      rowMetaByIndex,
+    };
+  }, [rows, dimensionColumns]);
+  const [collapsedByDepth, setCollapsedByDepth] = useState({});
+
+  useEffect(() => {
+    setCollapsedByDepth((previous) => {
+      const next = {};
+      for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+        const previousSet = previous[depth] || new Set();
+        if (!previousSet.size) {
+          continue;
+        }
+        const valid = new Set(groupMeta.depthOrder[depth] || []);
+        const filtered = new Set([...previousSet].filter((groupKey) => valid.has(groupKey)));
+        if (filtered.size) {
+          next[depth] = filtered;
+        }
+      }
+      return next;
+    });
+  }, [groupMeta.depthCount, groupMeta.depthOrder]);
+
+  const isGroupCollapsed = useCallback((depth, key) => Boolean(collapsedByDepth[depth]?.has(key)), [collapsedByDepth]);
+  const toggleDepthGroup = useCallback((depth, key) => {
+    setCollapsedByDepth((previous) => {
+      const next = { ...previous };
+      const currentSet = new Set(next[depth] || []);
+      if (currentSet.has(key)) {
+        currentSet.delete(key);
+      } else {
+        currentSet.add(key);
+      }
+      if (currentSet.size) {
+        next[depth] = currentSet;
+      } else {
+        delete next[depth];
+      }
+      return next;
+    });
+  }, []);
+
+  const showGroupControls = useMemo(
+    () => groupMeta.depthCount > 0 && groupMeta.depthOrder.some((order) => order.length > 0),
+    [groupMeta.depthCount, groupMeta.depthOrder],
+  );
+  const allCollapsed = useMemo(() => {
+    if (!showGroupControls) {
+      return false;
+    }
+    for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+      const order = groupMeta.depthOrder[depth] || [];
+      if (!order.length) {
+        continue;
+      }
+      const set = collapsedByDepth[depth];
+      if (!set || order.some((groupKey) => !set.has(groupKey))) {
+        return false;
+      }
+    }
+    return true;
+  }, [showGroupControls, groupMeta.depthCount, groupMeta.depthOrder, collapsedByDepth]);
+  const toggleAllGroups = useCallback(() => {
+    if (!showGroupControls) {
+      return;
+    }
+    if (allCollapsed) {
+      setCollapsedByDepth({});
+      return;
+    }
+    const next = {};
+    for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+      const order = groupMeta.depthOrder[depth] || [];
+      if (order.length) {
+        next[depth] = new Set(order);
+      }
+    }
+    setCollapsedByDepth(next);
+  }, [showGroupControls, allCollapsed, groupMeta.depthCount, groupMeta.depthOrder]);
+  const formatMissingFtdValue = useCallback((value) => {
+    const numeric = Number(value);
+    const safeValue = Number.isFinite(numeric) ? numeric : 0;
+    const absFormatted = Math.abs(safeValue).toLocaleString("tr-TR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `${safeValue <= 0 ? "+" : "-"} ${absFormatted} FTD`;
+  }, []);
+  const buildCollapsedSummaryRow = useCallback(
+    (sourceRows = [], depth = 0, key = "") => {
+      const payload = {};
+      const parts = groupMeta.depthPartsMaps[depth]?.get(key) || [];
+      for (const column of columns) {
+        if (column.kind === "dimension") {
+          const dimensionIndex = dimensionIndexByKey.get(String(column.key || ""));
+          if (!Number.isInteger(dimensionIndex)) {
+            payload[column.key] = "-";
+          } else if (dimensionIndex < depth) {
+            payload[column.key] = parts[dimensionIndex] || "-";
+          } else if (dimensionIndex === depth) {
+            payload[column.key] = `${parts[dimensionIndex] || "-"} Total`;
+          } else {
+            payload[column.key] = "-";
+          }
+          continue;
+        }
+        if (column.type === "number") {
+          payload[column.key] = sourceRows.reduce((sum, row) => sum + Number(row?.[column.key] || 0), 0);
+          continue;
+        }
+        if (column.type === "percent") {
+          const values = sourceRows.map((row) => Number(row?.[column.key])).filter((value) => Number.isFinite(value));
+          payload[column.key] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+          continue;
+        }
+        payload[column.key] = "-";
+      }
+      payload.__rowKind = "total";
+      payload.__collapsedSummary = true;
+      return payload;
+    },
+    [groupMeta.depthPartsMaps, columns, dimensionIndexByKey],
+  );
+
+  return (
+    <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {showGroupControls ? (
+          <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
+            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+          </button>
+        ) : null}
+      </div>
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
+            <thead>
+              {isColumnPivot ? (
+                <>
+                  <tr>
+                    {dimensionColumns.map((column) => {
+                      const active = sortState.key === column.key;
+                      const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                      return (
+                        <th
+                          key={column.key}
+                          rowSpan={2}
+                          onClick={() => onSort(column.key)}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          style={widthStyle(column.key, { cursor: "pointer" })}
+                          className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                        >
+                          {column.label}
+                          {suffix}
+                          <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                        </th>
+                      );
+                    })}
+                    {builder.columnValues.map((value) => (
+                      <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
+                        {formatColumnGroupLabel(value)}
+                      </th>
+                    ))}
+                    {pivotTailColumns.map((column) => {
+                      const active = sortState.key === column.key;
+                      const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                      return (
+                        <th
+                          key={column.key}
+                          rowSpan={2}
+                          onClick={() => onSort(column.key)}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          style={widthStyle(column.key, { cursor: "pointer" })}
+                          className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                        >
+                          {column.label}
+                          {suffix}
+                          <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    {pivotMetricColumns.map((column) => {
+                      const active = sortState.key === column.key;
+                      const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                      const metricName = column.label.replace(/^[^\s]+\s+/, "");
+                      return (
+                        <th
+                          key={column.key}
+                          onClick={() => onSort(column.key)}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          style={widthStyle(column.key, { cursor: "pointer" })}
+                          className={`${styles.tableSubHeader} ${
+                            pivotGroupStartKeySet.has(column.key) ? styles.tableSubHeaderGroupStart : ""
+                          } ${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}`}
+                        >
+                          {metricName}
+                          {suffix}
+                          <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </>
+              ) : (
+                <tr>
+                  {columns.map((column) => {
+                    const active = sortState.key === column.key;
+                    const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                    return (
+                      <th
+                        key={column.key}
+                        onClick={() => onSort(column.key)}
+                        onMouseEnter={() => setHoveredColumnKey(column.key)}
+                        style={widthStyle(column.key, { cursor: "pointer" })}
+                        className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                      >
+                        {column.label}
+                        {suffix}
+                        <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                      </th>
+                    );
+                  })}
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${index}`);
+                const rowStartMonthKey = monthKeyFromDateValue(row.workStartDate);
+                const rowAgentName = String(row.agent || "").trim();
+                const canApplyHistoricalBlank =
+                  builder?.columnDimension === "month" &&
+                  row.__rowKind !== "total" &&
+                  rowStartMonthKey &&
+                  rowAgentName &&
+                  rowAgentName !== "-";
+                const rowMeta = groupMeta.rowMetaByIndex[index] || null;
+                const isTotalRow = row.__rowKind === "total";
+                const firstCollapsedDepth =
+                  !isTotalRow && rowMeta
+                    ? rowMeta.keys.findIndex((key, depth) => isGroupCollapsed(depth, key))
+                    : -1;
+                const shouldHideByGroup = !isTotalRow && firstCollapsedDepth >= 0;
+                const collapsedSummaryRow =
+                  shouldHideByGroup && rowMeta?.starts?.[firstCollapsedDepth]
+                    ? buildCollapsedSummaryRow(
+                        groupMeta.depthRowsMaps[firstCollapsedDepth]?.get(rowMeta.keys[firstCollapsedDepth]) || [],
+                        firstCollapsedDepth,
+                        rowMeta.keys[firstCollapsedDepth],
+                      )
+                    : null;
+                const headerDepths = !rowMeta
+                  ? []
+                  : rowMeta.keys
+                      .map((_, depth) => depth)
+                      .filter((depth) => {
+                        if (!rowMeta.starts[depth]) {
+                          return false;
+                        }
+                        for (let parentDepth = 0; parentDepth < depth; parentDepth += 1) {
+                          if (isGroupCollapsed(parentDepth, rowMeta.keys[parentDepth])) {
+                            return false;
+                          }
+                        }
+                        return true;
+                      });
+                return (
+                  <Fragment key={`builder-fragment-${rowKey}`}>
+                    {showGroupControls && rowMeta
+                      ? headerDepths.map((depth) => {
+                          const groupKey = rowMeta.keys[depth];
+                          const collapsed = isGroupCollapsed(depth, groupKey);
+                          const label = `${dimensionColumns[depth]?.label || "Group"}: ${
+                            groupMeta.depthLabelMaps[depth]?.get(groupKey) || rowMeta.parts[depth] || "-"
+                          }`;
+                          return (
+                            <tr key={`group-${rowKey}-${depth}`} className={styles.tableGroupRow}>
+                              <td colSpan={columns.length || 1}>
+                                <button
+                                  type="button"
+                                  className={styles.tableGroupToggle}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleDepthGroup(depth, groupKey);
+                                  }}
+                                  style={depth > 0 ? { paddingLeft: 14 * depth } : undefined}
+                                >
+                                  <span>{collapsed ? "▶" : "▼"}</span>
+                                  <span>{label}</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      : null}
+                    {collapsedSummaryRow ? (
+                      <tr className={styles.tableTotalRow}>
+                        {columns.map((column) => {
+                          const value = collapsedSummaryRow[column.key];
+                          const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
+                          const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                          const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                          const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                          const reachStyle = isReach ? reachCellStyle(value) : null;
+                          const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                          const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
+                          const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
+                          const missingFtdStyle = isMissingFtd
+                            ? {
+                                background: Number(value || 0) <= 0 ? "#14532d" : "#7f1d1d",
+                                color: "#ffffff",
+                              }
+                            : null;
+                          return (
+                            <td
+                              key={`summary-${rowKey}-${column.key}`}
+                              onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                              style={widthStyle(column.key, {
+                                color: missingFtdStyle
+                                  ? missingFtdStyle.color
+                                  : statusStyle
+                                    ? statusStyle.color
+                                    : isBenchmarkRate
+                                      ? benchmarkStyle.color
+                                      : isReach
+                                        ? reachStyle.color
+                                        : "#0f172a",
+                                background: missingFtdStyle
+                                  ? missingFtdStyle.background
+                                  : statusStyle
+                                    ? statusStyle.background
+                                    : isBenchmarkRate
+                                      ? benchmarkStyle.background
+                                      : isReach
+                                        ? reachStyle.background
+                                        : undefined,
+                                borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
+                                fontWeight: missingFtdStyle || statusStyle || isBenchmarkRate ? 700 : undefined,
+                              })}
+                            >
+                              {isMissingFtd ? formatMissingFtdValue(value) : formatBuilderCell(value, column.type)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ) : null}
+                    {!shouldHideByGroup || isTotalRow ? (
+                      <tr
+                        onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                        className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
+                          selectedRowKey === rowKey ? styles.tableSelectedRow : ""
+                        }`}
+                      >
+                        {columns.map((column) => {
+                          const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
+                          const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                          const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                          const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                          const columnMonthKey = monthKeyFromPivotColumnKey(column.key);
+                          const isHistoricalBeforeStartMonth =
+                            canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
+                          const value = row[column.key];
+                          const reachStyle = isReach ? reachCellStyle(value) : null;
+                          const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                          const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
+                          const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
+                          const missingFtdStyle = isMissingFtd
+                            ? {
+                                background: Number(value || 0) <= 0 ? "#14532d" : "#7f1d1d",
+                                color: "#ffffff",
+                              }
+                            : null;
+                          const displayValue = isHistoricalBeforeStartMonth
+                            ? ""
+                            : isMissingFtd
+                              ? formatMissingFtdValue(value)
+                              : formatBuilderCell(value, column.type);
+                          return (
+                            <td
+                              key={`${index}-${column.key}`}
+                              onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                              style={widthStyle(column.key, {
+                                color: isHistoricalBeforeStartMonth
+                                  ? "#94a3b8"
+                                  : missingFtdStyle
+                                    ? missingFtdStyle.color
+                                    : statusStyle
+                                      ? statusStyle.color
+                                      : isBenchmarkRate
+                                        ? benchmarkStyle.color
+                                        : isReach
+                                          ? reachStyle.color
+                                          : "#0f172a",
+                                background: isHistoricalBeforeStartMonth
+                                  ? "#f8fafc"
+                                  : missingFtdStyle
+                                    ? missingFtdStyle.background
+                                    : statusStyle
+                                      ? statusStyle.background
+                                      : isBenchmarkRate
+                                        ? benchmarkStyle.background
+                                        : isReach
+                                          ? reachStyle.background
+                                          : undefined,
+                                borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
+                                fontWeight: isHistoricalBeforeStartMonth
+                                  ? 500
+                                  : missingFtdStyle || statusStyle || isBenchmarkRate
+                                    ? 700
+                                    : undefined,
+                              })}
+                            >
+                              {displayValue}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+              {!rows.length ? (
+                <tr>
+                  <td colSpan={columns.length || 1} className={styles.tableEmpty}>
+                    No data found for current filters.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
+    </div>
+  );
+}
+
 const DEFAULT_BUILDER_DIMENSIONS = [
   { key: "date", label: "Date", type: "date" },
   { key: "hour", label: "Hour", type: "hour" },
@@ -4085,7 +4614,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <h3 className={styles.sectionTitle}>Results Table</h3>
-                  <BuilderTable
+                  <BuilderTableAdvanced
                     columns={builderColumns}
                     rows={sortedBuilderRows}
                     sortState={builderSort}
