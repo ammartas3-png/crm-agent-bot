@@ -1933,26 +1933,170 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
       : [],
   );
   const primaryDimension = dimensionColumns[0] || null;
-  const {
-    groupMetaByRow: rowGroupMeta,
-    hasGroups,
-    allCollapsed,
-    isCollapsed,
-    toggleGroup,
-    toggleAllGroups,
-  } = useRowGroupCollapse(rows, (row) => {
-    const fallbackLabel = primaryDimension?.label || "Rows";
-    if (!primaryDimension?.key) {
-      return { key: "all-rows", label: fallbackLabel };
-    }
-    const sourceValue = String(row?.[primaryDimension.key] ?? "-").trim() || "-";
-    const normalizedValue = sourceValue.replace(/\s+total$/i, "").trim() || sourceValue;
+  const secondaryDimension = dimensionColumns[1] || null;
+  const collapseMeta = useMemo(() => {
+    const primaryRowsMap = new Map();
+    const secondaryRowsMap = new Map();
+    const primaryLabelByKey = new Map();
+    const secondaryLabelByKey = new Map();
+    const secondaryToPrimary = new Map();
+    const primaryOrder = [];
+    const secondaryOrder = [];
+    const rowMetaByIndex = rows.map(() => null);
+    let previousPrimaryKey = "";
+    let previousSecondaryKey = "";
+    rows.forEach((row, index) => {
+      if (row?.__rowKind === "total") {
+        return;
+      }
+      const primaryValueRaw = primaryDimension?.key ? String(row?.[primaryDimension.key] ?? "-").trim() || "-" : "All";
+      const primaryValue = primaryValueRaw.replace(/\s+total$/i, "").trim() || primaryValueRaw;
+      const primaryKey = primaryDimension?.key ? `primary:${normalizeGroupText(primaryValue)}` : "primary:all";
+      const secondaryValueRaw = secondaryDimension?.key ? String(row?.[secondaryDimension.key] ?? "-").trim() || "-" : "";
+      const secondaryValue = secondaryValueRaw.replace(/\s+total$/i, "").trim() || secondaryValueRaw;
+      const secondaryKey = secondaryDimension?.key ? `${primaryKey}::secondary:${normalizeGroupText(secondaryValue)}` : "";
+
+      if (!primaryRowsMap.has(primaryKey)) {
+        primaryRowsMap.set(primaryKey, []);
+        primaryOrder.push(primaryKey);
+      }
+      primaryRowsMap.get(primaryKey).push(row);
+      primaryLabelByKey.set(primaryKey, primaryValue);
+
+      if (secondaryDimension?.key) {
+        if (!secondaryRowsMap.has(secondaryKey)) {
+          secondaryRowsMap.set(secondaryKey, []);
+          secondaryOrder.push(secondaryKey);
+        }
+        secondaryRowsMap.get(secondaryKey).push(row);
+        secondaryLabelByKey.set(secondaryKey, secondaryValue);
+        secondaryToPrimary.set(secondaryKey, primaryKey);
+      }
+
+      const primaryStart = primaryKey !== previousPrimaryKey;
+      const secondaryStart = Boolean(secondaryDimension?.key) && (primaryStart || secondaryKey !== previousSecondaryKey);
+      rowMetaByIndex[index] = {
+        primaryKey,
+        primaryStart,
+        secondaryKey,
+        secondaryStart,
+      };
+      previousPrimaryKey = primaryKey;
+      previousSecondaryKey = secondaryKey;
+    });
     return {
-      key: `builder:${normalizeGroupText(normalizedValue)}`,
-      label: `${fallbackLabel}: ${normalizedValue}`,
+      primaryRowsMap,
+      secondaryRowsMap,
+      primaryLabelByKey,
+      secondaryLabelByKey,
+      secondaryToPrimary,
+      primaryOrder,
+      secondaryOrder,
+      rowMetaByIndex,
     };
-  });
-  const showGroupControls = Boolean(primaryDimension?.key && hasGroups);
+  }, [rows, primaryDimension?.key, secondaryDimension?.key]);
+  const [collapsedPrimaryKeys, setCollapsedPrimaryKeys] = useState(() => new Set());
+  const [collapsedSecondaryKeys, setCollapsedSecondaryKeys] = useState(() => new Set());
+  useEffect(() => {
+    setCollapsedPrimaryKeys((previous) => {
+      if (!previous.size) {
+        return previous;
+      }
+      const valid = new Set(collapseMeta.primaryOrder);
+      const next = new Set([...previous].filter((groupKey) => valid.has(groupKey)));
+      return next.size === previous.size ? previous : next;
+    });
+    setCollapsedSecondaryKeys((previous) => {
+      if (!previous.size) {
+        return previous;
+      }
+      const valid = new Set(collapseMeta.secondaryOrder);
+      const next = new Set([...previous].filter((groupKey) => valid.has(groupKey)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [collapseMeta.primaryOrder, collapseMeta.secondaryOrder]);
+  const togglePrimaryGroup = useCallback((groupKey) => {
+    setCollapsedPrimaryKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }, []);
+  const toggleSecondaryGroup = useCallback((groupKey) => {
+    setCollapsedSecondaryKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }, []);
+  const showGroupControls = Boolean(primaryDimension?.key && collapseMeta.primaryOrder.length);
+  const allCollapsed = useMemo(() => {
+    if (!showGroupControls) {
+      return false;
+    }
+    const primaryDone = collapseMeta.primaryOrder.every((groupKey) => collapsedPrimaryKeys.has(groupKey));
+    if (!secondaryDimension?.key || !collapseMeta.secondaryOrder.length) {
+      return primaryDone;
+    }
+    return primaryDone && collapseMeta.secondaryOrder.every((groupKey) => collapsedSecondaryKeys.has(groupKey));
+  }, [showGroupControls, collapseMeta.primaryOrder, collapseMeta.secondaryOrder, collapsedPrimaryKeys, collapsedSecondaryKeys, secondaryDimension?.key]);
+  const toggleAllGroups = useCallback(() => {
+    if (!showGroupControls) {
+      return;
+    }
+    if (allCollapsed) {
+      setCollapsedPrimaryKeys(new Set());
+      setCollapsedSecondaryKeys(new Set());
+      return;
+    }
+    setCollapsedPrimaryKeys(new Set(collapseMeta.primaryOrder));
+    setCollapsedSecondaryKeys(new Set(collapseMeta.secondaryOrder));
+  }, [showGroupControls, allCollapsed, collapseMeta.primaryOrder, collapseMeta.secondaryOrder]);
+  const buildCollapsedSummaryRow = useCallback(
+    (sourceRows = [], level, primaryKey, secondaryKey = "") => {
+      const payload = {};
+      const primaryLabel = collapseMeta.primaryLabelByKey.get(primaryKey) || "-";
+      const secondaryLabel = secondaryKey ? collapseMeta.secondaryLabelByKey.get(secondaryKey) || "-" : "-";
+      for (const column of columns) {
+        if (column.kind === "dimension") {
+          if (level === "primary") {
+            payload[column.key] = column.key === primaryDimension?.key ? `${primaryLabel} Total` : "-";
+          } else {
+            if (column.key === primaryDimension?.key) {
+              payload[column.key] = primaryLabel;
+            } else if (column.key === secondaryDimension?.key) {
+              payload[column.key] = `${secondaryLabel} Total`;
+            } else {
+              payload[column.key] = "-";
+            }
+          }
+          continue;
+        }
+        if (column.type === "number") {
+          payload[column.key] = sourceRows.reduce((sum, row) => sum + Number(row?.[column.key] || 0), 0);
+          continue;
+        }
+        if (column.type === "percent") {
+          const numericValues = sourceRows.map((row) => Number(row?.[column.key])).filter((value) => Number.isFinite(value));
+          payload[column.key] = numericValues.length ? numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length : 0;
+          continue;
+        }
+        payload[column.key] = "-";
+      }
+      payload.__rowKind = "total";
+      payload.__collapsedSummary = true;
+      return payload;
+    },
+    [collapseMeta.primaryLabelByKey, collapseMeta.secondaryLabelByKey, columns, primaryDimension?.key, secondaryDimension?.key],
+  );
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
       <div className={styles.tableActionBar}>
@@ -2076,12 +2220,32 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
               rowStartMonthKey &&
               rowAgentName &&
               rowAgentName !== "-";
-            const groupMeta = rowGroupMeta[index] || { key: "all", label: "All Rows", start: false };
-            const groupCollapsed = showGroupControls ? isCollapsed(groupMeta.key) : false;
+            const groupMeta = collapseMeta.rowMetaByIndex[index] || null;
+            const primaryKey = groupMeta?.primaryKey || "";
+            const secondaryKey = groupMeta?.secondaryKey || "";
+            const primaryStart = Boolean(groupMeta?.primaryStart);
+            const secondaryStart = Boolean(groupMeta?.secondaryStart);
+            const primaryLabel = primaryKey ? collapseMeta.primaryLabelByKey.get(primaryKey) || "-" : "-";
+            const secondaryLabel = secondaryKey ? collapseMeta.secondaryLabelByKey.get(secondaryKey) || "-" : "-";
+            const isPrimaryCollapsed = primaryKey ? collapsedPrimaryKeys.has(primaryKey) : false;
+            const isSecondaryCollapsed = secondaryKey ? collapsedSecondaryKeys.has(secondaryKey) : false;
             const isTotalRow = row.__rowKind === "total";
+            const shouldHideByGroup = !isTotalRow && (isPrimaryCollapsed || (secondaryDimension?.key && isSecondaryCollapsed));
+            const collapsedSummaryRow = isPrimaryCollapsed
+              ? primaryStart
+                ? buildCollapsedSummaryRow(collapseMeta.primaryRowsMap.get(primaryKey) || [], "primary", primaryKey)
+                : null
+              : secondaryDimension?.key && isSecondaryCollapsed && secondaryStart
+                ? buildCollapsedSummaryRow(
+                    collapseMeta.secondaryRowsMap.get(secondaryKey) || [],
+                    "secondary",
+                    primaryKey,
+                    secondaryKey,
+                  )
+                : null;
             return (
               <Fragment key={`builder-fragment-${rowKey}`}>
-                {showGroupControls && groupMeta.start ? (
+                {showGroupControls && primaryStart ? (
                   <tr className={styles.tableGroupRow}>
                     <td colSpan={columns.length || 1}>
                       <button
@@ -2089,16 +2253,75 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                         className={styles.tableGroupToggle}
                         onClick={(event) => {
                           event.stopPropagation();
-                          toggleGroup(groupMeta.key);
+                          togglePrimaryGroup(primaryKey);
                         }}
                       >
-                        <span>{groupCollapsed ? "▶" : "▼"}</span>
-                        <span>{groupMeta.label}</span>
+                        <span>{isPrimaryCollapsed ? "▶" : "▼"}</span>
+                        <span>{primaryDimension?.label || "Group"}: {primaryLabel}</span>
                       </button>
                     </td>
                   </tr>
                 ) : null}
-                {!groupCollapsed || isTotalRow ? (
+                {showGroupControls && secondaryDimension?.key && secondaryStart && !isPrimaryCollapsed ? (
+                  <tr className={styles.tableGroupRow}>
+                    <td colSpan={columns.length || 1}>
+                      <button
+                        type="button"
+                        className={styles.tableGroupToggle}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleSecondaryGroup(secondaryKey);
+                        }}
+                        style={{ paddingLeft: 14 }}
+                      >
+                        <span>{isSecondaryCollapsed ? "▶" : "▼"}</span>
+                        <span>{secondaryDimension.label}: {secondaryLabel}</span>
+                      </button>
+                    </td>
+                  </tr>
+                ) : null}
+                {collapsedSummaryRow ? (
+                  <tr className={styles.tableTotalRow}>
+                    {columns.map((column) => {
+                      const value = collapsedSummaryRow[column.key];
+                      const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                      const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                      const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                      const reachStyle = isReach ? reachCellStyle(value) : null;
+                      const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                      const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
+                      const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
+                      return (
+                        <td
+                          key={`summary-${rowKey}-${column.key}`}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                          style={widthStyle(column.key, {
+                            color: statusStyle
+                              ? statusStyle.color
+                              : isBenchmarkRate
+                                ? benchmarkStyle.color
+                                : isReach
+                                  ? reachStyle.color
+                                  : "#0f172a",
+                            background: statusStyle
+                              ? statusStyle.background
+                              : isBenchmarkRate
+                                ? benchmarkStyle.background
+                                : isReach
+                                  ? reachStyle.background
+                                  : undefined,
+                            borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
+                            fontWeight: statusStyle || isBenchmarkRate ? 700 : undefined,
+                          })}
+                        >
+                          {formatBuilderCell(value, column.type)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ) : null}
+                {!shouldHideByGroup || isTotalRow ? (
                   <tr
                     onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
                     className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
@@ -2116,7 +2339,8 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       const reachStyle = isReach ? reachCellStyle(value) : null;
                       const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
                       const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
-                      const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
+                      const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
+                      const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
                       return (
                         <td
                           key={`${index}-${column.key}`}
