@@ -17,6 +17,7 @@ import {
   approveAccessRequest,
   createAccessRequest,
   denyAccessRequest,
+  findPendingAccessRequestByUser,
   getAccessRequest,
   listPendingAccessRequests,
   notifyAdminsForAccessRequest,
@@ -1019,6 +1020,17 @@ export async function POST(request) {
           console.error("Could not upsert full authority scope", error);
         });
         clearAuthorityScopeCache();
+      } else {
+        await upsertAuthorityUserScope({
+          user: request.user,
+          offices: [],
+          desks: [],
+          teams: [],
+          authorityRole: "denied",
+        }).catch((error) => {
+          console.error("Could not upsert denied authority scope", error);
+        });
+        clearAuthorityScopeCache();
       }
       if (hasTelegramBotToken()) {
         await sendTelegramMessage(
@@ -1174,12 +1186,48 @@ export async function POST(request) {
     }
 
     if (!isAllowedTelegramUser(telegramUser || userId) && !authorityScope.allowed) {
-      const accessRequest = createAccessRequest(telegramUser, chatId, text);
+      if (authorityScope.pending) {
+        const existingPendingRequest = findPendingAccessRequestByUser(telegramUser);
+        return sendMessageWebhookResponse(
+          chatId,
+          [
+            "Yetki onayınız beklenmektedir.",
+            "Lutfen admin onayini bekleyin.",
+            `Admins: ${adminContactsText()}`,
+            existingPendingRequest?.id ? `Request ID: ${existingPendingRequest.id}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        );
+      }
+      if (authorityScope.denied) {
+        return sendMessageWebhookResponse(
+          chatId,
+          ["Your access request was denied before.", "Please contact admins for a new approval.", `Admins: ${adminContactsText()}`].join(
+            "\n",
+          ),
+        );
+      }
+      const existingPendingRequest = findPendingAccessRequestByUser(telegramUser);
+      const accessRequest = existingPendingRequest || createAccessRequest(telegramUser, chatId, text);
+      if (!existingPendingRequest) {
+        await upsertAuthorityUserScope({
+          user: telegramUser,
+          offices: [],
+          desks: [],
+          teams: [],
+          authorityRole: "pending",
+        }).catch((error) => {
+          console.error("Could not upsert pending authority scope", error);
+        });
+        clearAuthorityScopeCache();
+      }
       let notified = false;
       try {
-        const result = hasTelegramBotToken()
-          ? await notifyAdminsForAccessRequest(accessRequest)
-          : { sent: 0, reason: "missing_telegram_bot_token" };
+        const result =
+          existingPendingRequest || !hasTelegramBotToken()
+            ? { sent: 1, reason: "already_pending" }
+            : await notifyAdminsForAccessRequest(accessRequest);
         if (Array.isArray(result.failed) && result.failed.length) {
           console.warn("Some admin notifications failed", result.failed);
         }
@@ -1192,8 +1240,8 @@ export async function POST(request) {
         chatId,
         notified
           ? [
-              "You are not authorized yet.",
-              "Your request was sent to admins. Please wait for approval.",
+              "Yetki onayiniz beklenmektedir.",
+              existingPendingRequest ? "Your request is already waiting for admin approval." : "Your request was sent to admins.",
               `Admins: ${adminContactsText()}`,
               `Request ID: ${accessRequest.id}`,
               formatUserIdentity(telegramUser),

@@ -9,6 +9,7 @@ import {
   createAccessRequest,
   denyAccessRequest,
   describeTelegramUser,
+  findPendingAccessRequestByUser,
   getAccessRequest,
   listPendingAccessRequests,
   notifyAdminsForAccessRequest,
@@ -22,6 +23,12 @@ test("createAccessRequest stores pending request", () => {
   assert.equal(getAccessRequest(request.id).status, "pending");
   assert.equal(getAccessRequest(request.id).messageText, "hello");
   assert.equal(listPendingAccessRequests().some((item) => item.id === request.id), true);
+});
+
+test("findPendingAccessRequestByUser returns pending request for same user", () => {
+  const request = createAccessRequest({ id: 1111, username: "pending_lookup" }, 1111, "please approve");
+  const pending = findPendingAccessRequestByUser({ id: 1111, username: "pending_lookup" });
+  assert.equal(pending?.id, request.id);
 });
 
 test("accessApprovalKeyboard contains approve and deny callbacks", () => {

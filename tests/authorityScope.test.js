@@ -92,6 +92,22 @@ test("computeAuthorityScopeFromRows handles all access rows", () => {
   assert.deepEqual(scope.filters, {});
 });
 
+test("computeAuthorityScopeFromRows treats pending authority as not allowed", () => {
+  const scope = computeAuthorityScopeFromRows(
+    [
+      {
+        "User Telegram ID": "555",
+        Office: "all",
+        Desk: "all",
+        Authority: "pending",
+      },
+    ],
+    { id: 555, username: "pending-user" },
+  );
+  assert.equal(scope.allowed, false);
+  assert.equal(scope.pending, true);
+});
+
 test("computeAuthorityScopeFromRows prefers latest matching row", () => {
   const scope = computeAuthorityScopeFromRows(
     [
