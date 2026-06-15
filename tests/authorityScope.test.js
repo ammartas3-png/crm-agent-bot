@@ -92,6 +92,32 @@ test("computeAuthorityScopeFromRows handles all access rows", () => {
   assert.deepEqual(scope.filters, {});
 });
 
+test("computeAuthorityScopeFromRows prefers latest matching row", () => {
+  const scope = computeAuthorityScopeFromRows(
+    [
+      {
+        "User Telegram ID": "321",
+        Office: "all",
+        Desk: "all",
+        Authority: "all",
+      },
+      {
+        "User Telegram ID": "321",
+        Office: "Turkiye Office",
+        Desk: "Turkey English",
+        Team: "Anas B",
+        Authority: "Desk Manager",
+      },
+    ],
+    { id: 321, username: "limited-user" },
+  );
+  assert.equal(scope.allowed, true);
+  assert.equal(scope.unrestricted, false);
+  assert.deepEqual(scope.filters.office, ["Turkiye Office"]);
+  assert.deepEqual(scope.filters.desk, ["Turkey English"]);
+  assert.deepEqual(scope.filters.teamLeader, ["Anas B"]);
+});
+
 test("resolveAuthorityScopeForUser reads rows via injected reader", async () => {
   clearAuthorityScopeCache();
   const scope = await resolveAuthorityScopeForUser(
