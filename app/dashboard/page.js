@@ -2843,12 +2843,16 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                     ? rowMeta.keys.findIndex((key, depth) => depth < collapsibleDepthCount && isGroupCollapsed(depth, key))
                     : -1;
                 const shouldHideByGroup = !isTotalRow && firstCollapsedDepth >= 0;
-                const collapsedSummaryRow =
+                const collapsedSummaryMeta =
                   shouldHideByGroup && rowMeta?.starts?.[firstCollapsedDepth]
+                    ? { depth: firstCollapsedDepth, key: rowMeta.keys[firstCollapsedDepth] }
+                    : null;
+                const collapsedSummaryRow =
+                  collapsedSummaryMeta
                     ? buildCollapsedSummaryRow(
-                        groupMeta.depthRowsMaps[firstCollapsedDepth]?.get(rowMeta.keys[firstCollapsedDepth]) || [],
-                        firstCollapsedDepth,
-                        rowMeta.keys[firstCollapsedDepth],
+                        groupMeta.depthRowsMaps[collapsedSummaryMeta.depth]?.get(collapsedSummaryMeta.key) || [],
+                        collapsedSummaryMeta.depth,
+                        collapsedSummaryMeta.key,
                       )
                     : null;
                 const headerDepths = !rowMeta
@@ -2856,6 +2860,9 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                   : rowMeta.keys
                       .map((_, depth) => depth)
                       .filter((depth) => {
+                        if (collapsedSummaryMeta && depth === collapsedSummaryMeta.depth) {
+                          return false;
+                        }
                         if (depth >= collapsibleDepthCount) {
                           return false;
                         }
@@ -2906,6 +2913,9 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                       <tr className={styles.tableTotalRow}>
                         {visibleColumns.map((column) => {
                           const value = collapsedSummaryRow[column.key];
+                          const dimensionIndex = dimensionIndexByKey.get(String(column.key || ""));
+                          const isSummaryGroupDimension =
+                            Number.isInteger(dimensionIndex) && collapsedSummaryMeta && dimensionIndex === collapsedSummaryMeta.depth;
                           const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
                           const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                           const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
@@ -2948,7 +2958,24 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                 fontWeight: missingFtdStyle || statusStyle || isBenchmarkRate ? 700 : undefined,
                               })}
                             >
-                              {isMissingFtd ? formatMissingFtdValue(value) : formatBuilderCell(value, column.type)}
+                              {isSummaryGroupDimension && collapsedSummaryMeta ? (
+                                <button
+                                  type="button"
+                                  className={styles.tableGroupToggle}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleDepthGroup(collapsedSummaryMeta.depth, collapsedSummaryMeta.key);
+                                  }}
+                                  style={collapsedSummaryMeta.depth > 0 ? { paddingLeft: 14 * collapsedSummaryMeta.depth } : undefined}
+                                >
+                                  <span>▶</span>
+                                  <span>{String(value || "").trim() || `${column.label} Total`}</span>
+                                </button>
+                              ) : isMissingFtd ? (
+                                formatMissingFtdValue(value)
+                              ) : (
+                                formatBuilderCell(value, column.type)
+                              )}
                             </td>
                           );
                         })}
