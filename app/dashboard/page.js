@@ -212,6 +212,92 @@ function ColumnResizeHandle({ columnKey = "", onResizeStart }) {
   );
 }
 
+function normalizeGroupText(value = "") {
+  return String(value || "").trim().toLocaleLowerCase("en-US");
+}
+
+function useRowGroupCollapse(rows = [], resolveGroupMeta) {
+  const { groupMetaByRow, groupOrder } = useMemo(() => {
+    const list = [];
+    const order = [];
+    const seen = new Set();
+    let previousGroupKey = "";
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const fallback = { key: "all", label: "All Rows" };
+      const resolved = resolveGroupMeta?.(row, index) || fallback;
+      const key = String(resolved.key || fallback.key);
+      const label = String(resolved.label || key);
+      if (!seen.has(key)) {
+        seen.add(key);
+        order.push(key);
+      }
+      list.push({
+        key,
+        label,
+        start: index === 0 || key !== previousGroupKey,
+      });
+      previousGroupKey = key;
+    }
+    return { groupMetaByRow: list, groupOrder: order };
+  }, [resolveGroupMeta, rows]);
+
+  const [collapsedGroupKeys, setCollapsedGroupKeys] = useState(() => new Set());
+
+  useEffect(() => {
+    setCollapsedGroupKeys((previous) => {
+      if (!previous.size) {
+        return previous;
+      }
+      const valid = new Set(groupOrder);
+      const next = new Set([...previous].filter((groupKey) => valid.has(groupKey)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [groupOrder]);
+
+  const toggleGroup = useCallback((groupKey) => {
+    setCollapsedGroupKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const allCollapsed = useMemo(() => {
+    if (!groupOrder.length) {
+      return false;
+    }
+    return groupOrder.every((groupKey) => collapsedGroupKeys.has(groupKey));
+  }, [collapsedGroupKeys, groupOrder]);
+
+  const toggleAllGroups = useCallback(() => {
+    setCollapsedGroupKeys((previous) => {
+      if (!groupOrder.length) {
+        return previous;
+      }
+      if (groupOrder.every((groupKey) => previous.has(groupKey))) {
+        return new Set();
+      }
+      return new Set(groupOrder);
+    });
+  }, [groupOrder]);
+
+  const isCollapsed = useCallback((groupKey) => collapsedGroupKeys.has(groupKey), [collapsedGroupKeys]);
+
+  return {
+    groupMetaByRow,
+    hasGroups: groupOrder.length > 0,
+    allCollapsed,
+    isCollapsed,
+    toggleGroup,
+    toggleAllGroups,
+  };
+}
+
 function TelegramLoginWidget({ botUsername, onAuth }) {
   const containerRef = useRef(null);
   useEffect(() => {
@@ -901,71 +987,86 @@ function SimpleTable({ rows = [] }) {
   ];
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
-      <div className={styles.tableScroll}>
-      <table className={`${styles.table} ${styles.tableSticky}`} onMouseLeave={() => setHoveredColumnKey("")}>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                onMouseEnter={() => setHoveredColumnKey(column.key)}
-                style={widthStyle(column.key)}
-                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
-              >
-                {column.header}
-                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => {
-            const rowKey = String(row.monthKey || row.label || index);
-            const selected = selectedRowKey === rowKey;
-            return (
-              <tr
-                key={rowKey}
-                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
-                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
-              >
-                {columns.map((column) => {
-                  const value = row[column.key];
-                  const content =
-                    column.key === "label"
-                      ? value || "-"
-                      : column.type === "percent" || column.type === "percentReach"
-                        ? formatPercent(value)
-                        : formatNumber(value);
-                  const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
-                  return (
-                    <td
-                      key={`${rowKey}-${column.key}`}
-                      onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
-                        column.key === "label" ? styles.tableStrong : ""
-                      }`}
-                      style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
-                    >
-                      {content}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-          {!rows.length ? (
-            <tr>
-              <td colSpan={10} className={styles.tableEmpty}>
-                No rows found.
-              </td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
       </div>
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table className={`${styles.table} ${styles.tableSticky}`} onMouseLeave={() => setHoveredColumnKey("")}>
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.key}
+                    onMouseEnter={() => setHoveredColumnKey(column.key)}
+                    style={widthStyle(column.key)}
+                    className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                  >
+                    {column.header}
+                    <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const rowKey = String(row.monthKey || row.label || index);
+                const selected = selectedRowKey === rowKey;
+                return (
+                  <tr
+                    key={rowKey}
+                    onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                    className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+                  >
+                    {columns.map((column) => {
+                      const value = row[column.key];
+                      const content =
+                        column.key === "label"
+                          ? value || "-"
+                          : column.type === "percent" || column.type === "percentReach"
+                            ? formatPercent(value)
+                            : formatNumber(value);
+                      const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
+                      return (
+                        <td
+                          key={`${rowKey}-${column.key}`}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                            column.key === "label" ? styles.tableStrong : ""
+                          }`}
+                          style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
+                        >
+                          {content}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              {!rows.length ? (
+                <tr>
+                  <td colSpan={10} className={styles.tableEmpty}>
+                    No rows found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </div>
   );
 }
@@ -987,82 +1088,142 @@ function PivotTable({ rows = [], summary = {} }) {
   ];
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
+  const {
+    groupMetaByRow: rowGroupMeta,
+    hasGroups,
+    allCollapsed,
+    isCollapsed,
+    toggleGroup,
+    toggleAllGroups,
+  } = useRowGroupCollapse(rows, (row) => {
+    const deskLabel = String(row?.desk || "-").trim() || "-";
+    return {
+      key: `desk:${normalizeGroupText(deskLabel)}`,
+      label: `Desk: ${deskLabel}`,
+    };
+  });
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
-      <div className={styles.tableScroll}>
-      <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 1150 }} onMouseLeave={() => setHoveredColumnKey("")}>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                onMouseEnter={() => setHoveredColumnKey(column.key)}
-                style={widthStyle(column.key)}
-                className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
-              >
-                {column.header}
-                <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => {
-            const rowKey = `${row.desk}-${row.teamLeader}-${row.agent}-${index}`;
-            const selected = selectedRowKey === rowKey;
-            return (
-              <tr
-                key={rowKey}
-                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
-                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
-              >
-                {columns.map((column) => {
-                  const value = row[column.key];
-                  const content =
-                    column.type === "percent" || column.type === "percentReach"
-                      ? formatPercent(value)
-                      : ["desk", "teamLeader", "agent"].includes(column.key)
-                        ? String(value || "-")
-                        : formatNumber(value);
-                  const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
-                  return (
-                    <td
-                      key={`${rowKey}-${column.key}`}
-                      onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
-                        column.key === "agent" ? styles.tableStrong : ""
-                      }`}
-                      style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
-                    >
-                      {content}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-          <tr>
-            <td className={styles.tableStrong}>Grand total</td>
-            <td />
-            <td />
-            <td className={styles.tableStrong}>{formatNumber(summary.totalLeads)}</td>
-            <td className={styles.tableStrong}>{formatNumber(summary.totalFtd)}</td>
-            <td className={styles.tableStrong}>{formatNumber(summary.selfs)}</td>
-            <td className={styles.tableStrong}>{formatNumber(summary.lateFtd)}</td>
-            <td className={styles.tableStrong}>{formatPercent(summary.cr)}</td>
-            <td className={styles.tableStrong}>{formatPercent(summary.crTarget)}</td>
-            <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.crTargetReach), fontWeight: 700 }}>
-              {formatPercent(summary.crTargetReach)}
-            </td>
-            <td className={styles.tableStrong}>{formatNumber(summary.ftdTarget)}</td>
-            <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.ftdTargetReach), fontWeight: 700 }}>
-              {formatPercent(summary.ftdTargetReach)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {hasGroups ? (
+          <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
+            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+          </button>
+        ) : null}
       </div>
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table
+            className={`${styles.table} ${styles.tableSticky}`}
+            style={{ minWidth: 1150 }}
+            onMouseLeave={() => setHoveredColumnKey("")}
+          >
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.key}
+                    onMouseEnter={() => setHoveredColumnKey(column.key)}
+                    style={widthStyle(column.key)}
+                    className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                  >
+                    {column.header}
+                    <ColumnResizeHandle columnKey={column.key} onResizeStart={startResize} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => {
+                const rowKey = `${row.desk}-${row.teamLeader}-${row.agent}-${index}`;
+                const selected = selectedRowKey === rowKey;
+                const groupMeta = rowGroupMeta[index] || { key: "all", label: "All Rows", start: false };
+                const groupCollapsed = isCollapsed(groupMeta.key);
+                return (
+                  <Fragment key={`pivot-fragment-${rowKey}`}>
+                    {groupMeta.start ? (
+                      <tr className={styles.tableGroupRow}>
+                        <td colSpan={columns.length}>
+                          <button
+                            type="button"
+                            className={styles.tableGroupToggle}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleGroup(groupMeta.key);
+                            }}
+                          >
+                            <span>{groupCollapsed ? "▶" : "▼"}</span>
+                            <span>{groupMeta.label}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ) : null}
+                    {!groupCollapsed ? (
+                      <tr
+                        onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                        className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+                      >
+                        {columns.map((column) => {
+                          const value = row[column.key];
+                          const content =
+                            column.type === "percent" || column.type === "percentReach"
+                              ? formatPercent(value)
+                              : ["desk", "teamLeader", "agent"].includes(column.key)
+                                ? String(value || "-")
+                                : formatNumber(value);
+                          const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
+                          return (
+                            <td
+                              key={`${rowKey}-${column.key}`}
+                              onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
+                                column.key === "agent" ? styles.tableStrong : ""
+                              }`}
+                              style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
+                            >
+                              {content}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+              <tr>
+                <td className={styles.tableStrong}>Grand total</td>
+                <td />
+                <td />
+                <td className={styles.tableStrong}>{formatNumber(summary.totalLeads)}</td>
+                <td className={styles.tableStrong}>{formatNumber(summary.totalFtd)}</td>
+                <td className={styles.tableStrong}>{formatNumber(summary.selfs)}</td>
+                <td className={styles.tableStrong}>{formatNumber(summary.lateFtd)}</td>
+                <td className={styles.tableStrong}>{formatPercent(summary.cr)}</td>
+                <td className={styles.tableStrong}>{formatPercent(summary.crTarget)}</td>
+                <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.crTargetReach), fontWeight: 700 }}>
+                  {formatPercent(summary.crTargetReach)}
+                </td>
+                <td className={styles.tableStrong}>{formatNumber(summary.ftdTarget)}</td>
+                <td className={styles.tableStrong} style={{ ...reachCellStyle(summary.ftdTargetReach), fontWeight: 700 }}>
+                  {formatPercent(summary.ftdTargetReach)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </div>
   );
 }
@@ -1083,9 +1244,41 @@ function last4MonthTheme(index) {
 function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
+  const {
+    groupMetaByRow: rowGroupMeta,
+    hasGroups,
+    allCollapsed,
+    isCollapsed,
+    toggleGroup,
+    toggleAllGroups,
+  } = useRowGroupCollapse(rows, (row) => {
+    const deskLabel = String(row?.desk || "-").trim() || "-";
+    const teamLabel = String(row?.teamLeader || "-").trim() || "-";
+    return {
+      key: `team:${normalizeGroupText(`${deskLabel}__${teamLabel}`)}`,
+      label: `Team Leader: ${teamLabel} • Desk: ${deskLabel}`,
+    };
+  });
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {hasGroups ? (
+          <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
+            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+          </button>
+        ) : null}
+      </div>
+      {tableExpanded ? (
       <div className={styles.tableScroll}>
       <table
         className={`${styles.table} ${styles.tableSticky}`}
@@ -1236,84 +1429,106 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
           {rows.map((row, rowIndex) => {
             const rowKey = String(row.key || row.agent || rowIndex);
             const selected = selectedRowKey === rowKey;
+            const groupMeta = rowGroupMeta[rowIndex] || { key: "all", label: "All Rows", start: false };
+            const groupCollapsed = isCollapsed(groupMeta.key);
             return (
-              <tr
-                key={rowKey}
-                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
-                className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
-              >
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("desk")}
-                  className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
-                  style={widthStyle("desk", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
-                >
-                  {row.desk}
-                </td>
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("teamLeader")}
-                  className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
-                  style={widthStyle("teamLeader", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
-                >
-                  {row.teamLeader}
-                </td>
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("agent")}
-                  className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
-                  style={widthStyle("agent", { padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 })}
-                >
-                  {row.agent}
-                </td>
-                {monthBlocks.map((month, index) => {
-                  const metric = row.months?.[month.key] || {};
-                  const theme = last4MonthTheme(index);
-                  return (
-                    <FragmentMetricCells
-                      key={`${rowKey}-${month.key}`}
-                      metric={metric}
-                      theme={theme}
-                      monthKey={month.key}
-                      hoveredColumnKey={hoveredColumnKey}
-                      onHoverColumn={setHoveredColumnKey}
-                      widthStyle={widthStyle}
-                    />
-                  );
-                })}
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("startDate")}
-                  className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
-                  style={widthStyle("startDate", {
-                    padding: "8px 12px",
-                    borderBottom: "1px solid #eef2f7",
-                    fontWeight: 600,
-                  })}
-                >
-                  {row.startDate || "-"}
-                </td>
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
-                  className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
-                  style={widthStyle("monthsWorked", {
-                    padding: "8px 12px",
-                    borderBottom: "1px solid #eef2f7",
-                    fontWeight: 600,
-                  })}
-                >
-                  {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
-                </td>
-                <td
-                  onMouseEnter={() => setHoveredColumnKey("currentStatus")}
-                  className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
-                  style={{
-                    padding: "8px 12px",
-                    borderBottom: "1px solid #eef2f7",
-                    fontWeight: 700,
-                    ...workingStatusStyle(row.currentStatus),
-                    ...widthStyle("currentStatus"),
-                  }}
-                >
-                  {row.currentStatus || "Not Working"}
-                </td>
-              </tr>
+              <Fragment key={`last4-fragment-${rowKey}`}>
+                {groupMeta.start ? (
+                  <tr className={styles.tableGroupRow}>
+                    <td colSpan={6 + monthBlocks.length * 6}>
+                      <button
+                        type="button"
+                        className={styles.tableGroupToggle}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleGroup(groupMeta.key);
+                        }}
+                      >
+                        <span>{groupCollapsed ? "▶" : "▼"}</span>
+                        <span>{groupMeta.label}</span>
+                      </button>
+                    </td>
+                  </tr>
+                ) : null}
+                {!groupCollapsed ? (
+                  <tr
+                    onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                    className={`${styles.tableInteractiveRow} ${selected ? styles.tableSelectedRow : ""}`}
+                  >
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("desk")}
+                      className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
+                      style={widthStyle("desk", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
+                    >
+                      {row.desk}
+                    </td>
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+                      className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
+                      style={widthStyle("teamLeader", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
+                    >
+                      {row.teamLeader}
+                    </td>
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("agent")}
+                      className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
+                      style={widthStyle("agent", { padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 })}
+                    >
+                      {row.agent}
+                    </td>
+                    {monthBlocks.map((month, index) => {
+                      const metric = row.months?.[month.key] || {};
+                      const theme = last4MonthTheme(index);
+                      return (
+                        <FragmentMetricCells
+                          key={`${rowKey}-${month.key}`}
+                          metric={metric}
+                          theme={theme}
+                          monthKey={month.key}
+                          hoveredColumnKey={hoveredColumnKey}
+                          onHoverColumn={setHoveredColumnKey}
+                          widthStyle={widthStyle}
+                        />
+                      );
+                    })}
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("startDate")}
+                      className={hoveredColumnKey === "startDate" ? styles.tableColumnGlow : ""}
+                      style={widthStyle("startDate", {
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #eef2f7",
+                        fontWeight: 600,
+                      })}
+                    >
+                      {row.startDate || "-"}
+                    </td>
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("monthsWorked")}
+                      className={hoveredColumnKey === "monthsWorked" ? styles.tableColumnGlow : ""}
+                      style={widthStyle("monthsWorked", {
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #eef2f7",
+                        fontWeight: 600,
+                      })}
+                    >
+                      {row.monthsWorked === "-" ? "-" : `${row.monthsWorked} month${Number(row.monthsWorked) === 1 ? "" : "s"}`}
+                    </td>
+                    <td
+                      onMouseEnter={() => setHoveredColumnKey("currentStatus")}
+                      className={hoveredColumnKey === "currentStatus" ? styles.tableColumnGlow : ""}
+                      style={{
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #eef2f7",
+                        fontWeight: 700,
+                        ...workingStatusStyle(row.currentStatus),
+                        ...widthStyle("currentStatus"),
+                      }}
+                    >
+                      {row.currentStatus || "Not Working"}
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
           {!rows.length ? (
@@ -1326,6 +1541,9 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
         </tbody>
       </table>
       </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </div>
   );
 }
@@ -1570,6 +1788,7 @@ function builderMonthMetricValue(row = {}, monthKey = "", metricKey = "") {
 }
 
 function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
+  const [tableExpanded, setTableExpanded] = useState(true);
   const monthValues = Array.isArray(builder?.columnValues) ? builder.columnValues : [];
   const monthKeys = monthValues.filter((value) => {
     const normalized = String(value || "").trim();
@@ -1613,59 +1832,73 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
 
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
-      <div className={styles.tableScroll}>
-        <table className={`${styles.table} ${styles.agentProductivityTable}`}>
-          <tbody>
-            {orderedRows.length ? (
-              orderedRows.map((row, rowIndex) => (
-                <Fragment key={`country-block-${String(row.country || rowIndex)}`}>
-                  <tr className={styles.agentProductivityCountryRow}>
-                    <th colSpan={monthKeys.length + 1}>{String(row.country || "-")}</th>
-                  </tr>
-                  <tr className={styles.agentProductivityMonthRow}>
-                    <th className={styles.agentProductivityMetricCell} />
-                    {monthKeys.map((monthKey) => (
-                      <th key={`month-${rowIndex}-${monthKey}`}>
-                        {monthShortLabel(monthKey, monthLabelByKey.get(monthKey) || monthKey)}
-                      </th>
-                    ))}
-                  </tr>
-                  {metricRows.map((metric) => (
-                    <tr key={`metric-${rowIndex}-${metric.label}`}>
-                      <th className={styles.agentProductivityMetricCell}>{metric.label}</th>
-                      {monthKeys.map((monthKey) => {
-                        const monthDays = monthDaysFromMonthKey(monthKey);
-                        const dailyLeadDivisor = dailyLeadDivisorFromMonthKey(monthKey);
-                        const context = {
-                          monthDays,
-                          dailyLeadDivisor,
-                          leads: builderMonthMetricValue(row, monthKey, "leads"),
-                          ftd: builderMonthMetricValue(row, monthKey, "ftd"),
-                          cr: builderMonthMetricValue(row, monthKey, "cr"),
-                        };
-                        return (
-                          <td key={`metric-value-${rowIndex}-${metric.label}-${monthKey}`} className={styles.agentProductivityValueCell}>
-                            {metric.render(context)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                  {rowIndex < orderedRows.length - 1 ? (
-                    <tr className={styles.agentProductivitySpacerRow}>
-                      <td colSpan={monthKeys.length + 1} />
-                    </tr>
-                  ) : null}
-                </Fragment>
-              ))
-            ) : (
-              <tr>
-                <td className={styles.tableEmpty}>No rows found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
       </div>
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table className={`${styles.table} ${styles.agentProductivityTable}`}>
+            <tbody>
+              {orderedRows.length ? (
+                orderedRows.map((row, rowIndex) => (
+                  <Fragment key={`country-block-${String(row.country || rowIndex)}`}>
+                    <tr className={styles.agentProductivityCountryRow}>
+                      <th colSpan={monthKeys.length + 1}>{String(row.country || "-")}</th>
+                    </tr>
+                    <tr className={styles.agentProductivityMonthRow}>
+                      <th className={styles.agentProductivityMetricCell} />
+                      {monthKeys.map((monthKey) => (
+                        <th key={`month-${rowIndex}-${monthKey}`}>
+                          {monthShortLabel(monthKey, monthLabelByKey.get(monthKey) || monthKey)}
+                        </th>
+                      ))}
+                    </tr>
+                    {metricRows.map((metric) => (
+                      <tr key={`metric-${rowIndex}-${metric.label}`}>
+                        <th className={styles.agentProductivityMetricCell}>{metric.label}</th>
+                        {monthKeys.map((monthKey) => {
+                          const monthDays = monthDaysFromMonthKey(monthKey);
+                          const dailyLeadDivisor = dailyLeadDivisorFromMonthKey(monthKey);
+                          const context = {
+                            monthDays,
+                            dailyLeadDivisor,
+                            leads: builderMonthMetricValue(row, monthKey, "leads"),
+                            ftd: builderMonthMetricValue(row, monthKey, "ftd"),
+                            cr: builderMonthMetricValue(row, monthKey, "cr"),
+                          };
+                          return (
+                            <td key={`metric-value-${rowIndex}-${metric.label}-${monthKey}`} className={styles.agentProductivityValueCell}>
+                              {metric.render(context)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    {rowIndex < orderedRows.length - 1 ? (
+                      <tr className={styles.agentProductivitySpacerRow}>
+                        <td colSpan={monthKeys.length + 1} />
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                ))
+              ) : (
+                <tr>
+                  <td className={styles.tableEmpty}>No rows found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </div>
   );
 }
@@ -1673,6 +1906,7 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
 function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {} }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
+  const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
   const isColumnPivot =
     Boolean(builder?.columnDimension) &&
@@ -1698,8 +1932,45 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
       ? pivotMetricColumns.filter((_, index) => index % perGroupMetricCount === 0).map((column) => column.key)
       : [],
   );
+  const primaryDimension = dimensionColumns[0] || null;
+  const {
+    groupMetaByRow: rowGroupMeta,
+    hasGroups,
+    allCollapsed,
+    isCollapsed,
+    toggleGroup,
+    toggleAllGroups,
+  } = useRowGroupCollapse(rows, (row) => {
+    const fallbackLabel = primaryDimension?.label || "Rows";
+    if (!primaryDimension?.key) {
+      return { key: "all-rows", label: fallbackLabel };
+    }
+    const sourceValue = String(row?.[primaryDimension.key] ?? "-").trim() || "-";
+    const normalizedValue = sourceValue.replace(/\s+total$/i, "").trim() || sourceValue;
+    return {
+      key: `builder:${normalizeGroupText(normalizedValue)}`,
+      label: `${fallbackLabel}: ${normalizedValue}`,
+    };
+  });
+  const showGroupControls = Boolean(primaryDimension?.key && hasGroups);
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
+      <div className={styles.tableActionBar}>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTableExpanded((previous) => !previous)}
+          aria-expanded={tableExpanded}
+        >
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {showGroupControls ? (
+          <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
+            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+          </button>
+        ) : null}
+      </div>
+      {tableExpanded ? (
       <div className={styles.tableScroll}>
       <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
         <thead>
@@ -1805,59 +2076,82 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
               rowStartMonthKey &&
               rowAgentName &&
               rowAgentName !== "-";
+            const groupMeta = rowGroupMeta[index] || { key: "all", label: "All Rows", start: false };
+            const groupCollapsed = showGroupControls ? isCollapsed(groupMeta.key) : false;
+            const isTotalRow = row.__rowKind === "total";
             return (
-              <tr
-                key={`builder-${rowKey}`}
-                onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
-                className={`${row.__rowKind === "total" ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
-                  selected ? styles.tableSelectedRow : ""
-                }`}
-              >
-                {columns.map((column) => {
-                  const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
-                  const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
-                  const isWorkCurrentStatus = column.key === "workCurrentStatus";
-                  const columnMonthKey = monthKeyFromPivotColumnKey(column.key);
-                  const isHistoricalBeforeStartMonth =
-                    canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
-                  const value = row[column.key];
-                  const reachStyle = isReach ? reachCellStyle(value) : null;
-                  const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
-                  const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
-                  const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
-                  return (
-                    <td
-                      key={`${index}-${column.key}`}
-                      onMouseEnter={() => setHoveredColumnKey(column.key)}
-                      className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
-                      style={widthStyle(column.key, {
-                        color: isHistoricalBeforeStartMonth
-                          ? "#94a3b8"
-                          : isWorkCurrentStatus
-                            ? statusStyle.color
-                            : isBenchmarkRate
-                              ? benchmarkStyle.color
-                              : isReach
-                                ? reachStyle.color
-                                : "#0f172a",
-                        background: isHistoricalBeforeStartMonth
-                          ? "#f8fafc"
-                          : isWorkCurrentStatus
-                            ? statusStyle.background
-                            : isBenchmarkRate
-                              ? benchmarkStyle.background
-                              : isReach
-                                ? reachStyle.background
-                              : undefined,
-                        borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
-                        fontWeight: isHistoricalBeforeStartMonth ? 500 : isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
-                      })}
-                    >
-                      {displayValue}
+              <Fragment key={`builder-fragment-${rowKey}`}>
+                {showGroupControls && groupMeta.start ? (
+                  <tr className={styles.tableGroupRow}>
+                    <td colSpan={columns.length || 1}>
+                      <button
+                        type="button"
+                        className={styles.tableGroupToggle}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleGroup(groupMeta.key);
+                        }}
+                      >
+                        <span>{groupCollapsed ? "▶" : "▼"}</span>
+                        <span>{groupMeta.label}</span>
+                      </button>
                     </td>
-                  );
-                })}
-              </tr>
+                  </tr>
+                ) : null}
+                {!groupCollapsed || isTotalRow ? (
+                  <tr
+                    onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
+                    className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
+                      selected ? styles.tableSelectedRow : ""
+                    }`}
+                  >
+                    {columns.map((column) => {
+                      const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
+                      const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
+                      const isWorkCurrentStatus = column.key === "workCurrentStatus";
+                      const columnMonthKey = monthKeyFromPivotColumnKey(column.key);
+                      const isHistoricalBeforeStartMonth =
+                        canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
+                      const value = row[column.key];
+                      const reachStyle = isReach ? reachCellStyle(value) : null;
+                      const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
+                      const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
+                      const statusStyle = isWorkCurrentStatus ? workingStatusStyle(value) : null;
+                      return (
+                        <td
+                          key={`${index}-${column.key}`}
+                          onMouseEnter={() => setHoveredColumnKey(column.key)}
+                          className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
+                          style={widthStyle(column.key, {
+                            color: isHistoricalBeforeStartMonth
+                              ? "#94a3b8"
+                              : isWorkCurrentStatus
+                                ? statusStyle.color
+                                : isBenchmarkRate
+                                  ? benchmarkStyle.color
+                                  : isReach
+                                    ? reachStyle.color
+                                    : "#0f172a",
+                            background: isHistoricalBeforeStartMonth
+                              ? "#f8fafc"
+                              : isWorkCurrentStatus
+                                ? statusStyle.background
+                                : isBenchmarkRate
+                                  ? benchmarkStyle.background
+                                  : isReach
+                                    ? reachStyle.background
+                                  : undefined,
+                            borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
+                            fontWeight: isHistoricalBeforeStartMonth ? 500 : isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
+                          })}
+                        >
+                          {displayValue}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
           {!rows.length ? (
@@ -1870,6 +2164,9 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
         </tbody>
       </table>
       </div>
+      ) : (
+        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </div>
   );
 }
@@ -2015,6 +2312,7 @@ function toMetricNumber(value) {
 }
 
 function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }) {
+  const [tablesExpanded, setTablesExpanded] = useState(true);
   const [sortByTable, setSortByTable] = useState(() =>
     Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
   );
@@ -2120,7 +2418,18 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
-      <h3 className={styles.sectionTitle}>Comparison Tables</h3>
+      <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
+        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Comparison Tables</h3>
+        <button
+          type="button"
+          className={styles.tableActionButton}
+          onClick={() => setTablesExpanded((previous) => !previous)}
+          aria-expanded={tablesExpanded}
+        >
+          {tablesExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+      </div>
+      {tablesExpanded ? (
       <div className={styles.comparisonGrid}>
         {tables.map((table) => {
           const selectedValue = String(selections?.[table.key] || "").trim();
@@ -2194,6 +2503,9 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
           );
         })}
       </div>
+      ) : (
+        <p className={styles.tableCollapsedHint} style={{ marginLeft: 0 }}>Table is collapsed. Click "Expand Table" to view rows.</p>
+      )}
     </section>
   );
 }
