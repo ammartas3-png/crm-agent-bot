@@ -2639,6 +2639,74 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     },
     [groupMeta.depthPartsMaps, columns, dimensionIndexByKey, isPlaceholderGroupLabel],
   );
+  const visibleRowsForColumnVisibility = useMemo(() => {
+    const list = [];
+    const emittedSummaryKeys = new Set();
+    rows.forEach((row, index) => {
+      const rowMeta = groupMeta.rowMetaByIndex[index] || null;
+      const isTotalRow = row?.__rowKind === "total";
+      const firstCollapsedDepth =
+        !isTotalRow && rowMeta
+          ? rowMeta.keys.findIndex((key, depth) => isGroupCollapsed(depth, key))
+          : -1;
+      const shouldHideByGroup = !isTotalRow && firstCollapsedDepth >= 0;
+      if (shouldHideByGroup) {
+        if (rowMeta?.starts?.[firstCollapsedDepth]) {
+          const collapsedKey = rowMeta.keys[firstCollapsedDepth];
+          const summaryKey = `${firstCollapsedDepth}:${collapsedKey}`;
+          if (!emittedSummaryKeys.has(summaryKey)) {
+            emittedSummaryKeys.add(summaryKey);
+            list.push(
+              buildCollapsedSummaryRow(
+                groupMeta.depthRowsMaps[firstCollapsedDepth]?.get(collapsedKey) || [],
+                firstCollapsedDepth,
+                collapsedKey,
+              ),
+            );
+          }
+        }
+        return;
+      }
+      list.push(row);
+    });
+    return list;
+  }, [rows, groupMeta.rowMetaByIndex, groupMeta.depthRowsMaps, isGroupCollapsed, buildCollapsedSummaryRow]);
+  const visibleDimensionKeySet = useMemo(() => {
+    const keys = new Set();
+    const firstDimensionKey = String(dimensionColumns[0]?.key || "");
+    if (firstDimensionKey) {
+      keys.add(firstDimensionKey);
+    }
+    for (const column of dimensionColumns) {
+      const columnKey = String(column.key || "");
+      if (!columnKey) {
+        continue;
+      }
+      const hasMeaningfulValue = visibleRowsForColumnVisibility.some((row) => {
+        if (row?.__rowKind === "total" && !row?.__collapsedSummary) {
+          return false;
+        }
+        const raw = String(row?.[columnKey] ?? "").trim();
+        if (!raw) {
+          return false;
+        }
+        const cleaned = raw.replace(/\s+total$/i, "").trim() || raw;
+        return !isPlaceholderGroupLabel(cleaned);
+      });
+      if (hasMeaningfulValue) {
+        keys.add(columnKey);
+      }
+    }
+    return keys;
+  }, [dimensionColumns, visibleRowsForColumnVisibility, isPlaceholderGroupLabel]);
+  const visibleColumns = useMemo(
+    () => columns.filter((column) => column.kind !== "dimension" || visibleDimensionKeySet.has(String(column.key || ""))),
+    [columns, visibleDimensionKeySet],
+  );
+  const visibleDimensionColumns = useMemo(
+    () => dimensionColumns.filter((column) => visibleDimensionKeySet.has(String(column.key || ""))),
+    [dimensionColumns, visibleDimensionKeySet],
+  );
 
   return (
     <div className={`${styles.panel} ${styles.tableCard}`} style={{ maxHeight: "70vh" }}>
@@ -2664,7 +2732,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
               {isColumnPivot ? (
                 <>
                   <tr>
-                    {dimensionColumns.map((column) => {
+                    {visibleDimensionColumns.map((column) => {
                       const active = sortState.key === column.key;
                       const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                       return (
@@ -2731,7 +2799,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                 </>
               ) : (
                 <tr>
-                  {columns.map((column) => {
+                  {visibleColumns.map((column) => {
                     const active = sortState.key === column.key;
                     const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                     return (
@@ -2807,7 +2875,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                           }`;
                           return (
                             <tr key={`group-${rowKey}-${depth}`} className={styles.tableGroupRow}>
-                              <td colSpan={columns.length || 1}>
+                              <td colSpan={visibleColumns.length || 1}>
                                 <button
                                   type="button"
                                   className={styles.tableGroupToggle}
@@ -2827,7 +2895,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                       : null}
                     {collapsedSummaryRow ? (
                       <tr className={styles.tableTotalRow}>
-                        {columns.map((column) => {
+                        {visibleColumns.map((column) => {
                           const value = collapsedSummaryRow[column.key];
                           const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
                           const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
@@ -2884,7 +2952,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                           selectedRowKey === rowKey ? styles.tableSelectedRow : ""
                         }`}
                       >
-                        {columns.map((column) => {
+                        {visibleColumns.map((column) => {
                           const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
                           const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                           const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
@@ -2955,7 +3023,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
               })}
               {!rows.length ? (
                 <tr>
-                  <td colSpan={columns.length || 1} className={styles.tableEmpty}>
+                  <td colSpan={visibleColumns.length || 1} className={styles.tableEmpty}>
                     No data found for current filters.
                   </td>
                 </tr>
