@@ -3180,8 +3180,8 @@ const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
 const QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS = ["desk", "country"];
 const QUICK_PRESET_DESK_COUNTRY_CR_METRICS = ["ftd", "crTargetReach", "cr"];
-const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["country", "campaign"];
-const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["ftd", "cr", "leads", "crTargetReach"];
+const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["hour", "country"];
+const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
@@ -3944,7 +3944,7 @@ export default function DashboardPage() {
           return {
             ...basePreset,
             monthKey: defaultMonth,
-            columnDimension: "hour",
+            columnDimension: "",
             includeWorkTime: false,
             hideNotWorking: false,
             rowDimensions: QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS,
