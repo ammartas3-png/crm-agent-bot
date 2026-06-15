@@ -2514,12 +2514,13 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       rowMetaByIndex,
     };
   }, [rows, dimensionColumns]);
+  const collapsibleDepthCount = Math.max(groupMeta.depthCount - 1, 0);
   const [collapsedByDepth, setCollapsedByDepth] = useState({});
 
   useEffect(() => {
     setCollapsedByDepth((previous) => {
       const next = {};
-      for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+      for (let depth = 0; depth < collapsibleDepthCount; depth += 1) {
         const previousSet = previous[depth] || new Set();
         if (!previousSet.size) {
           continue;
@@ -2532,10 +2533,13 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       }
       return next;
     });
-  }, [groupMeta.depthCount, groupMeta.depthOrder]);
+  }, [collapsibleDepthCount, groupMeta.depthOrder]);
 
   const isGroupCollapsed = useCallback((depth, key) => Boolean(collapsedByDepth[depth]?.has(key)), [collapsedByDepth]);
   const toggleDepthGroup = useCallback((depth, key) => {
+    if (depth < 0 || depth >= collapsibleDepthCount) {
+      return;
+    }
     setCollapsedByDepth((previous) => {
       const next = { ...previous };
       const currentSet = new Set(next[depth] || []);
@@ -2551,17 +2555,19 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       }
       return next;
     });
-  }, []);
+  }, [collapsibleDepthCount]);
 
   const showGroupControls = useMemo(
-    () => groupMeta.depthCount > 0 && groupMeta.depthOrder.some((order) => order.length > 0),
-    [groupMeta.depthCount, groupMeta.depthOrder],
+    () =>
+      collapsibleDepthCount > 0 &&
+      groupMeta.depthOrder.slice(0, collapsibleDepthCount).some((order) => order.length > 0),
+    [collapsibleDepthCount, groupMeta.depthOrder],
   );
   const allCollapsed = useMemo(() => {
     if (!showGroupControls) {
       return false;
     }
-    for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+    for (let depth = 0; depth < collapsibleDepthCount; depth += 1) {
       const order = groupMeta.depthOrder[depth] || [];
       if (!order.length) {
         continue;
@@ -2572,7 +2578,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       }
     }
     return true;
-  }, [showGroupControls, groupMeta.depthCount, groupMeta.depthOrder, collapsedByDepth]);
+  }, [showGroupControls, collapsibleDepthCount, groupMeta.depthOrder, collapsedByDepth]);
   const toggleAllGroups = useCallback(() => {
     if (!showGroupControls) {
       return;
@@ -2582,14 +2588,14 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       return;
     }
     const next = {};
-    for (let depth = 0; depth < groupMeta.depthCount; depth += 1) {
+    for (let depth = 0; depth < collapsibleDepthCount; depth += 1) {
       const order = groupMeta.depthOrder[depth] || [];
       if (order.length) {
         next[depth] = new Set(order);
       }
     }
     setCollapsedByDepth(next);
-  }, [showGroupControls, allCollapsed, groupMeta.depthCount, groupMeta.depthOrder]);
+  }, [showGroupControls, allCollapsed, collapsibleDepthCount, groupMeta.depthOrder]);
   const formatMissingFtdValue = useCallback((value) => {
     const numeric = Number(value);
     const safeValue = Number.isFinite(numeric) ? numeric : 0;
@@ -2647,7 +2653,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
       const isTotalRow = row?.__rowKind === "total";
       const firstCollapsedDepth =
         !isTotalRow && rowMeta
-          ? rowMeta.keys.findIndex((key, depth) => isGroupCollapsed(depth, key))
+          ? rowMeta.keys.findIndex((key, depth) => depth < collapsibleDepthCount && isGroupCollapsed(depth, key))
           : -1;
       const shouldHideByGroup = !isTotalRow && firstCollapsedDepth >= 0;
       if (shouldHideByGroup) {
@@ -2834,7 +2840,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                 const isTotalRow = row.__rowKind === "total";
                 const firstCollapsedDepth =
                   !isTotalRow && rowMeta
-                    ? rowMeta.keys.findIndex((key, depth) => isGroupCollapsed(depth, key))
+                    ? rowMeta.keys.findIndex((key, depth) => depth < collapsibleDepthCount && isGroupCollapsed(depth, key))
                     : -1;
                 const shouldHideByGroup = !isTotalRow && firstCollapsedDepth >= 0;
                 const collapsedSummaryRow =
@@ -2850,6 +2856,9 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                   : rowMeta.keys
                       .map((_, depth) => depth)
                       .filter((depth) => {
+                        if (depth >= collapsibleDepthCount) {
+                          return false;
+                        }
                         if (!rowMeta.starts[depth]) {
                           return false;
                         }
