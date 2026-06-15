@@ -2211,7 +2211,6 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
         <tbody>
           {rows.map((row, index) => {
             const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${index}`);
-            const selected = selectedRowKey === rowKey;
             const rowStartMonthKey = monthKeyFromDateValue(row.workStartDate);
             const rowAgentName = String(row.agent || "").trim();
             const canApplyHistoricalBlank =
@@ -2284,6 +2283,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   <tr className={styles.tableTotalRow}>
                     {columns.map((column) => {
                       const value = collapsedSummaryRow[column.key];
+                      const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
                       const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                       const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
                       const isWorkCurrentStatus = column.key === "workCurrentStatus";
@@ -2291,20 +2291,34 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                       const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
                       const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
                       const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
+                      const missingValue = Number(value || 0);
+                      const missingFtdStyle = isMissingFtd
+                        ? {
+                            background: missingValue <= 0 ? "#14532d" : "#7f1d1d",
+                            color: "#ffffff",
+                          }
+                        : null;
+                      const displayValue = isMissingFtd
+                        ? `${missingValue <= 0 ? "+" : "-"} ${formatNumber(Math.round(Math.abs(missingValue)))} FTD`
+                        : formatBuilderCell(value, column.type);
                       return (
                         <td
                           key={`summary-${rowKey}-${column.key}`}
                           onMouseEnter={() => setHoveredColumnKey(column.key)}
                           className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                           style={widthStyle(column.key, {
-                            color: statusStyle
+                            color: missingFtdStyle
+                              ? missingFtdStyle.color
+                              : statusStyle
                               ? statusStyle.color
                               : isBenchmarkRate
                                 ? benchmarkStyle.color
                                 : isReach
                                   ? reachStyle.color
                                   : "#0f172a",
-                            background: statusStyle
+                            background: missingFtdStyle
+                              ? missingFtdStyle.background
+                              : statusStyle
                               ? statusStyle.background
                               : isBenchmarkRate
                                 ? benchmarkStyle.background
@@ -2312,10 +2326,10 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                   ? reachStyle.background
                                   : undefined,
                             borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
-                            fontWeight: statusStyle || isBenchmarkRate ? 700 : undefined,
+                            fontWeight: missingFtdStyle || statusStyle || isBenchmarkRate ? 700 : undefined,
                           })}
                         >
-                          {formatBuilderCell(value, column.type)}
+                          {displayValue}
                         </td>
                       );
                     })}
@@ -2325,10 +2339,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   <tr
                     onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
                     className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
-                      selected ? styles.tableSelectedRow : ""
+                      selectedRowKey === rowKey ? styles.tableSelectedRow : ""
                     }`}
                   >
                     {columns.map((column) => {
+                      const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
                       const isReach = column.type === "percent" && column.key.toLowerCase().includes("reach");
                       const isBenchmarkRate = column.key === "ftdBenchmarkRate" || column.key.endsWith("__ftdBenchmarkRate");
                       const isWorkCurrentStatus = column.key === "workCurrentStatus";
@@ -2337,7 +2352,21 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                         canApplyHistoricalBlank && columnMonthKey && columnMonthKey < rowStartMonthKey;
                       const value = row[column.key];
                       const reachStyle = isReach ? reachCellStyle(value) : null;
-                      const displayValue = isHistoricalBeforeStartMonth ? "" : formatBuilderCell(value, column.type);
+                      const missingValue = Number(value || 0);
+                      const missingFtdStyle = isMissingFtd
+                        ? {
+                            background: missingValue <= 0 ? "#14532d" : "#7f1d1d",
+                            color: "#ffffff",
+                          }
+                        : null;
+                      const missingDisplayValue = `${missingValue <= 0 ? "+" : "-"} ${formatNumber(
+                        Math.round(Math.abs(missingValue)),
+                      )} FTD`;
+                      const displayValue = isHistoricalBeforeStartMonth
+                        ? ""
+                        : isMissingFtd
+                          ? missingDisplayValue
+                          : formatBuilderCell(value, column.type);
                       const benchmarkStyle = isBenchmarkRate ? benchmarkRateStyle(value) : null;
                       const hasStatusValue = String(value || "").trim() && String(value || "").trim() !== "-";
                       const statusStyle = isWorkCurrentStatus && hasStatusValue ? workingStatusStyle(value) : null;
@@ -2349,7 +2378,9 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                           style={widthStyle(column.key, {
                             color: isHistoricalBeforeStartMonth
                               ? "#94a3b8"
-                              : isWorkCurrentStatus
+                              : missingFtdStyle
+                                ? missingFtdStyle.color
+                                : isWorkCurrentStatus
                                 ? statusStyle.color
                                 : isBenchmarkRate
                                   ? benchmarkStyle.color
@@ -2358,7 +2389,9 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                     : "#0f172a",
                             background: isHistoricalBeforeStartMonth
                               ? "#f8fafc"
-                              : isWorkCurrentStatus
+                              : missingFtdStyle
+                                ? missingFtdStyle.background
+                                : isWorkCurrentStatus
                                 ? statusStyle.background
                                 : isBenchmarkRate
                                   ? benchmarkStyle.background
@@ -2366,7 +2399,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                     ? reachStyle.background
                                   : undefined,
                             borderLeft: pivotGroupStartKeySet.has(column.key) ? "1px solid #bfdbfe" : undefined,
-                            fontWeight: isHistoricalBeforeStartMonth ? 500 : isWorkCurrentStatus || isBenchmarkRate ? 700 : undefined,
+                            fontWeight: isHistoricalBeforeStartMonth
+                              ? 500
+                              : missingFtdStyle || isWorkCurrentStatus || isBenchmarkRate
+                                ? 700
+                                : undefined,
                           })}
                         >
                           {displayValue}
@@ -3128,6 +3165,7 @@ export default function DashboardPage() {
   const options = report?.options || {};
   const isComparisonPreset = quickPreset === "comparison-report";
   const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
+  const isTrafficPreset = quickPreset === "traffic";
   const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isAgentProductivityReportView =
@@ -3218,8 +3256,8 @@ export default function DashboardPage() {
           return {
             ...basePreset,
             monthKey: defaultMonth,
-            includeWorkTime: true,
-            hideNotWorking: true,
+            includeWorkTime: false,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TRAFFIC_METRICS,
@@ -3919,9 +3957,12 @@ export default function DashboardPage() {
             <span className={styles.workTimeToggleLabel}>Work Time</span>
             <button
               type="button"
-              disabled={isBuilderLockedPreset}
+              disabled={isBuilderLockedPreset || isTrafficPreset}
               className={`${styles.workTimeToggle} ${filters.includeWorkTime ? styles.workTimeToggleOn : ""}`}
               onClick={() =>
+                isTrafficPreset
+                  ? null
+                  :
                 setFilters((prev) => ({
                   ...prev,
                   includeWorkTime: !prev.includeWorkTime,
