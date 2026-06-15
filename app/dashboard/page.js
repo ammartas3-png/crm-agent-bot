@@ -2613,6 +2613,30 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     (sourceRows = [], depth = 0, key = "") => {
       const payload = {};
       const parts = groupMeta.depthPartsMaps[depth]?.get(key) || [];
+      const metricKeyFromColumnKey = (columnKey = "") => {
+        const safeKey = String(columnKey || "");
+        const markerIndex = safeKey.lastIndexOf("__");
+        return markerIndex >= 0 ? safeKey.slice(markerIndex + 2) : safeKey;
+      };
+      const siblingMetricColumnKey = (columnKey = "", metricKey = "") => {
+        const safeKey = String(columnKey || "");
+        const markerIndex = safeKey.lastIndexOf("__");
+        return markerIndex >= 0 ? `${safeKey.slice(0, markerIndex)}__${metricKey}` : metricKey;
+      };
+      const sumMetric = (metricColumnKey = "") =>
+        sourceRows.reduce((sum, row) => sum + numberOrZero(row?.[metricColumnKey]), 0);
+      const weightedPercent = (percentColumnKey = "", weightColumnKey = "") => {
+        const totalWeight = sumMetric(weightColumnKey);
+        if (totalWeight <= 0) {
+          return 0;
+        }
+        const weightedSum = sourceRows.reduce((sum, row) => {
+          const percentValue = numberOrZero(row?.[percentColumnKey]);
+          const weightValue = numberOrZero(row?.[weightColumnKey]);
+          return sum + (percentValue * weightValue) / 100;
+        }, 0);
+        return (weightedSum / totalWeight) * 100;
+      };
       for (const column of columns) {
         if (column.kind === "dimension") {
           const dimensionIndex = dimensionIndexByKey.get(String(column.key || ""));
@@ -2633,6 +2657,36 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           continue;
         }
         if (column.type === "percent") {
+          const metricKey = metricKeyFromColumnKey(column.key);
+          if (metricKey === "leadShare") {
+            payload[column.key] = sumMetric(column.key);
+            continue;
+          }
+          if (metricKey === "ftdTargetReach") {
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            const ftdTargetValue = sumMetric(siblingMetricColumnKey(column.key, "ftdTarget"));
+            payload[column.key] = ftdTargetValue > 0 ? (ftdValue / ftdTargetValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "cr") {
+            const leadsValue = sumMetric(siblingMetricColumnKey(column.key, "leads"));
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            payload[column.key] = leadsValue > 0 ? (ftdValue / leadsValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "crTarget") {
+            payload[column.key] = weightedPercent(column.key, siblingMetricColumnKey(column.key, "leads"));
+            continue;
+          }
+          if (metricKey === "crTargetReach") {
+            const leadsColumnKey = siblingMetricColumnKey(column.key, "leads");
+            const leadsValue = sumMetric(leadsColumnKey);
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            const crValue = leadsValue > 0 ? (ftdValue / leadsValue) * 100 : 0;
+            const crTargetValue = weightedPercent(siblingMetricColumnKey(column.key, "crTarget"), leadsColumnKey);
+            payload[column.key] = crTargetValue > 0 ? (crValue / crTargetValue) * 100 : 0;
+            continue;
+          }
           const values = sourceRows.map((row) => Number(row?.[column.key])).filter((value) => Number.isFinite(value));
           payload[column.key] = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
           continue;
