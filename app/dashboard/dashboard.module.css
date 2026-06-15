@@ -563,25 +563,27 @@
 .tableActionBar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px 0;
+  padding: 6px 10px 2px;
 }
 
 .tableActionButton {
-  border: 1px solid #94a3b8;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 5px 10px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 9px;
   cursor: pointer;
 }
 
 .tableActionButton:hover {
-  background: #e2e8f0;
-  border-color: #64748b;
+  background: #f3f6fb;
+  border-color: #93c5fd;
+  color: #1e3a8a;
 }
 
 .tableCollapsedHint {
@@ -721,22 +723,45 @@
 }
 
 .tableGroupRow td {
-  background: #f1f5f9;
-  border-bottom: 1px solid #dbe3ee;
-  padding: 4px 10px;
+  background: #fafbfd;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 2px 10px;
 }
 
 .tableGroupToggle {
   border: 0;
   background: transparent;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  padding: 2px 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.tableGroupToggle:hover {
+  background: #eef2f7;
+}
+
+.tableGroupToggle span:first-child {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tableGroupToggle span:last-child {
+  white-space: nowrap;
 }
 
 .tableInteractiveRow {
