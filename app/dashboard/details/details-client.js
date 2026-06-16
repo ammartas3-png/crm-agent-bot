@@ -99,7 +99,7 @@ function parseFiltersFromSearchParams(searchParams) {
 function linkedFiltersFromRow(row = {}) {
   const next = {};
   for (const key of LINKABLE_FIELDS) {
-    const value = String(row?.[key] || "").trim();
+    const value = normalizedDetailsValue(String(row?.[key] || "").trim());
     if (!hasMeaningfulValue(value)) {
       continue;
     }
@@ -110,6 +110,22 @@ function linkedFiltersFromRow(row = {}) {
 
 function filterValueText(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function normalizeHourValue(value = "") {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const matched = text.match(/^(\d{1,2})(?::\d{2})?/);
+  if (!matched) {
+    return "";
+  }
+  const hour = Number(matched[1]);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
+    return "";
+  }
+  return String(hour).padStart(2, "0");
 }
 
 function createdDatePart(value = "") {
@@ -136,12 +152,19 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
     return true;
   }
   return entries.every(([key, values]) => {
-    const expectedValues = (Array.isArray(values) ? values : [values]).map(filterValueText).filter(Boolean);
+    const expectedValues = (Array.isArray(values) ? values : [values])
+      .map((value) => {
+        if (key === "hour") {
+          return normalizeHourValue(value);
+        }
+        return filterValueText(value);
+      })
+      .filter(Boolean);
     if (!expectedValues.length) {
       return true;
     }
     const candidateValues = new Set();
-    const direct = filterValueText(row?.[key]);
+    const direct = key === "hour" ? normalizeHourValue(row?.[key]) : filterValueText(row?.[key]);
     if (direct) {
       candidateValues.add(direct);
     }
@@ -152,7 +175,7 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
       }
     }
     if (key === "hour") {
-      const createdHour = filterValueText(createdHourPart(row?.created));
+      const createdHour = normalizeHourValue(createdHourPart(row?.created));
       if (createdHour) {
         candidateValues.add(createdHour);
       }
@@ -749,6 +772,277 @@ function InteractiveDetailTable({
             {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
           </button>
         ) : null}
+      </div>
+    </section>
+  );
+}
+
+function HierarchicalTrafficTable({
+  title = "Traffic Report",
+  report = null,
+  groupKeys = ["country", "campaign", "subCampaign", "placement"],
+  tableId = "traffic-report",
+  onSelectRow = null,
+  selectedRowKey = "",
+}) {
+  const sourceColumns = useMemo(
+    () => (Array.isArray(report?.builder?.columns) ? report.builder.columns : []),
+    [report?.builder?.columns],
+  );
+  const sourceRows = useMemo(() => (Array.isArray(report?.table) ? report.table : []), [report?.table]);
+  const detailRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind !== "total"), [sourceRows]);
+  const totalRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind === "total"), [sourceRows]);
+  const activeGroupKeys = useMemo(
+    () => groupKeys.filter((key) => sourceColumns.some((column) => column.key === key)),
+    [groupKeys, sourceColumns],
+  );
+  const [sortState, setSortState] = useState({
+    key: "leads",
+    direction: "desc",
+  });
+  useEffect(() => {
+    if (!sourceColumns.length) {
+      return;
+    }
+    if (!sourceColumns.some((column) => column.key === sortState.key)) {
+      setSortState({ key: sourceColumns[0].key, direction: "asc" });
+    }
+  }, [sortState.key, sourceColumns]);
+  const sortedDetailRows = useMemo(() => {
+    const activeColumn = sourceColumns.find((column) => column.key === sortState.key);
+    if (!activeColumn) {
+      return detailRows;
+    }
+    return [...detailRows].sort((left, right) => {
+      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
+      return sortState.direction === "desc" ? -compare : compare;
+    });
+  }, [detailRows, sortState.direction, sortState.key, sourceColumns]);
+  const displayRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
+  const [collapsedPaths, setCollapsedPaths] = useState({});
+  const groupPathsByDepth = useMemo(() => {
+    const next = activeGroupKeys.map(() => []);
+    const seen = activeGroupKeys.map(() => new Set());
+    for (const row of displayRows) {
+      const pathParts = [];
+      activeGroupKeys.forEach((key, depth) => {
+        const label = String(row?.[key] || "-").trim() || "-";
+        pathParts.push(`${key}:${label}`);
+        const pathKey = pathParts.join("||");
+        if (!seen[depth].has(pathKey)) {
+          seen[depth].add(pathKey);
+          next[depth].push(pathKey);
+        }
+      });
+    }
+    return next;
+  }, [activeGroupKeys, displayRows]);
+  const allCollapsed = useMemo(
+    () =>
+      groupPathsByDepth.length > 0 &&
+      groupPathsByDepth.every((paths) => paths.length > 0 && paths.every((pathKey) => Boolean(collapsedPaths[pathKey]))),
+    [collapsedPaths, groupPathsByDepth],
+  );
+  useEffect(() => {
+    if (!groupPathsByDepth.length) {
+      setCollapsedPaths({});
+      return;
+    }
+    setCollapsedPaths((prev) => {
+      const next = {};
+      groupPathsByDepth.forEach((paths) => {
+        paths.forEach((pathKey) => {
+          next[pathKey] = true;
+        });
+      });
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length === nextKeys.length && nextKeys.every((key) => prev[key] === true)) {
+        return prev;
+      }
+      return next;
+    });
+  }, [groupPathsByDepth]);
+  const togglePath = useCallback((pathKey) => {
+    setCollapsedPaths((prev) => ({
+      ...prev,
+      [pathKey]: !prev[pathKey],
+    }));
+  }, []);
+  const toggleAll = useCallback(() => {
+    if (!groupPathsByDepth.length) {
+      return;
+    }
+    if (allCollapsed) {
+      setCollapsedPaths({});
+      return;
+    }
+    const next = {};
+    groupPathsByDepth.forEach((paths) => {
+      paths.forEach((pathKey) => {
+        next[pathKey] = true;
+      });
+    });
+    setCollapsedPaths(next);
+  }, [allCollapsed, groupPathsByDepth]);
+
+  const renderDataRow = useCallback(
+    (row = {}, fallbackKey = "") => {
+      const rowKey = String(row?.__rowKey || row?.key || fallbackKey || "row");
+      const compositeRowKey = `${tableId}:${rowKey}`;
+      const isSelected = selectedRowKey === compositeRowKey;
+      return (
+        <tr
+          key={compositeRowKey}
+          className={`${styles.selectableRow} ${isSelected ? styles.selectedRow : ""}`}
+          onClick={() => onSelectRow?.(compositeRowKey, row)}
+        >
+          {sourceColumns.map((column) => {
+            const value = row?.[column.key];
+            const style = tableCellStyle(column, value);
+            return (
+              <td key={`${compositeRowKey}-${column.key}`} style={style || undefined}>
+                {formatCellValue(column, value)}
+              </td>
+            );
+          })}
+        </tr>
+      );
+    },
+    [onSelectRow, selectedRowKey, sourceColumns, tableId],
+  );
+
+  const renderGroupedRows = useCallback(
+    (rows = [], depth = 0, pathParts = []) => {
+      if (depth >= activeGroupKeys.length) {
+        return rows.map((row, index) => renderDataRow(row, `${pathParts.join("||")}::${index}`));
+      }
+      const key = activeGroupKeys[depth];
+      const grouped = new Map();
+      for (const row of rows) {
+        const label = String(row?.[key] || "-").trim() || "-";
+        if (!grouped.has(label)) {
+          grouped.set(label, []);
+        }
+        grouped.get(label).push(row);
+      }
+      return [...grouped.entries()].flatMap(([label, groupRows]) => {
+        const nextPathParts = [...pathParts, `${key}:${label}`];
+        const pathKey = nextPathParts.join("||");
+        const collapsed = Boolean(collapsedPaths[pathKey]);
+        const summaryRow = buildCollapsedGroupSummaryRow(groupRows, sourceColumns, key, label);
+        const summaryKey = `${tableId}:group:${pathKey}`;
+        const summarySelected = selectedRowKey === summaryKey;
+        const summaryNode = (
+          <tr
+            key={summaryKey}
+            className={`${styles.totalRow} ${styles.selectableRow} ${summarySelected ? styles.selectedRow : ""}`}
+            onClick={() => onSelectRow?.(summaryKey, summaryRow)}
+            onDoubleClick={() => togglePath(pathKey)}
+          >
+            {sourceColumns.map((column) => {
+              const value = summaryRow?.[column.key];
+              const style = tableCellStyle(column, value);
+              const isToggleCell = column.key === key;
+              return (
+                <td key={`${summaryKey}-${column.key}`} style={style || undefined}>
+                  {isToggleCell ? (
+                    <span className={styles.groupButton} style={{ cursor: "pointer", userSelect: "none" }}>
+                      <span>{collapsed ? "▶" : "▼"}</span>
+                      <span>{String(value || `${label} Total`)}</span>
+                    </span>
+                  ) : (
+                    formatCellValue(column, value)
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        );
+        if (collapsed) {
+          return [summaryNode];
+        }
+        if (depth === activeGroupKeys.length - 1) {
+          return [summaryNode, ...groupRows.map((row, index) => renderDataRow(row, `${pathKey}::${index}`))];
+        }
+        return [summaryNode, ...renderGroupedRows(groupRows, depth + 1, nextPathParts)];
+      });
+    },
+    [activeGroupKeys.length, collapsedPaths, onSelectRow, renderDataRow, selectedRowKey, sourceColumns, tableId, togglePath],
+  );
+
+  if (!activeGroupKeys.length) {
+    return (
+      <InteractiveDetailTable
+        title={title}
+        report={report}
+        emptyMessage="No traffic rows found."
+        groupByKey="country"
+        initialSortKey="leads"
+        tableId={tableId}
+        onSelectRow={onSelectRow}
+        selectedRowKey={selectedRowKey}
+      />
+    );
+  }
+
+  const bodyRows = renderGroupedRows(displayRows, 0, []);
+  const truncated = sortedDetailRows.length > displayRows.length;
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.tableHeaderRow}>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+        <div className={styles.headerActions}>
+          {truncated ? <span className={styles.inlineHint}>Showing first {displayRows.length} rows</span> : null}
+          <button type="button" className={styles.actionButton} onClick={toggleAll}>
+            {allCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+          </button>
+        </div>
+      </div>
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              {sourceColumns.map((column) => {
+                const active = sortState.key === column.key;
+                const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                return (
+                  <th
+                    key={column.key}
+                    onClick={() =>
+                      setSortState((prev) =>
+                        prev.key === column.key
+                          ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
+                          : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
+                      )
+                    }
+                    className={styles.sortableHeader}
+                  >
+                    {column.label}
+                    {suffix}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {bodyRows}
+            {totalRows.map((row, rowIndex) => renderDataRow(row, `total-${rowIndex}`))}
+            {!bodyRows.length && !totalRows.length ? (
+              <tr>
+                <td className={styles.emptyCell} colSpan={sourceColumns.length || 1}>
+                  No traffic rows found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      <div className={styles.tableFooterActions}>
+        <button type="button" className={styles.actionButton} onClick={toggleAll}>
+          {allCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+        </button>
       </div>
     </section>
   );
@@ -1448,13 +1742,11 @@ export default function DashboardDetailsClientPage() {
               enableRowGroupCollapse={false}
             />
           </section>
-          <InteractiveDetailTable
+          <HierarchicalTrafficTable
             title="Traffic Report"
             report={displayBreakdownReport}
-            emptyMessage="No traffic rows found."
-            groupByKey="country"
-            initialSortKey="leads"
             tableId="detailed-breakdown"
+            groupKeys={["country", "campaign", "subCampaign", "placement"]}
             onSelectRow={handleLinkedRowSelection}
             selectedRowKey={selectedLinkedRowKey}
           />
