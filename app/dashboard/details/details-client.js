@@ -782,21 +782,15 @@ export default function DashboardDetailsClientPage() {
     if (!entityScopedBaseFilters) {
       return null;
     }
-    const next = {
+    return {
       ...entityScopedBaseFilters,
       page: "1",
       rowLimit: "280",
-      metricFields: ["leads", "ftd", "kycFtd", "cr", "crTarget", "crTargetReach", "ftdTarget", "ftdTargetReach", "selfs", "lateFtd"],
+      // Match dashboard "Traffic Reports" quick preset shape.
+      rowDimensions: ["desk", "country", "campaign", "subCampaign", "placement"],
+      metricFields: ["leads", "leadShare", "agentCount", "avgLeadByAgentDaily", "avgLeadByAgent", "ftd", "crTarget", "crTargetReach", "missingFtd"],
     };
-    if (detailTarget.entityKey === "desk") {
-      next.rowDimensions = ["teamLeader", "agent", "country", "campaign", "placement", "subCampaign", "status"];
-    } else if (detailTarget.entityKey === "teamLeader") {
-      next.rowDimensions = ["agent", "country", "campaign", "placement", "subCampaign", "status"];
-    } else {
-      next.rowDimensions = ["country", "campaign", "placement", "subCampaign", "status", "brand", "department"];
-    }
-    return next;
-  }, [detailTarget.entityKey, entityScopedBaseFilters]);
+  }, [entityScopedBaseFilters]);
 
   const benchmarkFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
@@ -902,7 +896,7 @@ export default function DashboardDetailsClientPage() {
         const benchmarkRowsResponse = await benchmarkRowsPromise;
         const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
         if (!breakdownResponse.ok || breakdownPayload?.ok === false) {
-          throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load detailed breakdown report.");
+          throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load traffic report.");
         }
         if (!trendResponse.ok || trendPayload?.ok === false) {
           throw new Error(trendPayload?.message || trendPayload?.error || "Could not load trend report.");
@@ -1249,11 +1243,11 @@ export default function DashboardDetailsClientPage() {
             />
           </section>
           <InteractiveDetailTable
-            title="Detailed Breakdown"
+            title="Traffic Report"
             report={state.breakdownReport}
-            emptyMessage="No detailed rows found."
-            groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : detailTarget.entityKey === "teamLeader" ? "agent" : "country"}
-            initialSortKey="country"
+            emptyMessage="No traffic rows found."
+            groupByKey="country"
+            initialSortKey="leads"
             tableId="detailed-breakdown"
             onSelectRow={handleLinkedRowSelection}
             selectedRowKey={selectedLinkedRowKey}
