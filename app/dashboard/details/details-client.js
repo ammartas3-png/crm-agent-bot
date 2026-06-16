@@ -886,7 +886,12 @@ export default function DashboardDetailsClientPage() {
     if (!entityScopedBaseFilters) {
       return null;
     }
-    const rowDimensions = detailTarget.entityKey === "desk" ? ["teamLeader", "agent"] : ["agent"];
+    const rowDimensions =
+      detailTarget.entityKey === "desk"
+        ? ["teamLeader", "agent"]
+        : detailTarget.entityKey === "teamLeader"
+          ? ["desk", "teamLeader", "agent"]
+          : ["desk", "teamLeader", "agent"];
     return {
       ...entityScopedBaseFilters,
       page: "1",
