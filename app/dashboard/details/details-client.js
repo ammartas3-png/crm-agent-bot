@@ -112,6 +112,46 @@ function filterValueText(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeDateValue(value = "") {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const token = text.split(/[ T]/)[0] || "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(token)) {
+    return token;
+  }
+  let matched = token.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (matched) {
+    const day = String(Number(matched[1] || 0)).padStart(2, "0");
+    const month = String(Number(matched[2] || 0)).padStart(2, "0");
+    const year = String(Number(matched[3] || 0));
+    return `${year}-${month}-${day}`;
+  }
+  matched = token.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (matched) {
+    const year = String(Number(matched[1] || 0));
+    const month = String(Number(matched[2] || 0)).padStart(2, "0");
+    const day = String(Number(matched[3] || 0)).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  matched = token.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+  if (matched) {
+    const day = String(Number(matched[1] || 0)).padStart(2, "0");
+    const month = String(Number(matched[2] || 0)).padStart(2, "0");
+    const year = String(Number(matched[3] || 0));
+    return `${year}-${month}-${day}`;
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    const year = parsed.getUTCFullYear();
+    const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  return "";
+}
+
 function normalizeHourValue(value = "") {
   const text = String(value || "").trim();
   if (!text) {
@@ -129,12 +169,7 @@ function normalizeHourValue(value = "") {
 }
 
 function createdDatePart(value = "") {
-  const text = String(value || "").trim();
-  if (!text) {
-    return "";
-  }
-  const matched = text.match(/^(\d{4}-\d{2}-\d{2})/);
-  return matched ? matched[1] : "";
+  return normalizeDateValue(value);
 }
 
 function createdHourPart(value = "") {
@@ -154,6 +189,9 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
   return entries.every(([key, values]) => {
     const expectedValues = (Array.isArray(values) ? values : [values])
       .map((value) => {
+        if (key === "date") {
+          return normalizeDateValue(value);
+        }
         if (key === "hour") {
           return normalizeHourValue(value);
         }
@@ -164,7 +202,8 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
       return true;
     }
     const candidateValues = new Set();
-    const direct = key === "hour" ? normalizeHourValue(row?.[key]) : filterValueText(row?.[key]);
+    const direct =
+      key === "date" ? normalizeDateValue(row?.[key]) : key === "hour" ? normalizeHourValue(row?.[key]) : filterValueText(row?.[key]);
     if (direct) {
       candidateValues.add(direct);
     }
@@ -1240,6 +1279,7 @@ export default function DashboardDetailsClientPage() {
     }
     const next = {
       ...contextFilters,
+      ...linkedFilters,
       reportMode: "specific",
       specificType: "builder",
       columnDimension: "",
@@ -1262,7 +1302,7 @@ export default function DashboardDetailsClientPage() {
       next.agent = [detailTarget.entityValue];
     }
     return next;
-  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue]);
+  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue, linkedFilters]);
 
   const trendFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
