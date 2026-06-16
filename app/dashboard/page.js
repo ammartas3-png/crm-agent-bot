@@ -3572,6 +3572,7 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
+  const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
     open: false,
     x: 0,
@@ -3951,20 +3952,27 @@ export default function DashboardPage() {
     if (!detailsContextMenu.open) {
       return undefined;
     }
-    const close = () => closeDetailsContextMenu();
+    const handlePointerDown = (event) => {
+      const menuNode = detailsContextMenuRef.current;
+      const targetNode = event.target;
+      if (menuNode && targetNode instanceof Node && menuNode.contains(targetNode)) {
+        return;
+      }
+      closeDetailsContextMenu();
+    };
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        close();
+        closeDetailsContextMenu();
       }
     };
-    window.addEventListener("click", close);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("scroll", closeDetailsContextMenu, true);
+    window.addEventListener("resize", closeDetailsContextMenu);
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("scroll", closeDetailsContextMenu, true);
+      window.removeEventListener("resize", closeDetailsContextMenu);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [closeDetailsContextMenu, detailsContextMenu.open]);
@@ -4946,6 +4954,7 @@ export default function DashboardPage() {
       ) : null}
       {detailsContextMenu.open ? (
         <div
+          ref={detailsContextMenuRef}
           role="menu"
           aria-label="Row details actions"
           className={styles.detailsContextMenu}
