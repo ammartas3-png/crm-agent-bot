@@ -175,6 +175,66 @@ function tableCellStyle(column = {}, value) {
   return null;
 }
 
+function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "", groupLabel = "") {
+  const sumBy = (key = "") =>
+    rows.reduce((sum, row) => {
+      const numeric = parseMaybeNumber(row?.[key]);
+      return sum + (numeric ?? 0);
+    }, 0);
+  const averageBy = (key = "") => {
+    const values = rows.map((row) => parseMaybeNumber(row?.[key])).filter((value) => value !== null);
+    if (!values.length) {
+      return 0;
+    }
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  };
+  const leadsSum = sumBy("leads");
+  const ftdSum = sumBy("ftd");
+  const ftdTargetSum = sumBy("ftdTarget");
+  const weightedCrTarget =
+    leadsSum > 0
+      ? rows.reduce((sum, row) => {
+          const crTarget = parseMaybeNumber(row?.crTarget) ?? 0;
+          const leads = parseMaybeNumber(row?.leads) ?? 0;
+          return sum + crTarget * leads;
+        }, 0) / leadsSum
+      : 0;
+  const summary = {};
+  for (const column of columns) {
+    const key = String(column.key || "");
+    const keyLower = key.toLowerCase();
+    if (key === groupByKey) {
+      summary[key] = groupLabel ? `${groupLabel} Total` : "Total";
+      continue;
+    }
+    if (column.type === "number") {
+      summary[key] = sumBy(key);
+      continue;
+    }
+    if (column.type === "percent") {
+      if (keyLower === "cr" && leadsSum > 0) {
+        summary[key] = (ftdSum / leadsSum) * 100;
+        continue;
+      }
+      if (keyLower === "ftdtargetreach" && ftdTargetSum > 0) {
+        summary[key] = (ftdSum / ftdTargetSum) * 100;
+        continue;
+      }
+      if (keyLower === "crtargetreach") {
+        const crValue = leadsSum > 0 ? (ftdSum / leadsSum) * 100 : averageBy("cr");
+        const crTarget = weightedCrTarget > 0 ? weightedCrTarget : averageBy("crTarget");
+        summary[key] = crTarget > 0 ? (crValue / crTarget) * 100 : averageBy(key);
+        continue;
+      }
+      summary[key] = averageBy(key);
+      continue;
+    }
+    const uniqueValues = [...new Set(rows.map((row) => String(row?.[key] || "").trim()).filter(hasMeaningfulValue))];
+    summary[key] = uniqueValues.length === 1 ? uniqueValues[0] : "-";
+  }
+  return summary;
+}
+
 function InteractiveDetailTable({
   title = "",
   report = null,
@@ -308,6 +368,10 @@ function InteractiveDetailTable({
             <tbody>
               {[...groupedRows.entries()].flatMap(([groupLabel, rows], groupIndex) => {
                 const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
+                const collapseKey = sourceColumns.some((column) => column.key === effectiveGroupKey)
+                  ? effectiveGroupKey
+                  : sourceColumns[0]?.key || "";
+                const collapsedSummary = buildCollapsedGroupSummaryRow(rows, sourceColumns, collapseKey, groupLabel);
                 const headerRow =
                   canGroupCollapse
                     ? [
@@ -322,7 +386,27 @@ function InteractiveDetailTable({
                       ]
                     : [];
                 if (collapsed) {
-                  return headerRow;
+                  return [
+                    <tr key={`collapsed-${title}-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
+                      {sourceColumns.map((column) => {
+                        const value = collapsedSummary[column.key];
+                        const style = tableCellStyle(column, value);
+                        const isToggleColumn = canGroupCollapse && column.key === collapseKey;
+                        return (
+                          <td key={`collapsed-${title}-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
+                            {isToggleColumn ? (
+                              <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                                <span>▶</span>
+                                <span>{String(value || `${groupLabel} Total`)}</span>
+                              </button>
+                            ) : (
+                              formatCellValue(column, value)
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>,
+                  ];
                 }
                 const dataRows = rows.map((row, rowIndex) => {
                   const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
@@ -557,6 +641,8 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
             <tbody>
               {groupEntries.flatMap(([groupLabel, groupRows], groupIndex) => {
                 const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
+                const collapseKey = columns.some((column) => column.key === groupByKey) ? groupByKey : columns[0]?.key || "";
+                const collapsedSummary = buildCollapsedGroupSummaryRow(groupRows, columns, collapseKey, groupLabel);
                 const headerRow =
                   canGroupCollapse && groupByKey
                     ? [
@@ -571,7 +657,27 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
                       ]
                     : [];
                 if (collapsed) {
-                  return headerRow;
+                  return [
+                    <tr key={`collapsed-benchmark-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
+                      {columns.map((column) => {
+                        const value = collapsedSummary[column.key];
+                        const style = tableCellStyle(column, value);
+                        const isToggleColumn = canGroupCollapse && column.key === collapseKey;
+                        return (
+                          <td key={`collapsed-benchmark-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
+                            {isToggleColumn ? (
+                              <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                                <span>▶</span>
+                                <span>{String(value || `${groupLabel} Total`)}</span>
+                              </button>
+                            ) : (
+                              formatCellValue(column, value)
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>,
+                  ];
                 }
                 const dataRows = groupRows.map((row, rowIndex) => {
                   const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
@@ -579,17 +685,7 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
                     <tr key={rowKey}>
                       {columns.map((column) => {
                         const value = row?.[column.key];
-                        const keyLower = String(column.key || "").toLowerCase();
-                        const isReach = keyLower.includes("targetreach");
-                        const isBenchmarkRate = column.key === "ftdBenchmarkRate";
-                        const isStatus = column.key === "workCurrentStatus";
-                        const style = isReach
-                          ? reachCellStyle(value)
-                          : isBenchmarkRate
-                            ? benchmarkRateCellStyle(value)
-                            : isStatus
-                              ? statusCellStyle(value)
-                              : null;
+                        const style = tableCellStyle(column, value);
                         return (
                           <td key={`${rowKey}-${column.key}`} style={style || undefined}>
                             {formatCellValue(column, value)}
