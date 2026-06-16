@@ -3339,7 +3339,7 @@ function toMetricNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }) {
+function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, onClearSelections }) {
   const [tablesExpanded, setTablesExpanded] = useState(true);
   const [sortByTable, setSortByTable] = useState(() =>
     Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
@@ -3347,6 +3347,14 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
   const cleanRows = useMemo(
     () => (Array.isArray(rows) ? rows.filter((row) => row && row.__rowKind !== "total") : []),
     [rows],
+  );
+  const hasAnySelection = useMemo(
+    () =>
+      COMPARISON_TABLE_DIMENSIONS.some((dimension) => {
+        const value = String(selections?.[dimension.key] || "").trim();
+        return Boolean(value);
+      }),
+    [selections],
   );
 
   const toggleSort = useCallback((tableKey, columnKey) => {
@@ -3448,6 +3456,16 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
     <section className={styles.section} style={{ padding: 0 }}>
       <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
         <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Comparison Tables</h3>
+        {hasAnySelection ? (
+          <button
+            type="button"
+            className={styles.tableActionButton}
+            style={{ marginLeft: "auto" }}
+            onClick={() => onClearSelections?.()}
+          >
+            Clear
+          </button>
+        ) : null}
         <button
           type="button"
           className={styles.tableActionButton}
@@ -3910,6 +3928,9 @@ export default function DashboardPage() {
       }
       return next;
     });
+  }, []);
+  const handleClearComparisonSelections = useCallback(() => {
+    setComparisonSelections({});
   }, []);
   const closeDetailsContextMenu = useCallback(() => {
     setDetailsContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, target: null } : prev));
@@ -4955,6 +4976,7 @@ export default function DashboardPage() {
                   rows={report.table || []}
                   selections={comparisonSelections}
                   onToggleSelection={handleComparisonSelectionToggle}
+                  onClearSelections={handleClearComparisonSelections}
                 />
               ) : isAgentProductivityReportView ? (
                 <>

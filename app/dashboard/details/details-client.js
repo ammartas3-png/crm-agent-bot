@@ -291,6 +291,7 @@ function InteractiveDetailTable({
   tableId = "",
   onSelectRow = null,
   selectedRowKey = "",
+  enableRowGroupCollapse = true,
 }) {
   const sourceColumns = useMemo(() => {
     if (Array.isArray(inputColumns) && inputColumns.length) {
@@ -351,7 +352,7 @@ function InteractiveDetailTable({
     return map;
   }, [displayDetailRows, effectiveGroupKey]);
   const groupLabels = [...groupedRows.keys()];
-  const canGroupCollapse = groupLabels.length > 1;
+  const canGroupCollapse = Boolean(enableRowGroupCollapse) && groupLabels.length > 1;
   const groupSignature = useMemo(() => groupLabels.join("||"), [groupLabels]);
   const allGroupsCollapsed = canGroupCollapse && groupLabels.every((label) => Boolean(collapsedGroups[label]));
 
@@ -1196,6 +1197,7 @@ export default function DashboardDetailsClientPage() {
               tableId="last4-summary"
               onSelectRow={handleLinkedRowSelection}
               selectedRowKey={selectedLinkedRowKey}
+              enableRowGroupCollapse={false}
             />
           ) : null}
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
@@ -1243,6 +1245,7 @@ export default function DashboardDetailsClientPage() {
               tableId="leads-fields"
               onSelectRow={handleLinkedRowSelection}
               selectedRowKey={selectedLinkedRowKey}
+              enableRowGroupCollapse={false}
             />
           </section>
           <InteractiveDetailTable
