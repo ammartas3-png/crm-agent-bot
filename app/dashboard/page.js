@@ -3148,6 +3148,7 @@ const DEFAULT_BUILDER_METRICS = [
   { key: "avgLeadByAgent", label: "Avg Lead by Agent", type: "number" },
   { key: "avgLeadByAgentDaily", label: "Avg Lead by Agent Daily", type: "number" },
   { key: "ftd", label: "FTD", type: "number" },
+  { key: "kycFtd", label: "KYC FTD", type: "number" },
   { key: "avgFtdByAgent", label: "Desk Avg FTD per Agent", type: "number" },
   { key: "avgFtdByAgentDaily", label: "Desk Avg FTD per Agent Daily", type: "number" },
   { key: "agentAvgFtdPerWorkedMonth", label: "Agent Avg FTD per Worked Month", type: "number" },
@@ -3197,6 +3198,7 @@ const EMPTY_FILTERS = {
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
   metricFields: [
     "leads",
+    "kycFtd",
     "leadShare",
     "agentCount",
     "avgLeadByAgent",
@@ -3214,7 +3216,7 @@ const EMPTY_FILTERS = {
   totalDimensions: [],
 };
 
-const QUICK_PRESET_MONTHLY_METRICS = ["leads", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_MONTHLY_METRICS = ["leads", "kycFtd", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
 const QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS = ["desk", "country", "campaign", "subCampaign", "placement"];
