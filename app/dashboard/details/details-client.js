@@ -160,60 +160,226 @@ function formatCellValue(column = {}, value) {
   return String(value || "-");
 }
 
-function DetailTable({ title = "", report = null, emptyMessage = "No rows found." }) {
-  const columns = Array.isArray(report?.builder?.columns) ? report.builder.columns : [];
-  const rows = Array.isArray(report?.table) ? report.table : [];
-  const displayRows = rows.slice(0, 300);
-  const truncated = rows.length > displayRows.length;
+function tableCellStyle(column = {}, value) {
+  const keyLower = String(column.key || "").toLowerCase();
+  const isTargetReach = keyLower.includes("targetreach");
+  if (isTargetReach) {
+    return reachCellStyle(value);
+  }
+  if (keyLower === "ftdbenchmarkrate") {
+    return benchmarkRateCellStyle(value);
+  }
+  if (keyLower === "workcurrentstatus") {
+    return statusCellStyle(value);
+  }
+  return null;
+}
+
+function InteractiveDetailTable({
+  title = "",
+  report = null,
+  columns: inputColumns = null,
+  rows: inputRows = null,
+  emptyMessage = "No rows found.",
+  groupByKey = "",
+  initialSortKey = "",
+}) {
+  const [tableExpanded, setTableExpanded] = useState(true);
+  const sourceColumns = useMemo(() => {
+    if (Array.isArray(inputColumns) && inputColumns.length) {
+      return inputColumns;
+    }
+    return Array.isArray(report?.builder?.columns) ? report.builder.columns : [];
+  }, [inputColumns, report?.builder?.columns]);
+  const sourceRows = useMemo(() => {
+    if (Array.isArray(inputRows)) {
+      return inputRows;
+    }
+    return Array.isArray(report?.table) ? report.table : [];
+  }, [inputRows, report?.table]);
+  const [sortState, setSortState] = useState({
+    key: initialSortKey || sourceColumns[0]?.key || "",
+    direction: "desc",
+  });
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+
+  useEffect(() => {
+    if (!sourceColumns.length) {
+      return;
+    }
+    if (!sourceColumns.some((column) => column.key === sortState.key)) {
+      setSortState({ key: sourceColumns[0].key, direction: "desc" });
+    }
+  }, [sortState.key, sourceColumns]);
+
+  const detailRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind !== "total"), [sourceRows]);
+  const totalRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind === "total"), [sourceRows]);
+  const sortedDetailRows = useMemo(() => {
+    const activeColumn = sourceColumns.find((column) => column.key === sortState.key);
+    if (!activeColumn) {
+      return detailRows;
+    }
+    return [...detailRows].sort((left, right) => {
+      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
+      return sortState.direction === "desc" ? -compare : compare;
+    });
+  }, [detailRows, sortState.direction, sortState.key, sourceColumns]);
+  const displayDetailRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
+  const effectiveGroupKey = String(groupByKey || sourceColumns[0]?.key || "").trim();
+  const groupedRows = useMemo(() => {
+    if (!effectiveGroupKey) {
+      return new Map([["__all__", displayDetailRows]]);
+    }
+    const map = new Map();
+    displayDetailRows.forEach((row) => {
+      const label = String(row?.[effectiveGroupKey] || "-").trim() || "-";
+      if (!map.has(label)) {
+        map.set(label, []);
+      }
+      map.get(label).push(row);
+    });
+    return map;
+  }, [displayDetailRows, effectiveGroupKey]);
+  const groupLabels = [...groupedRows.keys()];
+  const canGroupCollapse = groupLabels.length > 1;
+  const allGroupsCollapsed = canGroupCollapse && groupLabels.every((label) => Boolean(collapsedGroups[label]));
+
+  const toggleGroup = (label) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  };
+  const toggleAllGroups = () => {
+    if (!canGroupCollapse) {
+      return;
+    }
+    if (allGroupsCollapsed) {
+      setCollapsedGroups({});
+      return;
+    }
+    setCollapsedGroups(Object.fromEntries(groupLabels.map((label) => [label, true])));
+  };
+  const truncated = sortedDetailRows.length > displayDetailRows.length;
 
   return (
     <section className={styles.panel}>
       <div className={styles.tableHeaderRow}>
         <h2 className={styles.sectionTitle}>{title}</h2>
-        {truncated ? <span className={styles.inlineHint}>Showing first {displayRows.length} rows</span> : null}
+        <div className={styles.headerActions}>
+          {truncated ? <span className={styles.inlineHint}>Showing first {displayDetailRows.length} rows</span> : null}
+          <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
+            {tableExpanded ? "Collapse Table" : "Expand Table"}
+          </button>
+          {canGroupCollapse ? (
+            <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
+              {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className={styles.tableScroll}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              {columns.map((column) => (
-                <th key={column.key}>{column.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {displayRows.map((row, rowIndex) => {
-              const rowKey = String(row.__rowKey || row.key || `${row.__rowKind || "row"}-${rowIndex}`);
-              const isTotalRow = row.__rowKind === "total";
-              return (
-                <tr key={rowKey} className={isTotalRow ? styles.totalRow : ""}>
-                  {columns.map((column) => {
-                    const value = row[column.key];
-                    const isReach = column.type === "percent" && String(column.key || "").toLowerCase().includes("reach");
-                    const reachNumeric = Number(value || 0);
-                    const reachStyle = isReach
-                      ? reachNumeric >= 100
-                        ? { background: "#dcfce7", color: "#166534", fontWeight: 700 }
-                        : { background: "#fee2e2", color: "#b91c1c", fontWeight: 700 }
-                      : null;
-                    return (
-                      <td key={`${rowKey}-${column.key}`} style={reachStyle || undefined}>
-                        {formatCellValue(column, value)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-            {!displayRows.length ? (
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
               <tr>
-                <td className={styles.emptyCell} colSpan={columns.length || 1}>
-                  {emptyMessage}
-                </td>
+                {sourceColumns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th
+                      key={column.key}
+                      onClick={() =>
+                        setSortState((prev) =>
+                          prev.key === column.key
+                            ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
+                            : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
+                        )
+                      }
+                      className={styles.sortableHeader}
+                    >
+                      {column.label}
+                      {suffix}
+                    </th>
+                  );
+                })}
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {[...groupedRows.entries()].flatMap(([groupLabel, rows], groupIndex) => {
+                const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
+                const headerRow =
+                  canGroupCollapse
+                    ? [
+                        <tr key={`group-${title}-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
+                          <td colSpan={sourceColumns.length || 1}>
+                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                              <span>{collapsed ? "▶" : "▼"}</span>
+                              <span>{groupLabel}</span>
+                            </button>
+                          </td>
+                        </tr>,
+                      ]
+                    : [];
+                if (collapsed) {
+                  return headerRow;
+                }
+                const dataRows = rows.map((row, rowIndex) => {
+                  const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
+                  return (
+                    <tr key={rowKey}>
+                      {sourceColumns.map((column) => {
+                        const value = row[column.key];
+                        const style = tableCellStyle(column, value);
+                        return (
+                          <td key={`${rowKey}-${column.key}`} style={style || undefined}>
+                            {formatCellValue(column, value)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                });
+                return [...headerRow, ...dataRows];
+              })}
+              {totalRows.map((row, rowIndex) => {
+                const rowKey = String(row.__rowKey || row.key || `total-${rowIndex}`);
+                return (
+                  <tr key={rowKey} className={styles.totalRow}>
+                    {sourceColumns.map((column) => {
+                      const value = row[column.key];
+                      const style = tableCellStyle(column, value);
+                      return (
+                        <td key={`${rowKey}-${column.key}`} style={style || undefined}>
+                          {formatCellValue(column, value)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              {!displayDetailRows.length && !totalRows.length ? (
+                <tr>
+                  <td className={styles.emptyCell} colSpan={sourceColumns.length || 1}>
+                    {emptyMessage}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.inlineHint}>Table is collapsed.</p>
+      )}
+      <div className={styles.tableFooterActions}>
+        <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {canGroupCollapse ? (
+          <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
+            {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -448,6 +614,16 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
       ) : (
         <p className={styles.inlineHint}>Table collapsed. Click Expand Table.</p>
       )}
+      <div className={styles.tableFooterActions}>
+        <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
+          {tableExpanded ? "Collapse Table" : "Expand Table"}
+        </button>
+        {canGroupCollapse ? (
+          <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
+            {allGroupsCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -802,6 +978,61 @@ export default function DashboardDetailsClientPage() {
     { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach || 0) },
   ];
   const benchmarkMetrics = benchmarkMetricsFromReport(state.benchmarkReport);
+  const representativeRow = useMemo(() => {
+    const reports = [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport];
+    for (const report of reports) {
+      const rows = Array.isArray(report?.table) ? report.table : [];
+      const row = rows.find((item) => item?.__rowKind !== "total");
+      if (row) {
+        return row;
+      }
+    }
+    return null;
+  }, [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport]);
+  const officeLabel =
+    (Array.isArray(contextFilters?.officeScope) && contextFilters.officeScope.length ? contextFilters.officeScope[0] : "") ||
+    "-";
+  const deskLabel =
+    detailTarget.entityKey === "desk"
+      ? detailTarget.entityValue
+      : (Array.isArray(contextFilters?.desk) && contextFilters.desk.length ? contextFilters.desk[0] : "") ||
+        String(representativeRow?.desk || "").trim() ||
+        "-";
+  const teamLeaderLabel =
+    detailTarget.entityKey === "teamLeader"
+      ? detailTarget.entityValue
+      : (Array.isArray(contextFilters?.teamLeader) && contextFilters.teamLeader.length ? contextFilters.teamLeader[0] : "") ||
+        String(representativeRow?.teamLeader || "").trim() ||
+        "-";
+  const agentLabel =
+    detailTarget.entityKey === "agent"
+      ? detailTarget.entityValue
+      : (Array.isArray(contextFilters?.agent) && contextFilters.agent.length ? contextFilters.agent[0] : "") ||
+        String(representativeRow?.agent || "").trim() ||
+        "-";
+  const last4Columns = useMemo(
+    () => [
+      { key: "monthLabel", label: "Month", type: "text" },
+      { key: "leads", label: "Leads", type: "number" },
+      { key: "ftd", label: "FTD", type: "number" },
+      { key: "cr", label: "CR", type: "percent" },
+      { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
+      { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
+    ],
+    [],
+  );
+  const last4Rows = useMemo(
+    () =>
+      state.last4Rows.map((item) => ({
+        monthLabel: item.monthLabel || item.monthKey,
+        leads: Number(item.summary?.totalLeads || item.summary?.leads || 0),
+        ftd: Number(item.summary?.totalFtd || item.summary?.ftd || 0),
+        cr: Number(item.summary?.cr || 0),
+        crTargetReach: Number(item.summary?.crTargetReach || 0),
+        ftdTargetReach: Number(item.summary?.ftdTargetReach || 0),
+      })),
+    [state.last4Rows],
+  );
 
   return (
     <main className={styles.page}>
@@ -823,6 +1054,24 @@ export default function DashboardDetailsClientPage() {
             {Array.isArray(contextFilters?.monthKey) && contextFilters.monthKey.length ? contextFilters.monthKey.join(", ") : "-"}
           </strong>
         </p>
+        <div className={styles.contextGrid}>
+          <div className={styles.contextChip}>
+            <span className={styles.contextLabel}>Office</span>
+            <strong>{officeLabel}</strong>
+          </div>
+          <div className={styles.contextChip}>
+            <span className={styles.contextLabel}>Desk</span>
+            <strong>{deskLabel}</strong>
+          </div>
+          <div className={styles.contextChip}>
+            <span className={styles.contextLabel}>Team Leader</span>
+            <strong>{teamLeaderLabel}</strong>
+          </div>
+          <div className={styles.contextChip}>
+            <span className={styles.contextLabel}>Agent</span>
+            <strong>{agentLabel}</strong>
+          </div>
+        </div>
       </section>
 
       {state.loading ? (
@@ -845,47 +1094,21 @@ export default function DashboardDetailsClientPage() {
               </div>
             ))}
           </section>
-          <section className={styles.panel}>
-            <div className={styles.tableHeaderRow}>
-              <h2 className={styles.sectionTitle}>Last 4 Months Results</h2>
-            </div>
-            {state.last4Loading ? <p className={styles.loading}>Loading last 4 months...</p> : null}
-            {!state.last4Loading ? (
-              <div className={styles.tableScroll}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Month</th>
-                      <th>Leads</th>
-                      <th>FTD</th>
-                      <th>CR</th>
-                      <th>CR Target Reach</th>
-                      <th>FTD Target Reach</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {state.last4Rows.map((item) => (
-                      <tr key={item.monthKey}>
-                        <td>{item.monthLabel || item.monthKey}</td>
-                        <td>{formatNumber(item.summary?.totalLeads || item.summary?.leads || 0)}</td>
-                        <td>{formatNumber(item.summary?.totalFtd || item.summary?.ftd || 0)}</td>
-                        <td>{formatPercent(item.summary?.cr || 0)}</td>
-                        <td>{formatPercent(item.summary?.crTargetReach || 0)}</td>
-                        <td>{formatPercent(item.summary?.ftdTargetReach || 0)}</td>
-                      </tr>
-                    ))}
-                    {!state.last4Rows.length ? (
-                      <tr>
-                        <td className={styles.emptyCell} colSpan={6}>
-                          No month summary found.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </section>
+          {state.last4Loading ? (
+            <section className={styles.panel}>
+              <p className={styles.loading}>Loading last 4 months...</p>
+            </section>
+          ) : null}
+          {!state.last4Loading ? (
+            <InteractiveDetailTable
+              title="Last 4 Months Results"
+              columns={last4Columns}
+              rows={last4Rows}
+              emptyMessage="No month summary found."
+              groupByKey=""
+              initialSortKey="monthLabel"
+            />
+          ) : null}
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
             <div className={styles.summaryCard}>
               <div className={styles.summaryLabel}>Desk Avg FTD per Desk By Long Term</div>
@@ -910,14 +1133,28 @@ export default function DashboardDetailsClientPage() {
             groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : ""}
           />
           <section className={styles.dualGrid}>
-            <DetailTable title="Daily Trend" report={state.trendReport} emptyMessage="No daily trend rows found." />
-            <DetailTable
+            <InteractiveDetailTable
+              title="Daily Trend"
+              report={state.trendReport}
+              emptyMessage="No daily trend rows found."
+              groupByKey="date"
+              initialSortKey="date"
+            />
+            <InteractiveDetailTable
               title="Leads Sheet Fields"
               report={state.leadsReport}
               emptyMessage="No leads rows found for selected filters."
+              groupByKey="brand"
+              initialSortKey="created"
             />
           </section>
-          <DetailTable title="Detailed Breakdown" report={state.breakdownReport} emptyMessage="No detailed rows found." />
+          <InteractiveDetailTable
+            title="Detailed Breakdown"
+            report={state.breakdownReport}
+            emptyMessage="No detailed rows found."
+            groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : detailTarget.entityKey === "teamLeader" ? "agent" : "date"}
+            initialSortKey="date"
+          />
         </>
       ) : null}
     </main>

@@ -49,6 +49,27 @@
   font-size: 13px;
 }
 
+.contextGrid {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.contextChip {
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 6px 8px;
+  display: grid;
+  gap: 2px;
+}
+
+.contextLabel {
+  font-size: 11px;
+  color: #64748b;
+}
+
 .loading {
   margin: 0;
   color: #334155;
@@ -193,6 +214,13 @@
   gap: 6px;
   cursor: pointer;
   padding: 2px 4px;
+}
+
+.tableFooterActions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .emptyCell {
