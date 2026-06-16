@@ -69,6 +69,12 @@
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
+.dualGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .summaryCard {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -146,4 +152,10 @@
   text-align: center;
   color: #64748b;
   padding: 14px;
+}
+
+@media (max-width: 1100px) {
+  .dualGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

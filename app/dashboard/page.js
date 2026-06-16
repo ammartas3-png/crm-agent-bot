@@ -3197,6 +3197,9 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
 const DEFAULT_BUILDER_DIMENSIONS = [
   { key: "date", label: "Date", type: "date" },
   { key: "hour", label: "Hour", type: "hour" },
+  { key: "created", label: "Created", type: "text" },
+  { key: "id", label: "ID", type: "text" },
+  { key: "department", label: "Department", type: "text" },
   { key: "desk", label: "Desk", type: "text" },
   { key: "teamLeader", label: "Team Leader", type: "text" },
   { key: "agent", label: "Agent", type: "text" },
