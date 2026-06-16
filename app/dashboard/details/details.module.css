@@ -209,6 +209,20 @@
   white-space: nowrap;
 }
 
+.matrixTable th,
+.matrixTable td {
+  text-align: center;
+}
+
+.matrixTable th {
+  position: static;
+}
+
+.matrixTable th:nth-child(-n + 3),
+.matrixTable td:nth-child(-n + 3) {
+  text-align: left;
+}
+
 .selectableRow {
   cursor: pointer;
 }

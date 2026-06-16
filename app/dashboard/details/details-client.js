@@ -44,6 +44,22 @@ const LINKABLE_FIELDS = [
   "agent",
 ];
 
+const LAST4_MATRIX_METRICS = [
+  { key: "ftd", label: "FTD", type: "number" },
+  { key: "ftdTarget", label: "FTD Target", type: "number" },
+  { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
+  { key: "cr", label: "CR", type: "percent" },
+  { key: "crTarget", label: "CR Target", type: "percent" },
+  { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
+];
+
+const LAST4_MONTH_BLOCK_THEMES = [
+  { header: "#1d4ed8", light: "#dbeafe", text: "#ffffff" },
+  { header: "#7c3aed", light: "#ede9fe", text: "#ffffff" },
+  { header: "#c2410c", light: "#ffedd5", text: "#ffffff" },
+  { header: "#0f766e", light: "#ccfbf1", text: "#ffffff" },
+];
+
 function parseList(rawValue = "") {
   return String(rawValue || "")
     .split(",")
@@ -278,6 +294,137 @@ function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "",
     summary[key] = uniqueValues.length === 1 ? uniqueValues[0] : "-";
   }
   return summary;
+}
+
+function shortMonthLabel(monthKey = "", fallbackLabel = "") {
+  const matched = String(monthKey || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})$/);
+  if (!matched) {
+    return String(fallbackLabel || monthKey || "");
+  }
+  const year = Number(matched[1]);
+  const month = Number(matched[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return String(fallbackLabel || monthKey || "");
+  }
+  const shortMonth = new Date(Date.UTC(year, month - 1, 1)).toLocaleString("en-US", {
+    month: "short",
+    timeZone: "UTC",
+  });
+  return `${shortMonth}-${String(year).slice(-2)}`;
+}
+
+function Last4MonthsMatrixTable({
+  title = "Last 4 Months Results",
+  monthRows = [],
+  deskLabel = "-",
+  teamLeaderLabel = "-",
+  agentLabel = "-",
+  tableId = "",
+  onSelectRow = null,
+  selectedRowKey = "",
+}) {
+  const months = useMemo(
+    () =>
+      (Array.isArray(monthRows) ? monthRows : []).map((item) => {
+        const summary = item?.summary || {};
+        return {
+          key: String(item?.monthKey || ""),
+          label: shortMonthLabel(item?.monthKey || "", item?.monthLabel || item?.monthKey || ""),
+          metrics: {
+            ftd: Number(summary.totalFtd || summary.ftd || 0),
+            ftdTarget: Number(summary.ftdTarget || 0),
+            ftdTargetReach: Number(summary.ftdTargetReach || 0),
+            cr: Number(summary.cr || 0),
+            crTarget: Number(summary.crTarget || 0),
+            crTargetReach: Number(summary.crTargetReach || 0),
+          },
+        };
+      }),
+    [monthRows],
+  );
+  const hasMonths = months.length > 0;
+  const rowPayload = {
+    desk: deskLabel,
+    teamLeader: teamLeaderLabel,
+    agent: agentLabel,
+  };
+  const rowKey = `${tableId || "last4-matrix"}:context`;
+  const isSelected = selectedRowKey === rowKey;
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.tableHeaderRow}>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+      </div>
+      <div className={styles.tableScroll}>
+        <table className={`${styles.table} ${styles.matrixTable}`}>
+          <thead>
+            <tr>
+              <th rowSpan={2}>Desk</th>
+              <th rowSpan={2}>Team Leader</th>
+              <th rowSpan={2}>Agent</th>
+              {months.map((month, monthIndex) => {
+                const theme = LAST4_MONTH_BLOCK_THEMES[monthIndex % LAST4_MONTH_BLOCK_THEMES.length];
+                return (
+                  <th
+                    key={`last4-group-${month.key || month.label || monthIndex}`}
+                    colSpan={LAST4_MATRIX_METRICS.length}
+                    style={{ background: theme.header, color: theme.text, textAlign: "center" }}
+                  >
+                    {month.label}
+                  </th>
+                );
+              })}
+            </tr>
+            <tr>
+              {months.flatMap((month, monthIndex) => {
+                const theme = LAST4_MONTH_BLOCK_THEMES[monthIndex % LAST4_MONTH_BLOCK_THEMES.length];
+                return LAST4_MATRIX_METRICS.map((metric) => (
+                  <th
+                    key={`last4-metric-${month.key || month.label}-${metric.key}`}
+                    style={{ background: theme.light, color: "#0f172a" }}
+                  >
+                    {metric.label}
+                  </th>
+                ));
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {hasMonths ? (
+              <tr
+                className={`${styles.selectableRow} ${isSelected ? styles.selectedRow : ""}`}
+                onClick={() => onSelectRow?.(rowKey, rowPayload)}
+              >
+                <td>{deskLabel || "-"}</td>
+                <td>{teamLeaderLabel || "-"}</td>
+                <td>{agentLabel || "-"}</td>
+                {months.flatMap((month) =>
+                  LAST4_MATRIX_METRICS.map((metric) => {
+                    const value = month.metrics?.[metric.key];
+                    const style = metric.key.toLowerCase().includes("targetreach") ? reachCellStyle(value) : null;
+                    return (
+                      <td key={`last4-value-${month.key || month.label}-${metric.key}`} style={style || undefined}>
+                        {metric.type === "percent" ? formatPercent(value) : formatNumber(value)}
+                      </td>
+                    );
+                  }),
+                )}
+              </tr>
+            ) : (
+              <tr>
+                <td className={styles.emptyCell} colSpan={3}>
+                  No month summary found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function InteractiveDetailTable({
@@ -1064,33 +1211,6 @@ export default function DashboardDetailsClientPage() {
       : (Array.isArray(contextFilters?.agent) && contextFilters.agent.length ? contextFilters.agent[0] : "") ||
         String(representativeRow?.agent || "").trim() ||
         "-";
-  const last4Columns = useMemo(
-    () => [
-      { key: "monthLabel", label: "Month", type: "text" },
-      { key: "leads", label: "Leads", type: "number" },
-      { key: "ftd", label: "FTD", type: "number" },
-      { key: "ftdTarget", label: "FTD Target", type: "number" },
-      { key: "cr", label: "CR", type: "percent" },
-      { key: "crTarget", label: "CR Target", type: "percent" },
-      { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
-      { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
-    ],
-    [],
-  );
-  const last4Rows = useMemo(
-    () =>
-      state.last4Rows.map((item) => ({
-        monthLabel: item.monthLabel || item.monthKey,
-        leads: Number(item.summary?.totalLeads || item.summary?.leads || 0),
-        ftd: Number(item.summary?.totalFtd || item.summary?.ftd || 0),
-        ftdTarget: Number(item.summary?.ftdTarget || 0),
-        cr: Number(item.summary?.cr || 0),
-        crTarget: Number(item.summary?.crTarget || 0),
-        crTargetReach: Number(item.summary?.crTargetReach || 0),
-        ftdTargetReach: Number(item.summary?.ftdTargetReach || 0),
-      })),
-    [state.last4Rows],
-  );
   const hasAnyData = Boolean(
     state.breakdownReport || state.trendReport || state.leadsReport || state.benchmarkRowsReport || state.last4Rows.length,
   );
@@ -1181,17 +1301,15 @@ export default function DashboardDetailsClientPage() {
             </section>
           ) : null}
           {!state.last4Loading ? (
-            <InteractiveDetailTable
+            <Last4MonthsMatrixTable
               title="Last 4 Months Results"
-              columns={last4Columns}
-              rows={last4Rows}
-              emptyMessage="No month summary found."
-              groupByKey="monthLabel"
-              initialSortKey="monthLabel"
+              monthRows={state.last4Rows}
+              deskLabel={deskLabel}
+              teamLeaderLabel={teamLeaderLabel}
+              agentLabel={agentLabel}
               tableId="last4-summary"
               onSelectRow={handleLinkedRowSelection}
               selectedRowKey={selectedLinkedRowKey}
-              enableRowGroupCollapse={false}
             />
           ) : null}
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
