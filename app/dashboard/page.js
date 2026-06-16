@@ -3970,8 +3970,13 @@ export default function DashboardPage() {
         }
       }
     }
+    const destination = `/dashboard/details?${query.toString()}`;
     closeDetailsContextMenu();
-    router.push(`/dashboard/details?${query.toString()}`);
+    if (typeof window !== "undefined") {
+      window.location.assign(destination);
+      return;
+    }
+    router.push(destination);
   }, [appliedFilters, closeDetailsContextMenu, detailsContextMenu.target, router]);
   useEffect(() => {
     if (!detailsContextMenu.open) {
