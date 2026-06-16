@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
@@ -16,6 +17,14 @@ const MULTI_VALUE_FILTER_KEYS = new Set([
   "teamLeader",
   "agent",
 ]);
+
+const DETAILS_ENTITY_KEYS = new Set(["desk", "teamLeader", "agent"]);
+
+function normalizedDetailsValue(value = "") {
+  return String(value || "")
+    .replace(/\s+total$/i, "")
+    .trim();
+}
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("en-US");
@@ -1071,7 +1080,7 @@ function SimpleTable({ rows = [] }) {
   );
 }
 
-function PivotTable({ rows = [], summary = {} }) {
+function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
   const columns = [
     { key: "desk", header: "Desk" },
     { key: "teamLeader", header: "Team Leader" },
@@ -1175,6 +1184,12 @@ function PivotTable({ rows = [], summary = {} }) {
                       >
                         {columns.map((column) => {
                           const value = row[column.key];
+                          const detailsValue = normalizedDetailsValue(value);
+                          const allowDetails =
+                            DETAILS_ENTITY_KEYS.has(String(column.key || "")) &&
+                            detailsValue &&
+                            detailsValue !== "-" &&
+                            detailsValue !== "—";
                           const content =
                             column.type === "percent" || column.type === "percentReach"
                               ? formatPercent(value)
@@ -1186,6 +1201,16 @@ function PivotTable({ rows = [], summary = {} }) {
                             <td
                               key={`${rowKey}-${column.key}`}
                               onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              onContextMenu={(event) => {
+                                if (!allowDetails) {
+                                  return;
+                                }
+                                onEntityContextMenu?.(event, {
+                                  entityKey: column.key,
+                                  entityValue: detailsValue,
+                                  label: String(value || detailsValue),
+                                });
+                              }}
                               className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                                 column.key === "agent" ? styles.tableStrong : ""
                               }`}
@@ -1241,7 +1266,7 @@ function last4MonthTheme(index) {
   return LAST4_MONTH_THEMES[index % LAST4_MONTH_THEMES.length];
 }
 
-function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
+function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
@@ -1457,6 +1482,13 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                   >
                     <td
                       onMouseEnter={() => setHoveredColumnKey("desk")}
+                      onContextMenu={(event) =>
+                        onEntityContextMenu?.(event, {
+                          entityKey: "desk",
+                          entityValue: normalizedDetailsValue(row.desk),
+                          label: String(row.desk || ""),
+                        })
+                      }
                       className={hoveredColumnKey === "desk" ? styles.tableColumnGlow : ""}
                       style={widthStyle("desk", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
                     >
@@ -1464,6 +1496,13 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                     </td>
                     <td
                       onMouseEnter={() => setHoveredColumnKey("teamLeader")}
+                      onContextMenu={(event) =>
+                        onEntityContextMenu?.(event, {
+                          entityKey: "teamLeader",
+                          entityValue: normalizedDetailsValue(row.teamLeader),
+                          label: String(row.teamLeader || ""),
+                        })
+                      }
                       className={hoveredColumnKey === "teamLeader" ? styles.tableColumnGlow : ""}
                       style={widthStyle("teamLeader", { padding: "8px 12px", borderBottom: "1px solid #eef2f7" })}
                     >
@@ -1471,6 +1510,13 @@ function Last4MatrixTable({ rows = [], monthBlocks = [] }) {
                     </td>
                     <td
                       onMouseEnter={() => setHoveredColumnKey("agent")}
+                      onContextMenu={(event) =>
+                        onEntityContextMenu?.(event, {
+                          entityKey: "agent",
+                          entityValue: normalizedDetailsValue(row.agent),
+                          label: String(row.agent || ""),
+                        })
+                      }
                       className={hoveredColumnKey === "agent" ? styles.tableColumnGlow : ""}
                       style={widthStyle("agent", { padding: "8px 12px", borderBottom: "1px solid #eef2f7", fontWeight: 600 })}
                     >
@@ -2432,7 +2478,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
   );
 }
 
-function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, builder = {} }) {
+function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, builder = {}, onEntityContextMenu }) {
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
@@ -2609,6 +2655,24 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     const normalized = normalizeGroupText(value).replace(/\s+/g, "");
     return !normalized || normalized === "-" || normalized === "—" || normalized === "n/a";
   }, []);
+  const openDetailsContext = useCallback(
+    (event, columnKey, value) => {
+      const entityKey = String(columnKey || "").trim();
+      if (!DETAILS_ENTITY_KEYS.has(entityKey)) {
+        return;
+      }
+      const detailsValue = normalizedDetailsValue(value);
+      if (!detailsValue || isPlaceholderGroupLabel(detailsValue)) {
+        return;
+      }
+      onEntityContextMenu?.(event, {
+        entityKey,
+        entityValue: detailsValue,
+        label: String(value || detailsValue),
+      });
+    },
+    [onEntityContextMenu, isPlaceholderGroupLabel],
+  );
   const buildCollapsedSummaryRow = useCallback(
     (sourceRows = [], depth = 0, key = "") => {
       const payload = {};
@@ -2988,6 +3052,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                             <td
                               key={`summary-${rowKey}-${column.key}`}
                               onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              onContextMenu={(event) => openDetailsContext(event, column.key, value)}
                               className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                               style={widthStyle(column.key, {
                                 color: missingFtdStyle
@@ -3070,6 +3135,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                             <td
                               key={`${index}-${column.key}`}
                               onMouseEnter={() => setHoveredColumnKey(column.key)}
+                              onContextMenu={(event) => openDetailsContext(event, column.key, value)}
                               className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                               style={widthStyle(column.key, {
                                 color: isHistoricalBeforeStartMonth
@@ -3470,6 +3536,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection }
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [sessionState, setSessionState] = useState({
     loading: true,
     authenticated: false,
@@ -3505,6 +3572,12 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
+  const [detailsContextMenu, setDetailsContextMenu] = useState({
+    open: false,
+    x: 0,
+    y: 0,
+    target: null,
+  });
 
   const fetchSession = useCallback(async () => {
     setSessionState((prev) => ({ ...prev, loading: true, error: "" }));
@@ -3831,6 +3904,70 @@ export default function DashboardPage() {
       return next;
     });
   }, []);
+  const closeDetailsContextMenu = useCallback(() => {
+    setDetailsContextMenu((prev) => (prev.open ? { open: false, x: 0, y: 0, target: null } : prev));
+  }, []);
+  const handleEntityContextMenu = useCallback((event, payload = {}) => {
+    const entityKey = String(payload?.entityKey || "").trim();
+    const entityValue = normalizedDetailsValue(payload?.entityValue || payload?.label || "");
+    if (!DETAILS_ENTITY_KEYS.has(entityKey) || !entityValue || entityValue === "-" || entityValue === "—") {
+      return false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const menuWidth = 172;
+    const menuHeight = 52;
+    const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+    const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 0;
+    const desiredX = Number(event.clientX || 0);
+    const desiredY = Number(event.clientY || 0);
+    const x = viewportWidth > 0 ? Math.max(8, Math.min(desiredX, viewportWidth - menuWidth - 8)) : desiredX;
+    const y = viewportHeight > 0 ? Math.max(8, Math.min(desiredY, viewportHeight - menuHeight - 8)) : desiredY;
+    setDetailsContextMenu({
+      open: true,
+      x,
+      y,
+      target: {
+        entityKey,
+        entityValue,
+        label: String(payload?.label || entityValue),
+      },
+    });
+    return true;
+  }, []);
+  const handleOpenDetailsPage = useCallback(() => {
+    const target = detailsContextMenu.target;
+    if (!target?.entityKey || !target?.entityValue) {
+      return;
+    }
+    const query = buildReportQuery(appliedFilters);
+    query.set("detailsEntity", String(target.entityKey || ""));
+    query.set("detailsValue", String(target.entityValue || ""));
+    query.set("detailsLabel", String(target.label || target.entityValue || ""));
+    closeDetailsContextMenu();
+    router.push(`/dashboard/details?${query.toString()}`);
+  }, [appliedFilters, closeDetailsContextMenu, detailsContextMenu.target, router]);
+  useEffect(() => {
+    if (!detailsContextMenu.open) {
+      return undefined;
+    }
+    const close = () => closeDetailsContextMenu();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        close();
+      }
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeDetailsContextMenu, detailsContextMenu.open]);
 
   const handleExportXlsx = useCallback(async () => {
     setExportState({ loading: true, error: "" });
@@ -4757,11 +4894,18 @@ export default function DashboardPage() {
               </span>
             </button>
           </div>
+          <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
           {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
           {!isComparisonReportView ? <StatusCards stats={report.stats || {}} /> : null}
-          {report.tableType === "pivot" ? <PivotTable rows={report.table || []} summary={report.summary || {}} /> : null}
+          {report.tableType === "pivot" ? (
+            <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
+          ) : null}
           {report.tableType === "last4_matrix" ? (
-            <Last4MatrixTable rows={report.table || []} monthBlocks={report.monthBlocks || []} />
+            <Last4MatrixTable
+              rows={report.table || []}
+              monthBlocks={report.monthBlocks || []}
+              onEntityContextMenu={handleEntityContextMenu}
+            />
           ) : null}
           {report.tableType === "builder" ? (
             <section className={styles.section} style={{ padding: 0 }}>
@@ -4789,6 +4933,7 @@ export default function DashboardPage() {
                     sortState={builderSort}
                     onSort={handleBuilderSort}
                     builder={report?.builder || {}}
+                    onEntityContextMenu={handleEntityContextMenu}
                   />
                 </>
               )}
@@ -4798,6 +4943,19 @@ export default function DashboardPage() {
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>
+      ) : null}
+      {detailsContextMenu.open ? (
+        <div
+          role="menu"
+          aria-label="Row details actions"
+          className={styles.detailsContextMenu}
+          style={{ left: detailsContextMenu.x, top: detailsContextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button type="button" className={styles.detailsContextMenuItem} onClick={handleOpenDetailsPage}>
+            Details
+          </button>
+        </div>
       ) : null}
     </main>
   );
