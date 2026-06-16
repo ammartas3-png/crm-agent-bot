@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./details.module.css";
 
@@ -28,6 +28,21 @@ const ENTITY_LABELS = {
   teamLeader: "Team Leader",
   agent: "Agent",
 };
+
+const LINKABLE_FIELDS = [
+  "date",
+  "hour",
+  "country",
+  "brand",
+  "campaign",
+  "subCampaign",
+  "placement",
+  "status",
+  "department",
+  "desk",
+  "teamLeader",
+  "agent",
+];
 
 function parseList(rawValue = "") {
   return String(rawValue || "")
@@ -63,6 +78,18 @@ function parseFiltersFromSearchParams(searchParams) {
     payload[key] = String(value || "").trim();
   }
   return payload;
+}
+
+function linkedFiltersFromRow(row = {}) {
+  const next = {};
+  for (const key of LINKABLE_FIELDS) {
+    const value = String(row?.[key] || "").trim();
+    if (!hasMeaningfulValue(value)) {
+      continue;
+    }
+    next[key] = [value];
+  }
+  return next;
 }
 
 function buildReportQuery(filters = {}) {
@@ -243,8 +270,10 @@ function InteractiveDetailTable({
   emptyMessage = "No rows found.",
   groupByKey = "",
   initialSortKey = "",
+  tableId = "",
+  onSelectRow = null,
+  selectedRowKey = "",
 }) {
-  const [tableExpanded, setTableExpanded] = useState(true);
   const sourceColumns = useMemo(() => {
     if (Array.isArray(inputColumns) && inputColumns.length) {
       return inputColumns;
@@ -302,7 +331,26 @@ function InteractiveDetailTable({
   }, [displayDetailRows, effectiveGroupKey]);
   const groupLabels = [...groupedRows.keys()];
   const canGroupCollapse = groupLabels.length > 1;
+  const groupSignature = useMemo(() => groupLabels.join("||"), [groupLabels]);
   const allGroupsCollapsed = canGroupCollapse && groupLabels.every((label) => Boolean(collapsedGroups[label]));
+
+  useEffect(() => {
+    if (!canGroupCollapse) {
+      setCollapsedGroups({});
+      return;
+    }
+    setCollapsedGroups((previous) => {
+      const next = Object.fromEntries(groupLabels.map((label) => [label, true]));
+      const previousKeys = Object.keys(previous);
+      if (
+        previousKeys.length === groupLabels.length &&
+        groupLabels.every((label) => previous[label] === true)
+      ) {
+        return previous;
+      }
+      return next;
+    });
+  }, [canGroupCollapse, groupSignature]);
 
   const toggleGroup = (label) => {
     setCollapsedGroups((prev) => ({
@@ -328,9 +376,6 @@ function InteractiveDetailTable({
         <h2 className={styles.sectionTitle}>{title}</h2>
         <div className={styles.headerActions}>
           {truncated ? <span className={styles.inlineHint}>Showing first {displayDetailRows.length} rows</span> : null}
-          <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
-            {tableExpanded ? "Collapse Table" : "Expand Table"}
-          </button>
           {canGroupCollapse ? (
             <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
               {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
@@ -338,98 +383,85 @@ function InteractiveDetailTable({
           ) : null}
         </div>
       </div>
-      {tableExpanded ? (
-        <div className={styles.tableScroll}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {sourceColumns.map((column) => {
-                  const active = sortState.key === column.key;
-                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
-                  return (
-                    <th
-                      key={column.key}
-                      onClick={() =>
-                        setSortState((prev) =>
-                          prev.key === column.key
-                            ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
-                            : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
-                        )
-                      }
-                      className={styles.sortableHeader}
-                    >
-                      {column.label}
-                      {suffix}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {[...groupedRows.entries()].flatMap(([groupLabel, rows], groupIndex) => {
-                const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
-                const collapseKey = sourceColumns.some((column) => column.key === effectiveGroupKey)
-                  ? effectiveGroupKey
-                  : sourceColumns[0]?.key || "";
-                const collapsedSummary = buildCollapsedGroupSummaryRow(rows, sourceColumns, collapseKey, groupLabel);
-                const headerRow =
-                  canGroupCollapse
-                    ? [
-                        <tr key={`group-${title}-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
-                          <td colSpan={sourceColumns.length || 1}>
-                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
-                              <span>{collapsed ? "▶" : "▼"}</span>
-                              <span>{groupLabel}</span>
-                            </button>
-                          </td>
-                        </tr>,
-                      ]
-                    : [];
-                if (collapsed) {
-                  return [
-                    <tr key={`collapsed-${title}-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
-                      {sourceColumns.map((column) => {
-                        const value = collapsedSummary[column.key];
-                        const style = tableCellStyle(column, value);
-                        const isToggleColumn = canGroupCollapse && column.key === collapseKey;
-                        return (
-                          <td key={`collapsed-${title}-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
-                            {isToggleColumn ? (
-                              <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
-                                <span>▶</span>
-                                <span>{String(value || `${groupLabel} Total`)}</span>
-                              </button>
-                            ) : (
-                              formatCellValue(column, value)
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>,
-                  ];
-                }
-                const dataRows = rows.map((row, rowIndex) => {
-                  const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
-                  return (
-                    <tr key={rowKey}>
-                      {sourceColumns.map((column) => {
-                        const value = row[column.key];
-                        const style = tableCellStyle(column, value);
-                        return (
-                          <td key={`${rowKey}-${column.key}`} style={style || undefined}>
-                            {formatCellValue(column, value)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                });
-                return [...headerRow, ...dataRows];
-              })}
-              {totalRows.map((row, rowIndex) => {
-                const rowKey = String(row.__rowKey || row.key || `total-${rowIndex}`);
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              {sourceColumns.map((column) => {
+                const active = sortState.key === column.key;
+                const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
                 return (
-                  <tr key={rowKey} className={styles.totalRow}>
+                  <th
+                    key={column.key}
+                    onClick={() =>
+                      setSortState((prev) =>
+                        prev.key === column.key
+                          ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
+                          : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
+                      )
+                    }
+                    className={styles.sortableHeader}
+                  >
+                    {column.label}
+                    {suffix}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {[...groupedRows.entries()].flatMap(([groupLabel, rows], groupIndex) => {
+              const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
+              const collapseKey = sourceColumns.some((column) => column.key === effectiveGroupKey)
+                ? effectiveGroupKey
+                : sourceColumns[0]?.key || "";
+              const collapsedSummary = buildCollapsedGroupSummaryRow(rows, sourceColumns, collapseKey, groupLabel);
+              const headerRow =
+                canGroupCollapse
+                  ? [
+                      <tr key={`group-${title}-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
+                        <td colSpan={sourceColumns.length || 1}>
+                          <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                            <span>{collapsed ? "▶" : "▼"}</span>
+                            <span>{groupLabel}</span>
+                          </button>
+                        </td>
+                      </tr>,
+                    ]
+                  : [];
+              if (collapsed) {
+                return [
+                  <tr key={`collapsed-${title}-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
+                    {sourceColumns.map((column) => {
+                      const value = collapsedSummary[column.key];
+                      const style = tableCellStyle(column, value);
+                      const isToggleColumn = canGroupCollapse && column.key === collapseKey;
+                      return (
+                        <td key={`collapsed-${title}-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
+                          {isToggleColumn ? (
+                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                              <span>▶</span>
+                              <span>{String(value || `${groupLabel} Total`)}</span>
+                            </button>
+                          ) : (
+                            formatCellValue(column, value)
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>,
+                ];
+              }
+              const dataRows = rows.map((row, rowIndex) => {
+                const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
+                const compositeRowKey = `${tableId || title}:${rowKey}`;
+                const isSelected = selectedRowKey === compositeRowKey;
+                return (
+                  <tr
+                    key={rowKey}
+                    className={`${styles.selectableRow} ${isSelected ? styles.selectedRow : ""}`}
+                    onClick={() => onSelectRow?.(compositeRowKey, row)}
+                  >
                     {sourceColumns.map((column) => {
                       const value = row[column.key];
                       const style = tableCellStyle(column, value);
@@ -441,24 +473,36 @@ function InteractiveDetailTable({
                     })}
                   </tr>
                 );
-              })}
-              {!displayDetailRows.length && !totalRows.length ? (
-                <tr>
-                  <td className={styles.emptyCell} colSpan={sourceColumns.length || 1}>
-                    {emptyMessage}
-                  </td>
+              });
+              return [...headerRow, ...dataRows];
+            })}
+            {totalRows.map((row, rowIndex) => {
+              const rowKey = String(row.__rowKey || row.key || `total-${rowIndex}`);
+              return (
+                <tr key={rowKey} className={styles.totalRow}>
+                  {sourceColumns.map((column) => {
+                    const value = row[column.key];
+                    const style = tableCellStyle(column, value);
+                    return (
+                      <td key={`${rowKey}-${column.key}`} style={style || undefined}>
+                        {formatCellValue(column, value)}
+                      </td>
+                    );
+                  })}
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className={styles.inlineHint}>Table is collapsed.</p>
-      )}
+              );
+            })}
+            {!displayDetailRows.length && !totalRows.length ? (
+              <tr>
+                <td className={styles.emptyCell} colSpan={sourceColumns.length || 1}>
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
       <div className={styles.tableFooterActions}>
-        <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
-        </button>
         {canGroupCollapse ? (
           <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
             {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
@@ -502,11 +546,14 @@ function statusCellStyle(value) {
   return null;
 }
 
-function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLeader" }) {
-  const [tableExpanded, setTableExpanded] = useState(true);
-  const [sortState, setSortState] = useState({ key: "ftdBenchmarkRate", direction: "desc" });
-  const [collapsedGroups, setCollapsedGroups] = useState({});
-  const rows = Array.isArray(report?.table) ? report.table.filter((row) => row?.__rowKind !== "total") : [];
+function BenchmarkFocusTable({
+  title = "",
+  report = null,
+  groupByKey = "teamLeader",
+  onSelectRow = null,
+  selectedRowKey = "",
+}) {
+  const rows = Array.isArray(report?.table) ? report.table : [];
   const allColumns = Array.isArray(report?.builder?.columns) ? report.builder.columns : [];
   const preferredOrder = [
     "desk",
@@ -529,6 +576,9 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
   const columns = useMemo(() => {
     const visible = allColumns.filter((column) =>
       rows.some((row) => {
+        if (row?.__rowKind === "total") {
+          return false;
+        }
         const value = row?.[column.key];
         if (column.type === "number" || column.type === "percent") {
           return Number.isFinite(Number(value));
@@ -545,182 +595,18 @@ function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLead
       return String(left.label || "").localeCompare(String(right.label || ""), "en", { sensitivity: "base" });
     });
   }, [allColumns, preferredMap, rows]);
-  const sortedRows = useMemo(() => {
-    const activeColumn = columns.find((column) => column.key === sortState.key) || columns[0];
-    if (!activeColumn) {
-      return rows;
-    }
-    const next = [...rows].sort((left, right) => {
-      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
-      return sortState.direction === "desc" ? -compare : compare;
-    });
-    return next;
-  }, [columns, rows, sortState.direction, sortState.key]);
-  const groupValues = useMemo(() => {
-    if (!groupByKey || !columns.some((column) => column.key === groupByKey)) {
-      return [];
-    }
-    return [...new Set(sortedRows.map((row) => String(row?.[groupByKey] || "-").trim() || "-"))];
-  }, [columns, groupByKey, sortedRows]);
-  const canGroupCollapse = groupValues.length > 1;
-  const allGroupsCollapsed = canGroupCollapse && groupValues.every((label) => Boolean(collapsedGroups[label]));
-  const toggleGroup = (label) => {
-    setCollapsedGroups((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
-  };
-  const toggleAllGroups = () => {
-    if (!canGroupCollapse) {
-      return;
-    }
-    if (allGroupsCollapsed) {
-      setCollapsedGroups({});
-      return;
-    }
-    setCollapsedGroups(Object.fromEntries(groupValues.map((label) => [label, true])));
-  };
-  const rowsByGroup = useMemo(() => {
-    if (!groupByKey || !columns.some((column) => column.key === groupByKey)) {
-      return new Map([["__all__", sortedRows]]);
-    }
-    const map = new Map();
-    sortedRows.forEach((row) => {
-      const groupLabel = String(row?.[groupByKey] || "-").trim() || "-";
-      if (!map.has(groupLabel)) {
-        map.set(groupLabel, []);
-      }
-      map.get(groupLabel).push(row);
-    });
-    return map;
-  }, [columns, groupByKey, sortedRows]);
-  const groupEntries = [...rowsByGroup.entries()];
-
   return (
-    <section className={styles.panel}>
-      <div className={styles.tableHeaderRow}>
-        <h2 className={styles.sectionTitle}>{title}</h2>
-        <div className={styles.headerActions}>
-          <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
-            {tableExpanded ? "Collapse Table" : "Expand Table"}
-          </button>
-          {canGroupCollapse ? (
-            <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
-              {allGroupsCollapsed ? "Expand All Groups" : "Collapse All Groups"}
-            </button>
-          ) : null}
-        </div>
-      </div>
-      {tableExpanded ? (
-        <div className={styles.tableScroll}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {columns.map((column) => {
-                  const active = sortState.key === column.key;
-                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
-                  return (
-                    <th
-                      key={column.key}
-                      onClick={() =>
-                        setSortState((prev) =>
-                          prev.key === column.key
-                            ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
-                            : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
-                        )
-                      }
-                      className={styles.sortableHeader}
-                    >
-                      {column.label}
-                      {suffix}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {groupEntries.flatMap(([groupLabel, groupRows], groupIndex) => {
-                const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
-                const collapseKey = columns.some((column) => column.key === groupByKey) ? groupByKey : columns[0]?.key || "";
-                const collapsedSummary = buildCollapsedGroupSummaryRow(groupRows, columns, collapseKey, groupLabel);
-                const headerRow =
-                  canGroupCollapse && groupByKey
-                    ? [
-                        <tr key={`group-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
-                          <td colSpan={columns.length || 1}>
-                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
-                              <span>{collapsed ? "▶" : "▼"}</span>
-                              <span>{groupByKey === "teamLeader" ? "Team Leader" : "Group"}: {groupLabel}</span>
-                            </button>
-                          </td>
-                        </tr>,
-                      ]
-                    : [];
-                if (collapsed) {
-                  return [
-                    <tr key={`collapsed-benchmark-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
-                      {columns.map((column) => {
-                        const value = collapsedSummary[column.key];
-                        const style = tableCellStyle(column, value);
-                        const isToggleColumn = canGroupCollapse && column.key === collapseKey;
-                        return (
-                          <td key={`collapsed-benchmark-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
-                            {isToggleColumn ? (
-                              <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
-                                <span>▶</span>
-                                <span>{String(value || `${groupLabel} Total`)}</span>
-                              </button>
-                            ) : (
-                              formatCellValue(column, value)
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>,
-                  ];
-                }
-                const dataRows = groupRows.map((row, rowIndex) => {
-                  const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
-                  return (
-                    <tr key={rowKey}>
-                      {columns.map((column) => {
-                        const value = row?.[column.key];
-                        const style = tableCellStyle(column, value);
-                        return (
-                          <td key={`${rowKey}-${column.key}`} style={style || undefined}>
-                            {formatCellValue(column, value)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                });
-                return [...headerRow, ...dataRows];
-              })}
-              {!rows.length ? (
-                <tr>
-                  <td className={styles.emptyCell} colSpan={columns.length || 1}>
-                    No benchmark rows found.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className={styles.inlineHint}>Table collapsed. Click Expand Table.</p>
-      )}
-      <div className={styles.tableFooterActions}>
-        <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
-        </button>
-        {canGroupCollapse ? (
-          <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
-            {allGroupsCollapsed ? "Expand All Groups" : "Collapse All Groups"}
-          </button>
-        ) : null}
-      </div>
-    </section>
+    <InteractiveDetailTable
+      title={title}
+      columns={columns}
+      rows={rows}
+      emptyMessage="No benchmark rows found."
+      groupByKey={groupByKey}
+      initialSortKey="ftdBenchmarkRate"
+      tableId="benchmark-focus"
+      onSelectRow={onSelectRow}
+      selectedRowKey={selectedRowKey}
+    />
   );
 }
 
@@ -755,6 +641,8 @@ export default function DashboardDetailsClientPage() {
     last4Rows: [],
     last4Loading: false,
   });
+  const [linkedFilters, setLinkedFilters] = useState({});
+  const [selectedLinkedRowKey, setSelectedLinkedRowKey] = useState("");
 
   const searchKey = searchParams.toString();
 
@@ -793,12 +681,30 @@ export default function DashboardDetailsClientPage() {
     setContextFilters(resolved);
   }, [searchParams, searchKey]);
 
+  useEffect(() => {
+    setLinkedFilters({});
+    setSelectedLinkedRowKey("");
+  }, [detailTarget.entityKey, detailTarget.entityValue]);
+
+  const linkedFilterEntries = useMemo(() => Object.entries(linkedFilters || {}), [linkedFilters]);
+  const hasLinkedFilters = linkedFilterEntries.length > 0;
+  const handleLinkedRowSelection = useCallback((rowKey, row = {}) => {
+    const nextFilters = linkedFiltersFromRow(row);
+    setLinkedFilters(nextFilters);
+    setSelectedLinkedRowKey(String(rowKey || ""));
+  }, []);
+  const handleClearLinkedFilters = useCallback(() => {
+    setLinkedFilters({});
+    setSelectedLinkedRowKey("");
+  }, []);
+
   const entityScopedBaseFilters = useMemo(() => {
     if (!contextFilters) {
       return null;
     }
     const next = {
       ...contextFilters,
+      ...linkedFilters,
       reportMode: "specific",
       specificType: "builder",
       columnDimension: "",
@@ -821,7 +727,7 @@ export default function DashboardDetailsClientPage() {
       next.agent = [detailTarget.entityValue];
     }
     return next;
-  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue]);
+  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue, linkedFilters]);
 
   const trendFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
@@ -860,11 +766,11 @@ export default function DashboardDetailsClientPage() {
       metricFields: ["leads", "ftd", "kycFtd", "cr", "crTarget", "crTargetReach", "ftdTarget", "ftdTargetReach", "selfs", "lateFtd"],
     };
     if (detailTarget.entityKey === "desk") {
-      next.rowDimensions = ["teamLeader", "agent", "country", "campaign", "placement", "subCampaign", "status", "date"];
+      next.rowDimensions = ["teamLeader", "agent", "country", "campaign", "placement", "subCampaign", "status"];
     } else if (detailTarget.entityKey === "teamLeader") {
-      next.rowDimensions = ["agent", "country", "campaign", "placement", "subCampaign", "status", "date"];
+      next.rowDimensions = ["agent", "country", "campaign", "placement", "subCampaign", "status"];
     } else {
-      next.rowDimensions = ["date", "hour", "country", "campaign", "placement", "subCampaign", "status"];
+      next.rowDimensions = ["country", "campaign", "placement", "subCampaign", "status", "brand", "department"];
     }
     return next;
   }, [detailTarget.entityKey, entityScopedBaseFilters]);
@@ -1011,7 +917,7 @@ export default function DashboardDetailsClientPage() {
               ...entityScopedBaseFilters,
               monthKey: [monthKey],
               rowDimensions: [detailTarget.entityKey],
-              metricFields: ["leads", "ftd", "cr", "crTargetReach", "ftdTargetReach"],
+              metricFields: ["leads", "ftd", "ftdTarget", "cr", "crTarget", "crTargetReach", "ftdTargetReach"],
               includeWorkTime: false,
               benchmarkMode: false,
               page: "1",
@@ -1116,7 +1022,9 @@ export default function DashboardDetailsClientPage() {
       { key: "monthLabel", label: "Month", type: "text" },
       { key: "leads", label: "Leads", type: "number" },
       { key: "ftd", label: "FTD", type: "number" },
+      { key: "ftdTarget", label: "FTD Target", type: "number" },
       { key: "cr", label: "CR", type: "percent" },
+      { key: "crTarget", label: "CR Target", type: "percent" },
       { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
       { key: "ftdTargetReach", label: "FTD Target Reach", type: "percent" },
     ],
@@ -1128,7 +1036,9 @@ export default function DashboardDetailsClientPage() {
         monthLabel: item.monthLabel || item.monthKey,
         leads: Number(item.summary?.totalLeads || item.summary?.leads || 0),
         ftd: Number(item.summary?.totalFtd || item.summary?.ftd || 0),
+        ftdTarget: Number(item.summary?.ftdTarget || 0),
         cr: Number(item.summary?.cr || 0),
+        crTarget: Number(item.summary?.crTarget || 0),
         crTargetReach: Number(item.summary?.crTargetReach || 0),
         ftdTargetReach: Number(item.summary?.ftdTargetReach || 0),
       })),
@@ -1173,6 +1083,21 @@ export default function DashboardDetailsClientPage() {
             <strong>{agentLabel}</strong>
           </div>
         </div>
+        <div className={styles.linkedFilterBar}>
+          <span className={styles.contextLabel}>Linked Filter</span>
+          {hasLinkedFilters ? (
+            <span className={styles.linkedFilterValue}>
+              {linkedFilterEntries.map(([key, values]) => `${key}: ${Array.isArray(values) ? values.join(", ") : values}`).join(" | ")}
+            </span>
+          ) : (
+            <span className={styles.inlineHint}>None (click a row in any table to filter all tables)</span>
+          )}
+          {hasLinkedFilters ? (
+            <button type="button" className={styles.actionButton} onClick={handleClearLinkedFilters}>
+              Clear Linked Filter
+            </button>
+          ) : null}
+        </div>
       </section>
 
       {state.loading ? (
@@ -1206,8 +1131,11 @@ export default function DashboardDetailsClientPage() {
               columns={last4Columns}
               rows={last4Rows}
               emptyMessage="No month summary found."
-              groupByKey=""
+              groupByKey="monthLabel"
               initialSortKey="monthLabel"
+              tableId="last4-summary"
+              onSelectRow={handleLinkedRowSelection}
+              selectedRowKey={selectedLinkedRowKey}
             />
           ) : null}
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
@@ -1232,6 +1160,8 @@ export default function DashboardDetailsClientPage() {
             title="Benchmark Focus Table"
             report={state.benchmarkRowsReport}
             groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : ""}
+            onSelectRow={handleLinkedRowSelection}
+            selectedRowKey={selectedLinkedRowKey}
           />
           <section className={styles.dualGrid}>
             <InteractiveDetailTable
@@ -1240,6 +1170,9 @@ export default function DashboardDetailsClientPage() {
               emptyMessage="No daily trend rows found."
               groupByKey="date"
               initialSortKey="date"
+              tableId="daily-trend"
+              onSelectRow={handleLinkedRowSelection}
+              selectedRowKey={selectedLinkedRowKey}
             />
             <InteractiveDetailTable
               title="Leads Sheet Fields"
@@ -1247,14 +1180,20 @@ export default function DashboardDetailsClientPage() {
               emptyMessage="No leads rows found for selected filters."
               groupByKey="brand"
               initialSortKey="created"
+              tableId="leads-fields"
+              onSelectRow={handleLinkedRowSelection}
+              selectedRowKey={selectedLinkedRowKey}
             />
           </section>
           <InteractiveDetailTable
             title="Detailed Breakdown"
             report={state.breakdownReport}
             emptyMessage="No detailed rows found."
-            groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : detailTarget.entityKey === "teamLeader" ? "agent" : "date"}
-            initialSortKey="date"
+            groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : detailTarget.entityKey === "teamLeader" ? "agent" : "country"}
+            initialSortKey="country"
+            tableId="detailed-breakdown"
+            onSelectRow={handleLinkedRowSelection}
+            selectedRowKey={selectedLinkedRowKey}
           />
         </>
       ) : null}
