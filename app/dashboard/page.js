@@ -3813,6 +3813,9 @@ export default function DashboardPage() {
       setComparisonSelections({});
     }
   }, [quickPreset]);
+  useEffect(() => {
+    router.prefetch("/dashboard/details");
+  }, [router]);
 
   useEffect(() => {
     const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
@@ -3941,10 +3944,32 @@ export default function DashboardPage() {
     if (!target?.entityKey || !target?.entityValue) {
       return;
     }
-    const query = buildReportQuery(appliedFilters);
+    const query = new URLSearchParams();
     query.set("detailsEntity", String(target.entityKey || ""));
     query.set("detailsValue", String(target.entityValue || ""));
     query.set("detailsLabel", String(target.label || target.entityValue || ""));
+    const storageKey = `dashboard-details:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+    let usedSessionContext = false;
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        window.sessionStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            filters: appliedFilters,
+          }),
+        );
+        query.set("contextKey", storageKey);
+        usedSessionContext = true;
+      }
+    } catch {}
+    if (!usedSessionContext) {
+      const fallbackQuery = buildReportQuery(appliedFilters);
+      for (const [key, value] of fallbackQuery.entries()) {
+        if (!query.has(key)) {
+          query.set(key, value);
+        }
+      }
+    }
     closeDetailsContextMenu();
     router.push(`/dashboard/details?${query.toString()}`);
   }, [appliedFilters, closeDetailsContextMenu, detailsContextMenu.target, router]);

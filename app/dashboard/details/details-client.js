@@ -46,6 +46,25 @@ function normalizedDetailsValue(value = "") {
     .trim();
 }
 
+function parseFiltersFromSearchParams(searchParams) {
+  const payload = {};
+  for (const [key, value] of searchParams.entries()) {
+    if (key === "detailsEntity" || key === "detailsValue" || key === "detailsLabel" || key === "contextKey") {
+      continue;
+    }
+    if (MULTI_VALUE_KEYS.has(key)) {
+      payload[key] = parseList(value);
+      continue;
+    }
+    if (["includeWorkTime", "hideNotWorking", "benchmarkMode"].includes(key)) {
+      payload[key] = parseBoolean(value);
+      continue;
+    }
+    payload[key] = String(value || "").trim();
+  }
+  return payload;
+}
+
 function buildReportQuery(filters = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters || {})) {
@@ -165,6 +184,7 @@ function DetailTable({ title = "", report = null, emptyMessage = "No rows found.
 export default function DashboardDetailsClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [contextFilters, setContextFilters] = useState(null);
   const [state, setState] = useState({
     loading: true,
     error: "",
@@ -186,26 +206,33 @@ export default function DashboardDetailsClientPage() {
     };
   }, [searchParams, searchKey]);
 
-  const contextFilters = useMemo(() => {
-    const payload = {};
-    for (const [key, value] of searchParams.entries()) {
-      if (key === "detailsEntity" || key === "detailsValue" || key === "detailsLabel") {
-        continue;
-      }
-      if (MULTI_VALUE_KEYS.has(key)) {
-        payload[key] = parseList(value);
-        continue;
-      }
-      if (["includeWorkTime", "hideNotWorking", "benchmarkMode"].includes(key)) {
-        payload[key] = parseBoolean(value);
-        continue;
-      }
-      payload[key] = String(value || "").trim();
+  useEffect(() => {
+    const contextKey = String(searchParams.get("contextKey") || "").trim();
+    let resolved = null;
+    if (contextKey) {
+      try {
+        if (typeof window !== "undefined" && window.sessionStorage) {
+          const raw = window.sessionStorage.getItem(contextKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === "object" && parsed.filters && typeof parsed.filters === "object") {
+              resolved = parsed.filters;
+            }
+          }
+          window.sessionStorage.removeItem(contextKey);
+        }
+      } catch {}
     }
-    return payload;
+    if (!resolved) {
+      resolved = parseFiltersFromSearchParams(searchParams);
+    }
+    setContextFilters(resolved);
   }, [searchParams, searchKey]);
 
   const breakdownFilters = useMemo(() => {
+    if (!contextFilters) {
+      return null;
+    }
     const next = {
       ...contextFilters,
       reportMode: "specific",
@@ -237,6 +264,9 @@ export default function DashboardDetailsClientPage() {
   }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue]);
 
   const trendFilters = useMemo(() => {
+    if (!breakdownFilters) {
+      return null;
+    }
     const next = {
       ...breakdownFilters,
       rowLimit: "120",
@@ -246,11 +276,14 @@ export default function DashboardDetailsClientPage() {
     return next;
   }, [breakdownFilters, detailTarget.entityKey]);
 
-  const breakdownQuery = useMemo(() => buildReportQuery(breakdownFilters).toString(), [breakdownFilters]);
-  const trendQuery = useMemo(() => buildReportQuery(trendFilters).toString(), [trendFilters]);
+  const breakdownQuery = useMemo(() => (breakdownFilters ? buildReportQuery(breakdownFilters).toString() : ""), [breakdownFilters]);
+  const trendQuery = useMemo(() => (trendFilters ? buildReportQuery(trendFilters).toString() : ""), [trendFilters]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!contextFilters || !breakdownQuery || !trendQuery) {
+      return undefined;
+    }
     if (!detailTarget.valid) {
       setState({
         loading: false,
@@ -296,11 +329,12 @@ export default function DashboardDetailsClientPage() {
         }
       }
     };
-    load();
+    const timerId = window.setTimeout(load, 120);
     return () => {
       cancelled = true;
+      window.clearTimeout(timerId);
     };
-  }, [breakdownQuery, detailTarget.valid, trendQuery]);
+  }, [breakdownQuery, contextFilters, detailTarget.valid, trendQuery]);
 
   const summary = state.breakdownReport?.summary || {};
   const summaryItems = [
@@ -326,10 +360,10 @@ export default function DashboardDetailsClientPage() {
         </p>
         <p className={styles.subtitle}>
           Office:{" "}
-          <strong>{Array.isArray(contextFilters.officeScope) && contextFilters.officeScope.length ? contextFilters.officeScope[0] : "-"}</strong>{" "}
+          <strong>{Array.isArray(contextFilters?.officeScope) && contextFilters.officeScope.length ? contextFilters.officeScope[0] : "-"}</strong>{" "}
           | Months:{" "}
           <strong>
-            {Array.isArray(contextFilters.monthKey) && contextFilters.monthKey.length ? contextFilters.monthKey.join(", ") : "-"}
+            {Array.isArray(contextFilters?.monthKey) && contextFilters.monthKey.length ? contextFilters.monthKey.join(", ") : "-"}
           </strong>
         </p>
       </section>
