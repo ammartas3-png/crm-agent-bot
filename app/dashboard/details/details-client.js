@@ -118,6 +118,38 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
 
+function parseMaybeNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function hasMeaningfulValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return Boolean(normalized) && normalized !== "-" && normalized !== "—" && normalized !== "n/a";
+}
+
+function compareSortableValues(leftValue, rightValue, columnType = "text") {
+  const leftNumber = parseMaybeNumber(leftValue);
+  const rightNumber = parseMaybeNumber(rightValue);
+  if (columnType === "number" || columnType === "percent") {
+    const leftSafe = leftNumber ?? 0;
+    const rightSafe = rightNumber ?? 0;
+    if (leftSafe === rightSafe) {
+      return 0;
+    }
+    return leftSafe > rightSafe ? 1 : -1;
+  }
+  if (leftNumber !== null && rightNumber !== null) {
+    if (leftNumber === rightNumber) {
+      return 0;
+    }
+    return leftNumber > rightNumber ? 1 : -1;
+  }
+  const leftText = String(leftValue || "");
+  const rightText = String(rightValue || "");
+  return leftText.localeCompare(rightText, "en", { sensitivity: "base" });
+}
+
 function formatCellValue(column = {}, value) {
   if (column.type === "number") {
     return formatNumber(value);
@@ -187,6 +219,239 @@ function DetailTable({ title = "", report = null, emptyMessage = "No rows found.
   );
 }
 
+function reachCellStyle(value) {
+  const numeric = Number(value || 0);
+  if (numeric >= 100) {
+    return { background: "#dcfce7", color: "#166534", fontWeight: 700 };
+  }
+  return { background: "#fee2e2", color: "#b91c1c", fontWeight: 700 };
+}
+
+function benchmarkRateCellStyle(value) {
+  const numeric = Number(value || 0);
+  if (numeric >= 110) {
+    return { background: "#16a34a", color: "#ffffff", fontWeight: 700 };
+  }
+  if (numeric >= 85) {
+    return { background: "#65a30d", color: "#ffffff", fontWeight: 700 };
+  }
+  if (numeric >= 60) {
+    return { background: "#facc15", color: "#713f12", fontWeight: 700 };
+  }
+  return { background: "#ef4444", color: "#ffffff", fontWeight: 700 };
+}
+
+function statusCellStyle(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "active" || normalized === "working") {
+    return { background: "#16a34a", color: "#ffffff", fontWeight: 700 };
+  }
+  if (normalized && normalized !== "-") {
+    return { background: "#ef4444", color: "#ffffff", fontWeight: 700 };
+  }
+  return null;
+}
+
+function BenchmarkFocusTable({ title = "", report = null, groupByKey = "teamLeader" }) {
+  const [tableExpanded, setTableExpanded] = useState(true);
+  const [sortState, setSortState] = useState({ key: "ftdBenchmarkRate", direction: "desc" });
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const rows = Array.isArray(report?.table) ? report.table.filter((row) => row?.__rowKind !== "total") : [];
+  const allColumns = Array.isArray(report?.builder?.columns) ? report.builder.columns : [];
+  const preferredOrder = [
+    "desk",
+    "teamLeader",
+    "agent",
+    "ftd",
+    "agentAvgFtdPerWorkedMonth",
+    "avgFtdByDeskLongTerm",
+    "ftdBenchmarkRate",
+    "crTargetReach",
+    "ftdTargetReach",
+    "workStartDate",
+    "workDays",
+    "workMonths",
+    "workLongTerm",
+    "workCurrentStatus",
+    "workExitDate",
+  ];
+  const preferredMap = new Map(preferredOrder.map((key, index) => [key, index]));
+  const columns = useMemo(() => {
+    const visible = allColumns.filter((column) =>
+      rows.some((row) => {
+        const value = row?.[column.key];
+        if (column.type === "number" || column.type === "percent") {
+          return Number.isFinite(Number(value));
+        }
+        return hasMeaningfulValue(value);
+      }),
+    );
+    return [...visible].sort((left, right) => {
+      const leftIndex = preferredMap.has(left.key) ? preferredMap.get(left.key) : 999;
+      const rightIndex = preferredMap.has(right.key) ? preferredMap.get(right.key) : 999;
+      if (leftIndex !== rightIndex) {
+        return leftIndex - rightIndex;
+      }
+      return String(left.label || "").localeCompare(String(right.label || ""), "en", { sensitivity: "base" });
+    });
+  }, [allColumns, preferredMap, rows]);
+  const sortedRows = useMemo(() => {
+    const activeColumn = columns.find((column) => column.key === sortState.key) || columns[0];
+    if (!activeColumn) {
+      return rows;
+    }
+    const next = [...rows].sort((left, right) => {
+      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
+      return sortState.direction === "desc" ? -compare : compare;
+    });
+    return next;
+  }, [columns, rows, sortState.direction, sortState.key]);
+  const groupValues = useMemo(() => {
+    if (!groupByKey || !columns.some((column) => column.key === groupByKey)) {
+      return [];
+    }
+    return [...new Set(sortedRows.map((row) => String(row?.[groupByKey] || "-").trim() || "-"))];
+  }, [columns, groupByKey, sortedRows]);
+  const canGroupCollapse = groupValues.length > 1;
+  const allGroupsCollapsed = canGroupCollapse && groupValues.every((label) => Boolean(collapsedGroups[label]));
+  const toggleGroup = (label) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  };
+  const toggleAllGroups = () => {
+    if (!canGroupCollapse) {
+      return;
+    }
+    if (allGroupsCollapsed) {
+      setCollapsedGroups({});
+      return;
+    }
+    setCollapsedGroups(Object.fromEntries(groupValues.map((label) => [label, true])));
+  };
+  const rowsByGroup = useMemo(() => {
+    if (!groupByKey || !columns.some((column) => column.key === groupByKey)) {
+      return new Map([["__all__", sortedRows]]);
+    }
+    const map = new Map();
+    sortedRows.forEach((row) => {
+      const groupLabel = String(row?.[groupByKey] || "-").trim() || "-";
+      if (!map.has(groupLabel)) {
+        map.set(groupLabel, []);
+      }
+      map.get(groupLabel).push(row);
+    });
+    return map;
+  }, [columns, groupByKey, sortedRows]);
+  const groupEntries = [...rowsByGroup.entries()];
+
+  return (
+    <section className={styles.panel}>
+      <div className={styles.tableHeaderRow}>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+        <div className={styles.headerActions}>
+          <button type="button" className={styles.actionButton} onClick={() => setTableExpanded((prev) => !prev)}>
+            {tableExpanded ? "Collapse Table" : "Expand Table"}
+          </button>
+          {canGroupCollapse ? (
+            <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
+              {allGroupsCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {tableExpanded ? (
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                {columns.map((column) => {
+                  const active = sortState.key === column.key;
+                  const suffix = active ? (sortState.direction === "asc" ? " ▲" : " ▼") : "";
+                  return (
+                    <th
+                      key={column.key}
+                      onClick={() =>
+                        setSortState((prev) =>
+                          prev.key === column.key
+                            ? { key: column.key, direction: prev.direction === "asc" ? "desc" : "asc" }
+                            : { key: column.key, direction: column.type === "number" || column.type === "percent" ? "desc" : "asc" },
+                        )
+                      }
+                      className={styles.sortableHeader}
+                    >
+                      {column.label}
+                      {suffix}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {groupEntries.flatMap(([groupLabel, groupRows], groupIndex) => {
+                const collapsed = canGroupCollapse ? Boolean(collapsedGroups[groupLabel]) : false;
+                const headerRow =
+                  canGroupCollapse && groupByKey
+                    ? [
+                        <tr key={`group-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
+                          <td colSpan={columns.length || 1}>
+                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                              <span>{collapsed ? "▶" : "▼"}</span>
+                              <span>{groupByKey === "teamLeader" ? "Team Leader" : "Group"}: {groupLabel}</span>
+                            </button>
+                          </td>
+                        </tr>,
+                      ]
+                    : [];
+                if (collapsed) {
+                  return headerRow;
+                }
+                const dataRows = groupRows.map((row, rowIndex) => {
+                  const rowKey = String(row.__rowKey || row.key || `${groupLabel}-${rowIndex}`);
+                  return (
+                    <tr key={rowKey}>
+                      {columns.map((column) => {
+                        const value = row?.[column.key];
+                        const keyLower = String(column.key || "").toLowerCase();
+                        const isReach = keyLower.includes("targetreach");
+                        const isBenchmarkRate = column.key === "ftdBenchmarkRate";
+                        const isStatus = column.key === "workCurrentStatus";
+                        const style = isReach
+                          ? reachCellStyle(value)
+                          : isBenchmarkRate
+                            ? benchmarkRateCellStyle(value)
+                            : isStatus
+                              ? statusCellStyle(value)
+                              : null;
+                        return (
+                          <td key={`${rowKey}-${column.key}`} style={style || undefined}>
+                            {formatCellValue(column, value)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                });
+                return [...headerRow, ...dataRows];
+              })}
+              {!rows.length ? (
+                <tr>
+                  <td className={styles.emptyCell} colSpan={columns.length || 1}>
+                    No benchmark rows found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className={styles.inlineHint}>Table collapsed. Click Expand Table.</p>
+      )}
+    </section>
+  );
+}
+
 function benchmarkMetricsFromReport(report = null) {
   const summary = report?.summary || {};
   const tableRows = Array.isArray(report?.table) ? report.table : [];
@@ -214,6 +479,7 @@ export default function DashboardDetailsClientPage() {
     trendReport: null,
     leadsReport: null,
     benchmarkReport: null,
+    benchmarkRowsReport: null,
     last4Rows: [],
     last4Loading: false,
   });
@@ -344,6 +610,29 @@ export default function DashboardDetailsClientPage() {
       metricFields: ["avgFtdByDeskLongTerm", "ftdBenchmarkRate", "leads", "ftd"],
     };
   }, [detailTarget.entityKey, entityScopedBaseFilters]);
+  const benchmarkRowsFilters = useMemo(() => {
+    if (!entityScopedBaseFilters) {
+      return null;
+    }
+    const rowDimensions = detailTarget.entityKey === "desk" ? ["teamLeader", "agent"] : ["agent"];
+    return {
+      ...entityScopedBaseFilters,
+      page: "1",
+      rowLimit: "260",
+      benchmarkMode: true,
+      includeWorkTime: true,
+      hideNotWorking: false,
+      rowDimensions,
+      metricFields: [
+        "ftd",
+        "agentAvgFtdPerWorkedMonth",
+        "avgFtdByDeskLongTerm",
+        "ftdBenchmarkRate",
+        "crTargetReach",
+        "ftdTargetReach",
+      ],
+    };
+  }, [detailTarget.entityKey, entityScopedBaseFilters]);
 
   const breakdownQuery = useMemo(() => (breakdownFilters ? buildReportQuery(breakdownFilters).toString() : ""), [breakdownFilters]);
   const trendQuery = useMemo(() => (trendFilters ? buildReportQuery(trendFilters).toString() : ""), [trendFilters]);
@@ -352,10 +641,14 @@ export default function DashboardDetailsClientPage() {
     () => (benchmarkFilters ? buildReportQuery(benchmarkFilters).toString() : ""),
     [benchmarkFilters],
   );
+  const benchmarkRowsQuery = useMemo(
+    () => (benchmarkRowsFilters ? buildReportQuery(benchmarkRowsFilters).toString() : ""),
+    [benchmarkRowsFilters],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    if (!contextFilters || !breakdownQuery || !trendQuery || !leadsQuery || !benchmarkQuery) {
+    if (!contextFilters || !breakdownQuery || !trendQuery || !leadsQuery || !benchmarkQuery || !benchmarkRowsQuery) {
       return undefined;
     }
     if (!detailTarget.valid) {
@@ -364,6 +657,11 @@ export default function DashboardDetailsClientPage() {
         error: "Missing details target. Go back and right-click a Desk, Team Leader, or Agent row.",
         breakdownReport: null,
         trendReport: null,
+        leadsReport: null,
+        benchmarkReport: null,
+        benchmarkRowsReport: null,
+        last4Rows: [],
+        last4Loading: false,
       });
       return undefined;
     }
@@ -376,12 +674,15 @@ export default function DashboardDetailsClientPage() {
           fetch(`/api/dashboard/report?${leadsQuery}`, { cache: "no-store" }),
           fetch(`/api/dashboard/report?${benchmarkQuery}`, { cache: "no-store" }),
         ]);
+        const benchmarkRowsPromise = fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" });
         const [breakdownPayload, trendPayload, leadsPayload, benchmarkPayload] = await Promise.all([
           readApiPayload(breakdownResponse),
           readApiPayload(trendResponse),
           readApiPayload(leadsResponse),
           readApiPayload(benchmarkResponse),
         ]);
+        const benchmarkRowsResponse = await benchmarkRowsPromise;
+        const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
         if (!breakdownResponse.ok || breakdownPayload?.ok === false) {
           throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load detailed breakdown report.");
         }
@@ -394,10 +695,14 @@ export default function DashboardDetailsClientPage() {
         if (!benchmarkResponse.ok || benchmarkPayload?.ok === false) {
           throw new Error(benchmarkPayload?.message || benchmarkPayload?.error || "Could not load benchmark details.");
         }
+        if (!benchmarkRowsResponse.ok || benchmarkRowsPayload?.ok === false) {
+          throw new Error(benchmarkRowsPayload?.message || benchmarkRowsPayload?.error || "Could not load benchmark rows table.");
+        }
         const breakdownReport = breakdownPayload.report || null;
         const trendReport = trendPayload.report || null;
         const leadsReport = leadsPayload.report || null;
         const benchmarkReport = benchmarkPayload.report || null;
+        const benchmarkRowsReport = benchmarkRowsPayload.report || null;
         const monthOptions = Array.isArray(breakdownReport?.options?.months) ? breakdownReport.options.months : [];
         const monthKeysFromOptions = monthOptions.map((month) => String(month?.key || "").trim()).filter(Boolean);
         const monthKeysFromFilters = Array.isArray(contextFilters?.monthKey) ? contextFilters.monthKey.filter(Boolean) : [];
@@ -415,6 +720,7 @@ export default function DashboardDetailsClientPage() {
             trendReport,
             leadsReport,
             benchmarkReport,
+            benchmarkRowsReport,
             last4Rows: [],
             last4Loading: last4MonthKeys.length > 0,
           });
@@ -462,6 +768,7 @@ export default function DashboardDetailsClientPage() {
             trendReport: null,
             leadsReport: null,
             benchmarkReport: null,
+            benchmarkRowsReport: null,
             last4Rows: [],
             last4Loading: false,
           });
@@ -475,6 +782,7 @@ export default function DashboardDetailsClientPage() {
     };
   }, [
     benchmarkQuery,
+    benchmarkRowsQuery,
     breakdownQuery,
     contextFilters,
     detailTarget.entityKey,
@@ -596,6 +904,11 @@ export default function DashboardDetailsClientPage() {
               <div className={styles.summaryValue}>{formatNumber(benchmarkMetrics.ftd)}</div>
             </div>
           </section>
+          <BenchmarkFocusTable
+            title="Benchmark Focus Table"
+            report={state.benchmarkRowsReport}
+            groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : ""}
+          />
           <section className={styles.dualGrid}>
             <DetailTable title="Daily Trend" report={state.trendReport} emptyMessage="No daily trend rows found." />
             <DetailTable
