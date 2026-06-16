@@ -108,6 +108,78 @@ function linkedFiltersFromRow(row = {}) {
   return next;
 }
 
+function filterValueText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function createdDatePart(value = "") {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const matched = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  return matched ? matched[1] : "";
+}
+
+function createdHourPart(value = "") {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const matched = text.match(/\b(\d{2}):\d{2}(?::\d{2})?\b/);
+  return matched ? matched[1] : "";
+}
+
+function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
+  const entries = Object.entries(linkedFilters || {});
+  if (!entries.length) {
+    return true;
+  }
+  return entries.every(([key, values]) => {
+    const expectedValues = (Array.isArray(values) ? values : [values]).map(filterValueText).filter(Boolean);
+    if (!expectedValues.length) {
+      return true;
+    }
+    const candidateValues = new Set();
+    const direct = filterValueText(row?.[key]);
+    if (direct) {
+      candidateValues.add(direct);
+    }
+    if (key === "date") {
+      const createdDate = filterValueText(createdDatePart(row?.created));
+      if (createdDate) {
+        candidateValues.add(createdDate);
+      }
+    }
+    if (key === "hour") {
+      const createdHour = filterValueText(createdHourPart(row?.created));
+      if (createdHour) {
+        candidateValues.add(createdHour);
+      }
+    }
+    if (!candidateValues.size) {
+      return true;
+    }
+    return expectedValues.some((expected) => candidateValues.has(expected));
+  });
+}
+
+function applyLinkedFiltersToReport(report = null, linkedFilters = {}) {
+  if (!report || !Array.isArray(report?.table)) {
+    return report;
+  }
+  const entries = Object.entries(linkedFilters || {});
+  if (!entries.length) {
+    return report;
+  }
+  const detailRows = report.table.filter((row) => row?.__rowKind !== "total");
+  const filteredRows = detailRows.filter((row) => rowMatchesLinkedFilters(row, linkedFilters));
+  return {
+    ...report,
+    table: filteredRows,
+  };
+}
+
 function resolveBestGroupKey(rows = [], columns = [], requestedKey = "") {
   const candidateKeys = [
     String(requestedKey || "").trim(),
@@ -874,7 +946,6 @@ export default function DashboardDetailsClientPage() {
     }
     const next = {
       ...contextFilters,
-      ...linkedFilters,
       reportMode: "specific",
       specificType: "builder",
       columnDimension: "",
@@ -897,7 +968,7 @@ export default function DashboardDetailsClientPage() {
       next.agent = [detailTarget.entityValue];
     }
     return next;
-  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue, linkedFilters]);
+  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue]);
 
   const trendFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
@@ -1169,7 +1240,24 @@ export default function DashboardDetailsClientPage() {
     trendQuery,
   ]);
 
-  const summary = state.breakdownReport?.summary || {};
+  const displayBreakdownReport = useMemo(
+    () => applyLinkedFiltersToReport(state.breakdownReport, linkedFilters),
+    [linkedFilters, state.breakdownReport],
+  );
+  const displayTrendReport = useMemo(
+    () => applyLinkedFiltersToReport(state.trendReport, linkedFilters),
+    [linkedFilters, state.trendReport],
+  );
+  const displayLeadsReport = useMemo(
+    () => applyLinkedFiltersToReport(state.leadsReport, linkedFilters),
+    [linkedFilters, state.leadsReport],
+  );
+  const displayBenchmarkRowsReport = useMemo(
+    () => applyLinkedFiltersToReport(state.benchmarkRowsReport, linkedFilters),
+    [linkedFilters, state.benchmarkRowsReport],
+  );
+
+  const summary = displayBreakdownReport?.summary || state.breakdownReport?.summary || {};
   const summaryItems = [
     { label: "Leads", value: formatNumber(summary.totalLeads || summary.leads || 0) },
     { label: "FTD", value: formatNumber(summary.totalFtd || summary.ftd || 0) },
@@ -1178,9 +1266,9 @@ export default function DashboardDetailsClientPage() {
     { label: "CR Target Reach", value: formatPercent(summary.crTargetReach || 0) },
     { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach || 0) },
   ];
-  const benchmarkMetrics = benchmarkMetricsFromReport(state.benchmarkReport);
+  const benchmarkMetrics = benchmarkMetricsFromReport(hasLinkedFilters ? displayBenchmarkRowsReport : state.benchmarkReport);
   const representativeRow = useMemo(() => {
-    const reports = [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport];
+    const reports = [displayBenchmarkRowsReport, displayBreakdownReport, displayLeadsReport];
     for (const report of reports) {
       const rows = Array.isArray(report?.table) ? report.table : [];
       const row = rows.find((item) => item?.__rowKind !== "total");
@@ -1189,7 +1277,7 @@ export default function DashboardDetailsClientPage() {
       }
     }
     return null;
-  }, [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport]);
+  }, [displayBenchmarkRowsReport, displayBreakdownReport, displayLeadsReport]);
   const officeLabel =
     (Array.isArray(contextFilters?.officeScope) && contextFilters.officeScope.length ? contextFilters.officeScope[0] : "") ||
     "-";
@@ -1332,7 +1420,7 @@ export default function DashboardDetailsClientPage() {
           </section>
           <BenchmarkFocusTable
             title="Benchmark Focus Table"
-            report={state.benchmarkRowsReport}
+            report={displayBenchmarkRowsReport}
             groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : ""}
             onSelectRow={handleLinkedRowSelection}
             selectedRowKey={selectedLinkedRowKey}
@@ -1340,7 +1428,7 @@ export default function DashboardDetailsClientPage() {
           <section className={styles.dualGrid}>
             <InteractiveDetailTable
               title="Daily Trend"
-              report={state.trendReport}
+              report={displayTrendReport}
               emptyMessage="No daily trend rows found."
               groupByKey="date"
               initialSortKey="date"
@@ -1350,7 +1438,7 @@ export default function DashboardDetailsClientPage() {
             />
             <InteractiveDetailTable
               title="Leads Sheet Fields"
-              report={state.leadsReport}
+              report={displayLeadsReport}
               emptyMessage="No leads rows found for selected filters."
               groupByKey="brand"
               initialSortKey="created"
@@ -1362,7 +1450,7 @@ export default function DashboardDetailsClientPage() {
           </section>
           <InteractiveDetailTable
             title="Traffic Report"
-            report={state.breakdownReport}
+            report={displayBreakdownReport}
             emptyMessage="No traffic rows found."
             groupByKey="country"
             initialSortKey="leads"
