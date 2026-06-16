@@ -92,6 +92,24 @@ function linkedFiltersFromRow(row = {}) {
   return next;
 }
 
+function resolveBestGroupKey(rows = [], columns = [], requestedKey = "") {
+  const candidateKeys = [
+    String(requestedKey || "").trim(),
+    ...columns.map((column) => String(column?.key || "").trim()),
+  ].filter(Boolean);
+  for (const key of candidateKeys) {
+    const distinct = new Set(
+      rows
+        .map((row) => String(row?.[key] || "").trim())
+        .filter((value) => hasMeaningfulValue(value)),
+    );
+    if (distinct.size > 1) {
+      return key;
+    }
+  }
+  return String(requestedKey || columns[0]?.key || "").trim();
+}
+
 function buildReportQuery(filters = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters || {})) {
@@ -314,7 +332,10 @@ function InteractiveDetailTable({
     });
   }, [detailRows, sortState.direction, sortState.key, sourceColumns]);
   const displayDetailRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
-  const effectiveGroupKey = String(groupByKey || sourceColumns[0]?.key || "").trim();
+  const effectiveGroupKey = useMemo(
+    () => resolveBestGroupKey(displayDetailRows, sourceColumns, groupByKey),
+    [displayDetailRows, groupByKey, sourceColumns],
+  );
   const groupedRows = useMemo(() => {
     if (!effectiveGroupKey) {
       return new Map([["__all__", displayDetailRows]]);
@@ -632,6 +653,7 @@ export default function DashboardDetailsClientPage() {
   const [contextFilters, setContextFilters] = useState(null);
   const [state, setState] = useState({
     loading: true,
+    refreshing: false,
     error: "",
     breakdownReport: null,
     trendReport: null,
@@ -837,6 +859,7 @@ export default function DashboardDetailsClientPage() {
     if (!detailTarget.valid) {
       setState({
         loading: false,
+        refreshing: false,
         error: "Missing details target. Go back and right-click a Desk, Team Leader, or Agent row.",
         breakdownReport: null,
         trendReport: null,
@@ -849,7 +872,18 @@ export default function DashboardDetailsClientPage() {
       return undefined;
     }
     const load = async () => {
-      setState((prev) => ({ ...prev, loading: true, error: "", last4Rows: [], last4Loading: false }));
+      setState((prev) => {
+        const hasExistingData = Boolean(
+          prev.breakdownReport || prev.trendReport || prev.leadsReport || prev.benchmarkRowsReport || prev.last4Rows.length,
+        );
+        return {
+          ...prev,
+          loading: !hasExistingData,
+          refreshing: hasExistingData,
+          error: "",
+          ...(hasExistingData ? {} : { last4Rows: [], last4Loading: false }),
+        };
+      });
       try {
         const [breakdownResponse, trendResponse, leadsResponse, benchmarkResponse] = await Promise.all([
           fetch(`/api/dashboard/report?${breakdownQuery}`, { cache: "no-store" }),
@@ -896,17 +930,19 @@ export default function DashboardDetailsClientPage() {
             .filter(([key]) => Boolean(key)),
         );
         if (!cancelled) {
-          setState({
+          setState((prev) => ({
+            ...prev,
             loading: false,
+            refreshing: false,
             error: "",
             breakdownReport,
             trendReport,
             leadsReport,
             benchmarkReport,
             benchmarkRowsReport,
-            last4Rows: [],
+            last4Rows: last4MonthKeys.length ? prev.last4Rows : [],
             last4Loading: last4MonthKeys.length > 0,
-          });
+          }));
         }
         if (!last4MonthKeys.length) {
           return;
@@ -938,22 +974,38 @@ export default function DashboardDetailsClientPage() {
         if (!cancelled) {
           setState((prev) => ({
             ...prev,
+            refreshing: false,
             last4Rows: monthSummaryRequests,
             last4Loading: false,
           }));
         }
       } catch (error) {
         if (!cancelled) {
-          setState({
-            loading: false,
-            error: error?.message || "Could not load details report.",
-            breakdownReport: null,
-            trendReport: null,
-            leadsReport: null,
-            benchmarkReport: null,
-            benchmarkRowsReport: null,
-            last4Rows: [],
-            last4Loading: false,
+          setState((prev) => {
+            const hasExistingData = Boolean(
+              prev.breakdownReport || prev.trendReport || prev.leadsReport || prev.benchmarkRowsReport || prev.last4Rows.length,
+            );
+            if (hasExistingData) {
+              return {
+                ...prev,
+                loading: false,
+                refreshing: false,
+                last4Loading: false,
+                error: error?.message || "Could not load details report.",
+              };
+            }
+            return {
+              loading: false,
+              refreshing: false,
+              error: error?.message || "Could not load details report.",
+              breakdownReport: null,
+              trendReport: null,
+              leadsReport: null,
+              benchmarkReport: null,
+              benchmarkRowsReport: null,
+              last4Rows: [],
+              last4Loading: false,
+            };
           });
         }
       }
@@ -1044,6 +1096,9 @@ export default function DashboardDetailsClientPage() {
       })),
     [state.last4Rows],
   );
+  const hasAnyData = Boolean(
+    state.breakdownReport || state.trendReport || state.leadsReport || state.benchmarkRowsReport || state.last4Rows.length,
+  );
 
   return (
     <main className={styles.page}>
@@ -1100,9 +1155,14 @@ export default function DashboardDetailsClientPage() {
         </div>
       </section>
 
-      {state.loading ? (
+      {state.loading && !hasAnyData ? (
         <section className={styles.panel}>
           <p className={styles.loading}>Loading detailed report...</p>
+        </section>
+      ) : null}
+      {state.refreshing ? (
+        <section className={styles.panel}>
+          <p className={styles.loading}>Updating tables according to selection...</p>
         </section>
       ) : null}
       {state.error ? (
@@ -1110,7 +1170,7 @@ export default function DashboardDetailsClientPage() {
           <p className={styles.error}>{state.error}</p>
         </section>
       ) : null}
-      {!state.loading && !state.error ? (
+      {hasAnyData ? (
         <>
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
             {summaryItems.map((item) => (
