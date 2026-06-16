@@ -280,3 +280,57 @@ test("last4 export uses grouped month headers and working position column", asyn
     String(worksheet.getCell("K1").fill?.fgColor?.argb || ""),
   );
 });
+
+test("excel export colors CR Target Reach above 200% as success", async () => {
+  const report = {
+    table: [
+      {
+        label: "Antigua",
+        totalLeads: 124,
+        totalFtd: 15,
+        ftdTarget: 0,
+        ftdTargetReach: 0,
+        cr: 12.1,
+        crTarget: 5,
+        crTargetReach: 241.94,
+        selfs: 0,
+        lateFtd: 0,
+      },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, {});
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+  const crReachCell = worksheet.getCell("H2");
+
+  assert.equal(String(crReachCell.fill?.fgColor?.argb || ""), "FFDCFCE7");
+  assert.equal(String(crReachCell.font?.color?.argb || ""), "FF166534");
+});
+
+test("excel export formats Missing FTD with report style", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columns: [
+        { key: "country", label: "Country", type: "text", kind: "dimension" },
+        { key: "missingFtd", label: "Missing FTD", type: "number", kind: "metric" },
+      ],
+    },
+    table: [
+      { country: "India", missingFtd: -8.8 },
+      { country: "Japan", missingFtd: 9.1 },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, {});
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(worksheet.getCell("B2").value, "+ 8,80 FTD");
+  assert.equal(String(worksheet.getCell("B2").fill?.fgColor?.argb || ""), "FF14532D");
+  assert.equal(worksheet.getCell("B3").value, "- 9,10 FTD");
+  assert.equal(String(worksheet.getCell("B3").fill?.fgColor?.argb || ""), "FF7F1D1D");
+});
