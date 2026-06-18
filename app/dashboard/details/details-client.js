@@ -1599,32 +1599,10 @@ export default function DashboardDetailsClientPage() {
     () => (benchmarkRowsFilters ? buildReportQuery(benchmarkRowsFilters).toString() : ""),
     [benchmarkRowsFilters],
   );
-  const monthSummaryBaseQuery = useMemo(() => {
-    if (!entityScopedBaseFilters || !detailTarget.entityKey) {
-      return "";
-    }
-    return buildReportQuery({
-      ...entityScopedBaseFilters,
-      rowDimensions: [detailTarget.entityKey],
-      metricFields: ["leads", "ftd", "ftdTarget", "cr", "crTarget", "crTargetReach", "ftdTargetReach"],
-      includeWorkTime: false,
-      benchmarkMode: false,
-      page: "1",
-      rowLimit: "40",
-    }).toString();
-  }, [detailTarget.entityKey, entityScopedBaseFilters]);
 
   useEffect(() => {
     let cancelled = false;
-    if (
-      !contextFilters ||
-      !breakdownQuery ||
-      !trendQuery ||
-      !leadsQuery ||
-      !benchmarkQuery ||
-      !benchmarkRowsQuery ||
-      !monthSummaryBaseQuery
-    ) {
+    if (!contextFilters || !breakdownQuery || !trendQuery || !leadsQuery || !benchmarkQuery || !benchmarkRowsQuery) {
       return undefined;
     }
     if (!detailTarget.valid) {
@@ -1656,33 +1634,50 @@ export default function DashboardDetailsClientPage() {
         };
       });
       try {
-        const bundleResponse = await fetch("/api/dashboard/details-bundle", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          cache: "no-store",
-          body: JSON.stringify({
-            breakdownQuery,
-            trendQuery,
-            leadsQuery,
-            benchmarkQuery,
-            benchmarkRowsQuery,
-            monthSummaryBaseQuery,
-            contextMonthKeys: Array.isArray(contextFilters?.monthKey) ? contextFilters.monthKey.filter(Boolean) : [],
-          }),
-        });
-        const bundlePayload = await readApiPayload(bundleResponse);
-        if (!bundleResponse.ok || bundlePayload?.ok === false) {
-          throw new Error(bundlePayload?.message || bundlePayload?.error || "Could not load detailed report bundle.");
+        const [breakdownResponse, trendResponse, leadsResponse, benchmarkResponse] = await Promise.all([
+          fetch(`/api/dashboard/report?${breakdownQuery}`, { cache: "no-store" }),
+          fetch(`/api/dashboard/report?${trendQuery}`, { cache: "no-store" }),
+          fetch(`/api/dashboard/report?${leadsQuery}`, { cache: "no-store" }),
+          fetch(`/api/dashboard/report?${benchmarkQuery}`, { cache: "no-store" }),
+        ]);
+        const benchmarkRowsPromise = fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" });
+        const [breakdownPayload, trendPayload, leadsPayload, benchmarkPayload] = await Promise.all([
+          readApiPayload(breakdownResponse),
+          readApiPayload(trendResponse),
+          readApiPayload(leadsResponse),
+          readApiPayload(benchmarkResponse),
+        ]);
+        const benchmarkRowsResponse = await benchmarkRowsPromise;
+        const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
+        if (!breakdownResponse.ok || breakdownPayload?.ok === false) {
+          throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load traffic report.");
         }
-        const payload = bundlePayload?.payload || {};
-        const breakdownReport = payload.breakdownReport || null;
-        const trendReport = payload.trendReport || null;
-        const leadsReport = payload.leadsReport || null;
-        const benchmarkReport = payload.benchmarkReport || null;
-        const benchmarkRowsReport = payload.benchmarkRowsReport || null;
-        const bundledLast4Rows = Array.isArray(payload.last4Rows) ? payload.last4Rows : [];
+        if (!trendResponse.ok || trendPayload?.ok === false) {
+          throw new Error(trendPayload?.message || trendPayload?.error || "Could not load trend report.");
+        }
+        if (!leadsResponse.ok || leadsPayload?.ok === false) {
+          throw new Error(leadsPayload?.message || leadsPayload?.error || "Could not load leads details table.");
+        }
+        if (!benchmarkResponse.ok || benchmarkPayload?.ok === false) {
+          throw new Error(benchmarkPayload?.message || benchmarkPayload?.error || "Could not load benchmark details.");
+        }
+        if (!benchmarkRowsResponse.ok || benchmarkRowsPayload?.ok === false) {
+          throw new Error(benchmarkRowsPayload?.message || benchmarkRowsPayload?.error || "Could not load benchmark rows table.");
+        }
+        const breakdownReport = breakdownPayload.report || null;
+        const trendReport = trendPayload.report || null;
+        const leadsReport = leadsPayload.report || null;
+        const benchmarkReport = benchmarkPayload.report || null;
+        const benchmarkRowsReport = benchmarkRowsPayload.report || null;
+        const monthOptions = Array.isArray(breakdownReport?.options?.months) ? breakdownReport.options.months : [];
+        const monthKeysFromOptions = monthOptions.map((month) => String(month?.key || "").trim()).filter(Boolean);
+        const monthKeysFromFilters = Array.isArray(contextFilters?.monthKey) ? contextFilters.monthKey.filter(Boolean) : [];
+        const last4MonthKeys = [...new Set(monthKeysFromOptions.length ? monthKeysFromOptions : monthKeysFromFilters)].slice(0, 4);
+        const monthLabelByKey = new Map(
+          monthOptions
+            .map((month) => [String(month?.key || "").trim(), String(month?.month_label || month?.label || month?.key || "").trim()])
+            .filter(([key]) => Boolean(key)),
+        );
         if (!cancelled) {
           setState((prev) => ({
             ...prev,
@@ -1694,7 +1689,42 @@ export default function DashboardDetailsClientPage() {
             leadsReport,
             benchmarkReport,
             benchmarkRowsReport,
-            last4Rows: bundledLast4Rows,
+            last4Rows: last4MonthKeys.length ? prev.last4Rows : [],
+            last4Loading: last4MonthKeys.length > 0,
+          }));
+        }
+        if (!last4MonthKeys.length) {
+          return;
+        }
+        const monthSummaryRequests = await Promise.all(
+          last4MonthKeys.map(async (monthKey) => {
+            const monthQuery = buildReportQuery({
+              ...entityScopedBaseFilters,
+              monthKey: [monthKey],
+              rowDimensions: [detailTarget.entityKey],
+              metricFields: ["leads", "ftd", "ftdTarget", "cr", "crTarget", "crTargetReach", "ftdTargetReach"],
+              includeWorkTime: false,
+              benchmarkMode: false,
+              page: "1",
+              rowLimit: "40",
+            }).toString();
+            const response = await fetch(`/api/dashboard/report?${monthQuery}`, { cache: "no-store" });
+            const payload = await readApiPayload(response);
+            if (!response.ok || payload?.ok === false) {
+              throw new Error(payload?.message || payload?.error || `Could not load ${monthKey} monthly summary.`);
+            }
+            return {
+              monthKey,
+              monthLabel: monthLabelByKey.get(monthKey) || monthKey,
+              summary: payload?.report?.summary || {},
+            };
+          }),
+        );
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            refreshing: false,
+            last4Rows: monthSummaryRequests,
             last4Loading: false,
           }));
         }
@@ -1742,7 +1772,6 @@ export default function DashboardDetailsClientPage() {
     detailTarget.entityKey,
     detailTarget.valid,
     entityScopedBaseFilters,
-    monthSummaryBaseQuery,
     leadsQuery,
     trendQuery,
   ]);
