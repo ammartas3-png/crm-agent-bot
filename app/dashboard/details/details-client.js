@@ -1363,6 +1363,7 @@ function BenchmarkFocusTable({
       tableId="benchmark-focus"
       onSelectRow={onSelectRow}
       selectedRowKey={selectedRowKey}
+      enableRowGroupCollapse={false}
     />
   );
 }
