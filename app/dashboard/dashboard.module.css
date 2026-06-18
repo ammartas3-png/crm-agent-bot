@@ -95,6 +95,29 @@
   background: #fff;
 }
 
+.exportButtonContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exportExcelLogo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  color: #ffffff;
+  background: #1d6f42;
+  border: 1px solid #155a34;
+}
+
 .pillRow {
   display: flex;
   flex-wrap: wrap;
@@ -392,6 +415,53 @@
   color: #64748b;
 }
 
+.dateRangeWrap {
+  min-width: 190px;
+}
+
+.dateRangeInputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dateRangeInput {
+  font-size: 12px;
+  padding: 6px 7px;
+}
+
+.dateRangeFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dateRangeSummary {
+  font-size: 11px;
+  color: #475569;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dateRangeClear {
+  border: 1px solid #c7d2de;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.dateRangeClear:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .inlineInfo {
   margin: 0;
   color: #1e40af;
@@ -446,6 +516,13 @@
   font-size: 13px;
 }
 
+.detailsHint {
+  margin: 0;
+  padding: 0 10px 8px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .cardGrid {
   display: grid;
   gap: 10px;
@@ -493,25 +570,27 @@
 .tableActionBar {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px 0;
+  padding: 6px 10px 2px;
 }
 
 .tableActionButton {
-  border: 1px solid #94a3b8;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 5px 10px;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 9px;
   cursor: pointer;
 }
 
 .tableActionButton:hover {
-  background: #e2e8f0;
-  border-color: #64748b;
+  background: #f3f6fb;
+  border-color: #93c5fd;
+  color: #1e3a8a;
 }
 
 .tableCollapsedHint {
@@ -523,6 +602,86 @@
   padding: 10px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.comparisonGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.comparisonHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid #4b5563;
+  background: #374151;
+}
+
+.comparisonTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.comparisonTable th {
+  background: #374151 !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #4b5563 !important;
+}
+
+.comparisonSortableHeader {
+  cursor: pointer;
+  user-select: none;
+}
+
+.comparisonTable {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.comparisonTable th:first-child,
+.comparisonTable td:first-child {
+  width: 40%;
+}
+
+.comparisonTable th:nth-child(2),
+.comparisonTable td:nth-child(2),
+.comparisonTable th:nth-child(3),
+.comparisonTable td:nth-child(3),
+.comparisonTable th:nth-child(4),
+.comparisonTable td:nth-child(4),
+.comparisonTable th:nth-child(5),
+.comparisonTable td:nth-child(5) {
+  width: 15%;
+}
+
+.comparisonTable th:not(:first-child),
+.comparisonTable td:not(:first-child) {
+  text-align: center;
+}
+
+.comparisonNameCell {
+  white-space: normal !important;
+}
+
+.comparisonNameText {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 .tableScroll {
@@ -571,22 +730,45 @@
 }
 
 .tableGroupRow td {
-  background: #f1f5f9;
-  border-bottom: 1px solid #dbe3ee;
-  padding: 4px 10px;
+  background: #fafbfd;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 2px 10px;
 }
 
 .tableGroupToggle {
   border: 0;
   background: transparent;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 700;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  padding: 2px 0;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.tableGroupToggle:hover {
+  background: #eef2f7;
+}
+
+.tableGroupToggle span:first-child {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tableGroupToggle span:last-child {
+  white-space: nowrap;
 }
 
 .tableInteractiveRow {
@@ -603,6 +785,34 @@
 
 .tableColumnGlow {
   box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.45);
+}
+
+.detailsContextMenu {
+  position: fixed;
+  z-index: 80;
+  min-width: 172px;
+  border: 1px solid #dbe4ee;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
+  padding: 6px;
+}
+
+.detailsContextMenuItem {
+  width: 100%;
+  border: 0;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.detailsContextMenuItem:hover {
+  background: #eff6ff;
 }
 
 .columnResizeHandle {
@@ -675,6 +885,59 @@
   border-left: 1px solid #bfdbfe !important;
 }
 
+.reportBuilderLocked {
+  pointer-events: none;
+  opacity: 0.84;
+}
+
+.agentProductivityTable {
+  min-width: 760px;
+}
+
+.agentProductivityTable th,
+.agentProductivityTable td {
+  border: 1px solid #8f9cab;
+  text-align: center;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.agentProductivityCountryRow th {
+  background: #c0c9d5 !important;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+  text-align: center !important;
+}
+
+.agentProductivityMonthRow th {
+  background: #c6ced9 !important;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.agentProductivityMetricCell {
+  background: #c0c9d5 !important;
+  color: #0f172a;
+  text-align: left !important;
+  font-weight: 700;
+  min-width: 270px;
+}
+
+.agentProductivityValueCell {
+  background: #ccebf9;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.agentProductivitySpacerRow td {
+  border: none;
+  background: #ffffff;
+  height: 14px;
+  padding: 0;
+}
+
 @media (max-width: 1500px) {
   .filterRows {
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -684,6 +947,10 @@
 @media (max-width: 1220px) {
   .filterRows {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .comparisonGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -704,6 +971,10 @@
   .reportModeCard {
     min-width: 0;
     width: calc(50% - 6px);
+  }
+
+  .comparisonGrid {
+    grid-template-columns: 1fr;
   }
 
   .officeGrid {
@@ -811,6 +1082,31 @@
   border-color: #16a34a;
   color: #166534;
   background: #f0fdf4;
+}
+
+.chipActiveLocked {
+  border-color: #2563eb !important;
+  color: #1e3a8a !important;
+  background: #dbeafe !important;
+}
+
+.chipActiveLocked .chipCheck {
+  background: #2563eb;
+}
+
+.chipActiveLocked .chipOrder {
+  border-color: #2563eb;
+  background: #bfdbfe;
+  color: #1e3a8a;
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.chipActiveLocked:disabled {
+  opacity: 1;
 }
 
 .chipInner {
