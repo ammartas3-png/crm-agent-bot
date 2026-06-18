@@ -155,3 +155,19 @@ test("resolveAuthorityScopeForUser reads rows via injected reader", async () => 
   assert.deepEqual(scope.filters.desk, ["Desk A"]);
   assert.deepEqual(scope.filters.officeOrDepartment, ["Desk A"]);
 });
+
+test("resolveAuthorityScopeForUser grants ALL scope for admins", async () => {
+  clearAuthorityScopeCache();
+  const scope = await resolveAuthorityScopeForUser(
+    { username: "antoniotsd" },
+    {
+      spreadsheetId: "authority-sheet",
+      readRows: async () => {
+        throw new Error("readRows should not be called for admins");
+      },
+    },
+  );
+  assert.equal(scope.allowed, true);
+  assert.equal(scope.unrestricted, true);
+  assert.deepEqual(scope.filters, {});
+});
