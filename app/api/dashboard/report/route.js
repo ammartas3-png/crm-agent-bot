@@ -4,7 +4,97 @@ import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js"
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 
 export const maxDuration = 300;
-const REPORT_ROUTE_TIMEOUT_MS = 55_000;
+const REPORT_ROUTE_TIMEOUT_MS = 240_000;
+const REPORT_CACHE_TTL_MS = 90_000;
+const REPORT_CACHE_MAX_ENTRIES = 40;
+const reportCache = new Map();
+const reportInflight = new Map();
+
+function stableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .reduce((acc, key) => {
+        acc[key] = stableValue(value[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
+function reportCacheKey(access = {}, query = {}) {
+  return JSON.stringify({
+    permissionFilters: stableValue(access?.permissionFilters || {}),
+    query: stableValue(query || {}),
+  });
+}
+
+function pruneReportCache() {
+  if (reportCache.size <= REPORT_CACHE_MAX_ENTRIES) {
+    return;
+  }
+  const oldest = [...reportCache.entries()].sort(
+    (left, right) => Number(left[1]?.timestamp || 0) - Number(right[1]?.timestamp || 0),
+  );
+  while (reportCache.size > REPORT_CACHE_MAX_ENTRIES && oldest.length) {
+    const [key] = oldest.shift();
+    reportCache.delete(key);
+  }
+}
+
+function readReportCache(key = "") {
+  if (!key) {
+    return null;
+  }
+  const cached = reportCache.get(key);
+  if (!cached) {
+    return null;
+  }
+  if (Date.now() - Number(cached.timestamp || 0) >= REPORT_CACHE_TTL_MS) {
+    reportCache.delete(key);
+    return null;
+  }
+  return cached.report || null;
+}
+
+function writeReportCache(key = "", report = null) {
+  if (!key || !report) {
+    return;
+  }
+  reportCache.set(key, {
+    timestamp: Date.now(),
+    report,
+  });
+  pruneReportCache();
+}
+
+async function loadReportWithCache(key = "", loader) {
+  const cached = readReportCache(key);
+  if (cached) {
+    return cached;
+  }
+  if (key && reportInflight.has(key)) {
+    return reportInflight.get(key);
+  }
+  const pending = Promise.resolve()
+    .then(() => loader())
+    .then((report) => {
+      writeReportCache(key, report);
+      return report;
+    })
+    .finally(() => {
+      if (key && reportInflight.get(key) === pending) {
+        reportInflight.delete(key);
+      }
+    });
+  if (key) {
+    reportInflight.set(key, pending);
+  }
+  return pending;
+}
 
 function reportTimeoutError(timeoutMs) {
   const error = new Error("Report request timed out before completion.");
@@ -40,7 +130,7 @@ function statusForRouteError(error) {
 
 function messageForRouteError(error) {
   if (error?.code === "report_timeout") {
-    return "Report timed out while loading Google Sheets. Narrow Date/Country/Campaign filters and retry.";
+    return "Report timed out while loading Google Sheets. Narrow Date/Country/Campaign filters and retry, or wait a moment and retry.";
   }
   return error?.message || "Could not load report.";
 }
@@ -85,7 +175,11 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = queryParams(new URL(request.url).searchParams);
-    const report = await withTimeout(loadDashboardReport(resolved.access, query), REPORT_ROUTE_TIMEOUT_MS);
+    const cacheKey = reportCacheKey(resolved.access, query);
+    const report = await withTimeout(
+      loadReportWithCache(cacheKey, () => loadDashboardReport(resolved.access, query)),
+      REPORT_ROUTE_TIMEOUT_MS,
+    );
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     const status = statusForRouteError(error);
