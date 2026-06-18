@@ -4131,6 +4131,12 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      const comparisonReportView =
+        quickPreset === "comparison-report" && String(reportState?.report?.tableType || "") === "builder";
+      if (comparisonReportView) {
+        query.set("comparisonMode", "1");
+        query.set("comparisonSelections", JSON.stringify(comparisonSelections || {}));
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4152,7 +4158,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, comparisonSelections, quickPreset, reportState?.report?.tableType]);
 
   const report = reportState.report;
   const options = report?.options || {};

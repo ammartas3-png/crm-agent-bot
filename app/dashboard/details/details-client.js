@@ -1846,6 +1846,11 @@ export default function DashboardDetailsClientPage() {
           <button type="button" className={styles.backButton} onClick={() => router.push("/dashboard")}>
             ← Back to Dashboard
           </button>
+          {hasLinkedFilters ? (
+            <button type="button" className={styles.actionButton} onClick={handleClearLinkedFilters}>
+              Clear
+            </button>
+          ) : null}
         </div>
         <h1 className={styles.title}>Detailed Report</h1>
         <p className={styles.subtitle}>
@@ -1886,11 +1891,6 @@ export default function DashboardDetailsClientPage() {
           ) : (
             <span className={styles.inlineHint}>None (click a row in any table to filter all tables)</span>
           )}
-          {hasLinkedFilters ? (
-            <button type="button" className={styles.actionButton} onClick={handleClearLinkedFilters}>
-              Clear Linked Filter
-            </button>
-          ) : null}
         </div>
       </section>
 

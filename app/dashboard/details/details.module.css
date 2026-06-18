@@ -186,7 +186,7 @@
 
 .table th {
   text-align: left;
-  font-size: 12px;
+  font-size: calc(12px + 2pt);
   color: #ffffff;
   background: #334155;
   border-bottom: 1px solid #475569;

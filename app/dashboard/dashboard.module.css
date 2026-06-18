@@ -650,6 +650,10 @@
   font-size: 12px;
 }
 
+.comparisonTable th {
+  font-size: calc(12px + 2pt);
+}
+
 .comparisonTable th:first-child,
 .comparisonTable td:first-child {
   width: 40%;
@@ -699,7 +703,7 @@
   text-align: left;
   padding: 9px 12px;
   border-bottom: 1px solid #dbe3ee;
-  font-size: 12px;
+  font-size: calc(12px + 2pt);
   background: #f6f8fb;
   color: #334155;
   white-space: nowrap;
