@@ -105,6 +105,14 @@ function linkedFiltersFromRow(row = {}) {
     }
     next[key] = [value];
   }
+  const createdDate = normalizeDateValue(row?.created);
+  if (!next.date && createdDate) {
+    next.date = [createdDate];
+  }
+  const createdHour = normalizeHourValue(createdHourPart(row?.created));
+  if (!next.hour && createdHour) {
+    next.hour = [`${createdHour}:00`];
+  }
   return next;
 }
 
@@ -220,7 +228,7 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
       }
     }
     if (!candidateValues.size) {
-      return true;
+      return false;
     }
     return expectedValues.some((expected) => candidateValues.has(expected));
   });
