@@ -37,10 +37,25 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = dashboardQueryParams(new URL(request.url).searchParams);
-    const reportHash = reportCacheHash(resolved.access, query);
+    let reportHash = "";
+    try {
+      reportHash = reportCacheHash(resolved.access, query);
+      dashboardPerfLog("CACHE_KEY_GENERATED", {
+        route: "dashboard/export",
+        prefix: "report",
+        hashPrefix: String(reportHash || "").slice(0, 16),
+      });
+    } catch (error) {
+      dashboardPerfLog("CACHE_KEY_GENERATION_FAILED", {
+        route: "dashboard/export",
+        message: String(error?.message || error || ""),
+        stack: String(error?.stack || ""),
+      });
+      reportHash = "";
+    }
     const report = await loadWithCacheSingleflight({
-      freshKey: `report:${reportHash}`,
-      staleKey: `report:stale:${reportHash}`,
+      freshKey: reportHash ? `report:${reportHash}` : "",
+      staleKey: reportHash ? `report:stale:${reportHash}` : "",
       freshTtlSeconds: REPORT_CACHE_TTL_SECONDS,
       staleTtlSeconds: REPORT_STALE_TTL_SECONDS,
       cacheScope: "report",
@@ -67,6 +82,13 @@ export async function GET(request) {
     });
     return response;
   } catch (error) {
+    dashboardPerfLog("REPORT_ROUTE_ERROR", {
+      route: "dashboard/export",
+      code: String(error?.code || ""),
+      stage: String(error?.stage || ""),
+      message: String(error?.message || ""),
+      stack: String(error?.stack || ""),
+    });
     return NextResponse.json(
       {
         ok: false,

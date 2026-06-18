@@ -68,9 +68,24 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = dashboardQueryParams(new URL(request.url).searchParams);
-    const reportHash = reportCacheHash(resolved.access, query);
-    const freshKey = `report:${reportHash}`;
-    const staleKey = `report:stale:${reportHash}`;
+    let reportHash = "";
+    try {
+      reportHash = reportCacheHash(resolved.access, query);
+      dashboardPerfLog("CACHE_KEY_GENERATED", {
+        route: "dashboard/report",
+        prefix: "report",
+        hashPrefix: String(reportHash || "").slice(0, 16),
+      });
+    } catch (error) {
+      dashboardPerfLog("CACHE_KEY_GENERATION_FAILED", {
+        route: "dashboard/report",
+        message: String(error?.message || error || ""),
+        stack: String(error?.stack || ""),
+      });
+      reportHash = "";
+    }
+    const freshKey = reportHash ? `report:${reportHash}` : "";
+    const staleKey = reportHash ? `report:stale:${reportHash}` : "";
     dashboardPerfLog("REPORT_REQUEST", {
       reportMode: query.reportMode || "monthly",
       officeScope: query.officeScope || "",
@@ -95,6 +110,13 @@ export async function GET(request) {
     });
     return NextResponse.json({ ok: true, report });
   } catch (error) {
+    dashboardPerfLog("REPORT_ROUTE_ERROR", {
+      route: "dashboard/report",
+      code: String(error?.code || ""),
+      stage: String(error?.stage || ""),
+      message: String(error?.message || ""),
+      stack: String(error?.stack || ""),
+    });
     if (error?.code === "report_timeout") {
       dashboardPerfLog("GOOGLE_SHEETS_TIMEOUT", { route: "dashboard/report", timeoutMs: REPORT_ROUTE_TIMEOUT_MS });
     }

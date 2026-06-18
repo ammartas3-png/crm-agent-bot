@@ -83,23 +83,38 @@ export async function POST(request) {
       );
     }
 
-    const cacheHash = hashStableValue({
-      permissionFilters: stableValue(resolved.access?.permissionFilters || {}),
-      bundle: {
-        breakdownQuery,
-        trendQuery,
-        leadsQuery,
-        benchmarkQuery,
-        benchmarkRowsQuery,
-        monthSummaryBaseQuery,
-        contextMonthKeys,
-      },
-    });
+    let cacheHash = "";
+    try {
+      cacheHash = hashStableValue({
+        permissionFilters: stableValue(resolved.access?.permissionFilters || {}),
+        bundle: {
+          breakdownQuery,
+          trendQuery,
+          leadsQuery,
+          benchmarkQuery,
+          benchmarkRowsQuery,
+          monthSummaryBaseQuery,
+          contextMonthKeys,
+        },
+      });
+      dashboardPerfLog("CACHE_KEY_GENERATED", {
+        route: "dashboard/details-bundle",
+        prefix: "report",
+        hashPrefix: String(cacheHash || "").slice(0, 16),
+      });
+    } catch (error) {
+      dashboardPerfLog("CACHE_KEY_GENERATION_FAILED", {
+        route: "dashboard/details-bundle",
+        message: String(error?.message || error || ""),
+        stack: String(error?.stack || ""),
+      });
+      cacheHash = "";
+    }
 
     const payload = await withTimeout(
       loadWithCacheSingleflight({
-        freshKey: `report:${cacheHash}`,
-        staleKey: `report:stale:${cacheHash}`,
+        freshKey: cacheHash ? `report:${cacheHash}` : "",
+        staleKey: cacheHash ? `report:stale:${cacheHash}` : "",
         freshTtlSeconds: DETAILS_BUNDLE_CACHE_TTL_SECONDS,
         staleTtlSeconds: DETAILS_BUNDLE_STALE_TTL_SECONDS,
         cacheScope: "report-bundle",
@@ -167,6 +182,13 @@ export async function POST(request) {
       payload,
     });
   } catch (error) {
+    dashboardPerfLog("REPORT_ROUTE_ERROR", {
+      route: "dashboard/details-bundle",
+      code: String(error?.code || ""),
+      stage: String(error?.stage || ""),
+      message: String(error?.message || ""),
+      stack: String(error?.stack || ""),
+    });
     if (error?.code === "report_timeout") {
       dashboardPerfLog("GOOGLE_SHEETS_TIMEOUT", { route: "dashboard/details-bundle", timeoutMs: DETAILS_BUNDLE_TIMEOUT_MS });
     }
