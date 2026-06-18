@@ -1781,6 +1781,18 @@ function numberOrZero(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function formatMissingFtdLabel(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+  const absFormatted = Math.abs(numeric).toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${numeric <= 0 ? "+" : "-"} ${absFormatted} FTD`;
+}
+
 function monthDaysFromMonthKey(monthKey = "") {
   const matched = String(monthKey || "")
     .trim()
@@ -2119,6 +2131,30 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
       const payload = {};
       const primaryLabel = collapseMeta.primaryLabelByKey.get(primaryKey) || "-";
       const secondaryLabel = secondaryKey ? collapseMeta.secondaryLabelByKey.get(secondaryKey) || "-" : "-";
+      const metricKeyFromColumnKey = (columnKey = "") => {
+        const safeKey = String(columnKey || "");
+        const markerIndex = safeKey.lastIndexOf("__");
+        return markerIndex >= 0 ? safeKey.slice(markerIndex + 2) : safeKey;
+      };
+      const siblingMetricColumnKey = (columnKey = "", metricKey = "") => {
+        const safeKey = String(columnKey || "");
+        const markerIndex = safeKey.lastIndexOf("__");
+        return markerIndex >= 0 ? `${safeKey.slice(0, markerIndex)}__${metricKey}` : metricKey;
+      };
+      const sumMetric = (metricColumnKey = "") =>
+        sourceRows.reduce((sum, row) => sum + numberOrZero(row?.[metricColumnKey]), 0);
+      const weightedPercent = (percentColumnKey = "", weightColumnKey = "") => {
+        const totalWeight = sumMetric(weightColumnKey);
+        if (totalWeight <= 0) {
+          return 0;
+        }
+        const weightedSum = sourceRows.reduce((sum, row) => {
+          const percentValue = numberOrZero(row?.[percentColumnKey]);
+          const weightValue = numberOrZero(row?.[weightColumnKey]);
+          return sum + (percentValue * weightValue) / 100;
+        }, 0);
+        return (weightedSum / totalWeight) * 100;
+      };
       for (const column of columns) {
         if (column.kind === "dimension") {
           if (level === "primary") {
@@ -2135,10 +2171,46 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           continue;
         }
         if (column.type === "number") {
-          payload[column.key] = sourceRows.reduce((sum, row) => sum + Number(row?.[column.key] || 0), 0);
+          payload[column.key] = sumMetric(column.key);
           continue;
         }
         if (column.type === "percent") {
+          const metricKey = metricKeyFromColumnKey(column.key);
+          if (metricKey === "leadShare") {
+            payload[column.key] = sumMetric(column.key);
+            continue;
+          }
+          if (metricKey === "ftdTargetReach") {
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            const ftdTargetValue = sumMetric(siblingMetricColumnKey(column.key, "ftdTarget"));
+            payload[column.key] = ftdTargetValue > 0 ? (ftdValue / ftdTargetValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "cr") {
+            const leadsValue = sumMetric(siblingMetricColumnKey(column.key, "leads"));
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            payload[column.key] = leadsValue > 0 ? (ftdValue / leadsValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "crTarget") {
+            payload[column.key] = weightedPercent(column.key, siblingMetricColumnKey(column.key, "leads"));
+            continue;
+          }
+          if (metricKey === "crTargetReach") {
+            const leadsColumnKey = siblingMetricColumnKey(column.key, "leads");
+            const leadsValue = sumMetric(leadsColumnKey);
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            const crValue = leadsValue > 0 ? (ftdValue / leadsValue) * 100 : 0;
+            const crTargetValue = weightedPercent(siblingMetricColumnKey(column.key, "crTarget"), leadsColumnKey);
+            payload[column.key] = crTargetValue > 0 ? (crValue / crTargetValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "lateFtdRatio") {
+            const lateFtdValue = sumMetric(siblingMetricColumnKey(column.key, "lateFtd"));
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            payload[column.key] = ftdValue > 0 ? (lateFtdValue / ftdValue) * 100 : 0;
+            continue;
+          }
           const numericValues = sourceRows.map((row) => Number(row?.[column.key])).filter((value) => Number.isFinite(value));
           payload[column.key] = numericValues.length ? numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length : 0;
           continue;
@@ -2353,7 +2425,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                           }
                         : null;
                       const displayValue = isMissingFtd
-                        ? `${missingValue <= 0 ? "+" : "-"} ${formatNumber(Math.round(Math.abs(missingValue)))} FTD`
+                        ? formatMissingFtdLabel(missingValue)
                         : formatBuilderCell(value, column.type);
                       return (
                         <td
@@ -2413,9 +2485,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                             color: "#ffffff",
                           }
                         : null;
-                      const missingDisplayValue = `${missingValue <= 0 ? "+" : "-"} ${formatNumber(
-                        Math.round(Math.abs(missingValue)),
-                      )} FTD`;
+                      const missingDisplayValue = formatMissingFtdLabel(missingValue);
                       const displayValue = isHistoricalBeforeStartMonth
                         ? ""
                         : isMissingFtd
@@ -2757,6 +2827,12 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
             const crValue = leadsValue > 0 ? (ftdValue / leadsValue) * 100 : 0;
             const crTargetValue = weightedPercent(siblingMetricColumnKey(column.key, "crTarget"), leadsColumnKey);
             payload[column.key] = crTargetValue > 0 ? (crValue / crTargetValue) * 100 : 0;
+            continue;
+          }
+          if (metricKey === "lateFtdRatio") {
+            const lateFtdValue = sumMetric(siblingMetricColumnKey(column.key, "lateFtd"));
+            const ftdValue = sumMetric(siblingMetricColumnKey(column.key, "ftd"));
+            payload[column.key] = ftdValue > 0 ? (lateFtdValue / ftdValue) * 100 : 0;
             continue;
           }
           const values = sourceRows.map((row) => Number(row?.[column.key])).filter((value) => Number.isFinite(value));

@@ -361,6 +361,10 @@ function compareSortableValues(leftValue, rightValue, columnType = "text") {
 }
 
 function formatCellValue(column = {}, value) {
+  const keyLower = String(column?.key || "").toLowerCase();
+  if (keyLower === "missingftd" || keyLower.endsWith("__missingftd")) {
+    return formatMissingFtdValue(value);
+  }
   if (column.type === "number") {
     return formatNumber(value);
   }
@@ -372,6 +376,9 @@ function formatCellValue(column = {}, value) {
 
 function tableCellStyle(column = {}, value) {
   const keyLower = String(column.key || "").toLowerCase();
+  if (keyLower === "missingftd" || keyLower.endsWith("__missingftd")) {
+    return missingFtdCellStyle(value);
+  }
   const isTargetReach = keyLower.includes("targetreach");
   if (isTargetReach) {
     return reachCellStyle(value);
@@ -385,7 +392,40 @@ function tableCellStyle(column = {}, value) {
   return null;
 }
 
+function formatMissingFtdValue(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return "-";
+  }
+  const absFormatted = Math.abs(numeric).toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${numeric <= 0 ? "+" : "-"} ${absFormatted} FTD`;
+}
+
+function missingFtdCellStyle(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  if (numeric <= 0) {
+    return { background: "#14532d", color: "#ffffff", fontWeight: 700 };
+  }
+  return { background: "#7f1d1d", color: "#ffffff", fontWeight: 700 };
+}
+
 function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "", groupLabel = "") {
+  const metricKeyFromColumnKey = (columnKey = "") => {
+    const safeKey = String(columnKey || "");
+    const markerIndex = safeKey.lastIndexOf("__");
+    return markerIndex >= 0 ? safeKey.slice(markerIndex + 2) : safeKey;
+  };
+  const siblingMetricColumnKey = (columnKey = "", metricKey = "") => {
+    const safeKey = String(columnKey || "");
+    const markerIndex = safeKey.lastIndexOf("__");
+    return markerIndex >= 0 ? `${safeKey.slice(0, markerIndex)}__${metricKey}` : metricKey;
+  };
   const sumBy = (key = "") =>
     rows.reduce((sum, row) => {
       const numeric = parseMaybeNumber(row?.[key]);
@@ -412,7 +452,7 @@ function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "",
   const summary = {};
   for (const column of columns) {
     const key = String(column.key || "");
-    const keyLower = key.toLowerCase();
+    const metricKey = metricKeyFromColumnKey(key).toLowerCase();
     if (key === groupByKey) {
       summary[key] = groupLabel ? `${groupLabel} Total` : "Total";
       continue;
@@ -422,18 +462,41 @@ function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "",
       continue;
     }
     if (column.type === "percent") {
-      if (keyLower === "cr" && leadsSum > 0) {
+      if (metricKey === "leadshare") {
+        summary[key] = sumBy(key);
+        continue;
+      }
+      if (metricKey === "cr" && leadsSum > 0) {
         summary[key] = (ftdSum / leadsSum) * 100;
         continue;
       }
-      if (keyLower === "ftdtargetreach" && ftdTargetSum > 0) {
+      if (metricKey === "ftdtargetreach" && ftdTargetSum > 0) {
         summary[key] = (ftdSum / ftdTargetSum) * 100;
         continue;
       }
-      if (keyLower === "crtargetreach") {
+      if (metricKey === "crtarget") {
+        const leadsColumnKey = siblingMetricColumnKey(key, "leads");
+        const totalLeadsWeight = sumBy(leadsColumnKey);
+        if (totalLeadsWeight > 0) {
+          const weightedTarget = rows.reduce((sum, row) => {
+            const crTarget = parseMaybeNumber(row?.[key]) ?? 0;
+            const leads = parseMaybeNumber(row?.[leadsColumnKey]) ?? 0;
+            return sum + crTarget * leads;
+          }, 0);
+          summary[key] = weightedTarget / totalLeadsWeight;
+          continue;
+        }
+      }
+      if (metricKey === "crtargetreach") {
         const crValue = leadsSum > 0 ? (ftdSum / leadsSum) * 100 : averageBy("cr");
         const crTarget = weightedCrTarget > 0 ? weightedCrTarget : averageBy("crTarget");
         summary[key] = crTarget > 0 ? (crValue / crTarget) * 100 : averageBy(key);
+        continue;
+      }
+      if (metricKey === "lateftdratio") {
+        const lateFtdValue = sumBy(siblingMetricColumnKey(key, "lateFtd"));
+        const ftdValue = sumBy(siblingMetricColumnKey(key, "ftd"));
+        summary[key] = ftdValue > 0 ? (lateFtdValue / ftdValue) * 100 : 0;
         continue;
       }
       summary[key] = averageBy(key);
@@ -442,6 +505,8 @@ function buildCollapsedGroupSummaryRow(rows = [], columns = [], groupByKey = "",
     const uniqueValues = [...new Set(rows.map((row) => String(row?.[key] || "").trim()).filter(hasMeaningfulValue))];
     summary[key] = uniqueValues.length === 1 ? uniqueValues[0] : "-";
   }
+  summary.__rowKind = "total";
+  summary.__collapsedSummary = true;
   return summary;
 }
 
@@ -1081,6 +1146,38 @@ function HierarchicalTrafficTable({
       const groupSummary = buildCollapsedGroupSummaryRow(groupRows, sourceColumns, activeGroupKeys[depth], groupLabel);
       const groupRowKey = `${tableId}:group:${depth}:${groupKey}`;
       const groupSelected = selectedRowKey === groupRowKey;
+      if (collapsed) {
+        return (
+          <tr
+            key={`traffic-group-summary-${index}-${depth}`}
+            className={`${styles.totalRow} ${styles.selectableRow} ${groupSelected ? styles.selectedRow : ""}`}
+            onClick={() => onSelectRow?.(groupRowKey, groupSummary)}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              toggleDepthGroup(depth, groupKey);
+            }}
+          >
+            {sourceColumns.map((column) => {
+              const value = groupSummary?.[column.key];
+              const style = tableCellStyle(column, value);
+              const isToggleColumn = column.key === activeGroupKeys[depth];
+              const fallbackLabel = `${groupLabel} Total`;
+              return (
+                <td key={`traffic-group-summary-${index}-${depth}-${column.key}`} style={style || undefined}>
+                  {isToggleColumn ? (
+                    <span className={styles.groupButton} style={depth > 0 ? { paddingLeft: 14 * depth } : undefined}>
+                      <span>▶</span>
+                      <span>{String(value || fallbackLabel)}</span>
+                    </span>
+                  ) : (
+                    formatCellValue(column, value)
+                  )}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      }
       return (
         <tr
           key={`traffic-group-${index}-${depth}`}
