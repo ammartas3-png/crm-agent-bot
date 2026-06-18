@@ -719,22 +719,40 @@ function InteractiveDetailTable({
                 ? effectiveGroupKey
                 : sourceColumns[0]?.key || "";
               const collapsedSummary = buildCollapsedGroupSummaryRow(rows, sourceColumns, collapseKey, groupLabel);
+              const groupRowKey = `${tableId || title}:group:${groupLabel}`;
+              const groupSelected = selectedRowKey === groupRowKey;
               const headerRow =
                 canGroupCollapse
                   ? [
-                      <tr key={`group-${title}-${groupLabel}-${groupIndex}`} className={styles.groupRow}>
+                      <tr
+                        key={`group-${title}-${groupLabel}-${groupIndex}`}
+                        className={`${styles.groupRow} ${styles.selectableRow} ${groupSelected ? styles.selectedRow : ""}`}
+                        onClick={() => onSelectRow?.(groupRowKey, collapsedSummary)}
+                        onDoubleClick={(event) => {
+                          event.stopPropagation();
+                          toggleGroup(groupLabel);
+                        }}
+                      >
                         <td colSpan={sourceColumns.length || 1}>
-                          <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                          <span className={styles.groupButton} style={{ cursor: "pointer", userSelect: "none" }}>
                             <span>{collapsed ? "▶" : "▼"}</span>
                             <span>{groupLabel}</span>
-                          </button>
+                          </span>
                         </td>
                       </tr>,
                     ]
                   : [];
               if (collapsed) {
                 return [
-                  <tr key={`collapsed-${title}-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
+                  <tr
+                    key={`collapsed-${title}-${groupLabel}-${groupIndex}`}
+                    className={`${styles.totalRow} ${styles.selectableRow} ${groupSelected ? styles.selectedRow : ""}`}
+                    onClick={() => onSelectRow?.(groupRowKey, collapsedSummary)}
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      toggleGroup(groupLabel);
+                    }}
+                  >
                     {sourceColumns.map((column) => {
                       const value = collapsedSummary[column.key];
                       const style = tableCellStyle(column, value);
@@ -742,10 +760,10 @@ function InteractiveDetailTable({
                       return (
                         <td key={`collapsed-${title}-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
                           {isToggleColumn ? (
-                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                            <span className={styles.groupButton} style={{ cursor: "pointer", userSelect: "none" }}>
                               <span>▶</span>
                               <span>{String(value || `${groupLabel} Total`)}</span>
-                            </button>
+                            </span>
                           ) : (
                             formatCellValue(column, value)
                           )}
@@ -865,6 +883,8 @@ function HierarchicalTrafficTable({
   const groupMeta = useMemo(() => {
     const depthCount = activeGroupKeys.length;
     const depthOrder = Array.from({ length: depthCount }, () => []);
+    const depthRowsMaps = Array.from({ length: depthCount }, () => new Map());
+    const depthLabelMaps = Array.from({ length: depthCount }, () => new Map());
     const rowMetaByIndex = displayRows.map(() => null);
     const previousDepthKeys = Array(depthCount).fill("");
     displayRows.forEach((row, index) => {
@@ -880,12 +900,21 @@ function HierarchicalTrafficTable({
         if (!depthOrder[depth].includes(key)) {
           depthOrder[depth].push(key);
         }
+        if (!depthRowsMaps[depth].has(key)) {
+          depthRowsMaps[depth].set(key, []);
+        }
+        depthRowsMaps[depth].get(key).push(row);
+        if (!depthLabelMaps[depth].has(key)) {
+          depthLabelMaps[depth].set(key, parts[depth] || "-");
+        }
       }
       rowMetaByIndex[index] = { keys, starts, parts };
     });
     return {
       depthCount,
       depthOrder,
+      depthRowsMaps,
+      depthLabelMaps,
       rowMetaByIndex,
     };
   }, [activeGroupKeys, displayRows]);
@@ -1031,22 +1060,30 @@ function HierarchicalTrafficTable({
     const headers = headerDepths.map((depth) => {
       const groupKey = rowMeta.keys[depth];
       const collapsed = isGroupCollapsed(depth, groupKey);
-      const label = `${groupColumns[depth]?.label || activeGroupKeys[depth]}: ${rowMeta.parts[depth] || "-"}`;
+      const groupLabel = groupMeta.depthLabelMaps[depth]?.get(groupKey) || rowMeta.parts[depth] || "-";
+      const label = `${groupColumns[depth]?.label || activeGroupKeys[depth]}: ${groupLabel}`;
+      const groupRows = groupMeta.depthRowsMaps[depth]?.get(groupKey) || [];
+      const groupSummary = buildCollapsedGroupSummaryRow(groupRows, sourceColumns, activeGroupKeys[depth], groupLabel);
+      const groupRowKey = `${tableId}:group:${depth}:${groupKey}`;
+      const groupSelected = selectedRowKey === groupRowKey;
       return (
-        <tr key={`traffic-group-${index}-${depth}`} className={styles.groupRow}>
+        <tr
+          key={`traffic-group-${index}-${depth}`}
+          className={`${styles.groupRow} ${styles.selectableRow} ${groupSelected ? styles.selectedRow : ""}`}
+          onClick={() => onSelectRow?.(groupRowKey, groupSummary)}
+          onDoubleClick={(event) => {
+            event.stopPropagation();
+            toggleDepthGroup(depth, groupKey);
+          }}
+        >
           <td colSpan={sourceColumns.length || 1}>
-            <button
-              type="button"
+            <span
               className={styles.groupButton}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleDepthGroup(depth, groupKey);
-              }}
               style={depth > 0 ? { paddingLeft: 14 * depth } : undefined}
             >
               <span>{collapsed ? "▶" : "▼"}</span>
               <span>{label}</span>
-            </button>
+            </span>
           </td>
         </tr>
       );
