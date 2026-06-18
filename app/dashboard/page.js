@@ -639,7 +639,15 @@ async function readApiPayload(response) {
   try {
     return JSON.parse(rawText);
   } catch {
-    if (rawText.includes("__next_error__") || rawText.toLowerCase().includes("<!doctype html")) {
+    const normalizedRaw = rawText.toLowerCase();
+    if (normalizedRaw.includes("function_invocation_timeout")) {
+      return {
+        ok: false,
+        error: "report_timeout",
+        message: "Report timed out on server. Narrow Date/Country/Campaign filters and retry.",
+      };
+    }
+    if (rawText.includes("__next_error__") || normalizedRaw.includes("<!doctype html")) {
       return {
         ok: false,
         error: "server_error_html_response",

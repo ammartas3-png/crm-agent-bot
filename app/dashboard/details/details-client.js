@@ -290,6 +290,21 @@ async function readApiPayload(response) {
   try {
     return JSON.parse(rawText);
   } catch {
+    const normalizedRaw = rawText.toLowerCase();
+    if (normalizedRaw.includes("function_invocation_timeout")) {
+      return {
+        ok: false,
+        error: "report_timeout",
+        message: "Report timed out on server. Narrow Date/Country/Campaign filters and retry.",
+      };
+    }
+    if (rawText.includes("__next_error__") || normalizedRaw.includes("<!doctype html")) {
+      return {
+        ok: false,
+        error: "server_error_html_response",
+        message: "Server error occurred while loading report. Please retry. If it continues, reduce selected filters.",
+      };
+    }
     const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 180);
     return {
       ok: false,

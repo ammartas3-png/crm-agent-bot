@@ -3,7 +3,47 @@ import { NextResponse } from "next/server";
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
+const REPORT_ROUTE_TIMEOUT_MS = 55_000;
+
+function reportTimeoutError(timeoutMs) {
+  const error = new Error("Report request timed out before completion.");
+  error.code = "report_timeout";
+  error.timeoutMs = timeoutMs;
+  return error;
+}
+
+function withTimeout(promise, timeoutMs) {
+  let timerId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timerId = setTimeout(() => reject(reportTimeoutError(timeoutMs)), timeoutMs);
+    if (typeof timerId?.unref === "function") {
+      timerId.unref();
+    }
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timerId) {
+      clearTimeout(timerId);
+    }
+  });
+}
+
+function statusForRouteError(error) {
+  if (error?.code === "report_timeout") {
+    return 504;
+  }
+  if (error?.code === "report_too_heavy") {
+    return 422;
+  }
+  return 500;
+}
+
+function messageForRouteError(error) {
+  if (error?.code === "report_timeout") {
+    return "Report timed out while loading Google Sheets. Narrow Date/Country/Campaign filters and retry.";
+  }
+  return error?.message || "Could not load report.";
+}
 
 function queryParams(searchParams) {
   return {
@@ -45,16 +85,19 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = queryParams(new URL(request.url).searchParams);
-    const report = await loadDashboardReport(resolved.access, query);
+    const report = await withTimeout(loadDashboardReport(resolved.access, query), REPORT_ROUTE_TIMEOUT_MS);
     return NextResponse.json({ ok: true, report });
   } catch (error) {
+    const status = statusForRouteError(error);
     return NextResponse.json(
       {
         ok: false,
-        error: "report_route_failed",
-        message: error?.message || "Could not load report.",
+        error: String(error?.code || "report_route_failed"),
+        message: messageForRouteError(error),
+        timeoutMs: Number(error?.timeoutMs || 0) || undefined,
+        stage: String(error?.stage || ""),
       },
-      { status: 500 },
+      { status },
     );
   }
 }
