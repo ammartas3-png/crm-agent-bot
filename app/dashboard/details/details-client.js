@@ -189,6 +189,51 @@ function createdHourPart(value = "") {
   return matched ? matched[1] : "";
 }
 
+function linkedFilterKeysForReport(report = null) {
+  const keys = new Set();
+  const columns = Array.isArray(report?.builder?.columns) ? report.builder.columns : [];
+  columns.forEach((column) => {
+    const key = String(column?.key || "").trim().toLowerCase();
+    if (key) {
+      keys.add(key);
+    }
+  });
+  const table = Array.isArray(report?.table) ? report.table : [];
+  for (const row of table) {
+    const entries = Object.keys(row || {});
+    entries.forEach((entryKey) => {
+      const normalized = String(entryKey || "").trim().toLowerCase();
+      if (normalized) {
+        keys.add(normalized);
+      }
+    });
+    if (keys.size > 0) {
+      break;
+    }
+  }
+  return keys;
+}
+
+function reportSupportsLinkedFilterKey(report = null, key = "") {
+  const normalizedKey = String(key || "").trim().toLowerCase();
+  if (!normalizedKey) {
+    return false;
+  }
+  const keys = linkedFilterKeysForReport(report);
+  if (normalizedKey === "date") {
+    return keys.has("date") || keys.has("created");
+  }
+  if (normalizedKey === "hour") {
+    return keys.has("hour") || keys.has("created");
+  }
+  return keys.has(normalizedKey);
+}
+
+function scopedLinkedFiltersForReport(report = null, linkedFilters = {}) {
+  const entries = Object.entries(linkedFilters || {}).filter(([key]) => reportSupportsLinkedFilterKey(report, key));
+  return Object.fromEntries(entries);
+}
+
 function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
   const entries = Object.entries(linkedFilters || {});
   if (!entries.length) {
@@ -228,7 +273,7 @@ function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
       }
     }
     if (!candidateValues.size) {
-      return false;
+      return true;
     }
     return expectedValues.some((expected) => candidateValues.has(expected));
   });
@@ -238,12 +283,13 @@ function applyLinkedFiltersToReport(report = null, linkedFilters = {}) {
   if (!report || !Array.isArray(report?.table)) {
     return report;
   }
-  const entries = Object.entries(linkedFilters || {});
+  const scopedFilters = scopedLinkedFiltersForReport(report, linkedFilters);
+  const entries = Object.entries(scopedFilters || {});
   if (!entries.length) {
     return report;
   }
   const detailRows = report.table.filter((row) => row?.__rowKind !== "total");
-  const filteredRows = detailRows.filter((row) => rowMatchesLinkedFilters(row, linkedFilters));
+  const filteredRows = detailRows.filter((row) => rowMatchesLinkedFilters(row, scopedFilters));
   return {
     ...report,
     table: filteredRows,
@@ -1456,10 +1502,21 @@ export default function DashboardDetailsClientPage() {
   const linkedFilterEntries = useMemo(() => Object.entries(linkedFilters || {}), [linkedFilters]);
   const hasLinkedFilters = linkedFilterEntries.length > 0;
   const handleLinkedRowSelection = useCallback((rowKey, row = {}) => {
+    const nextRowKey = String(rowKey || "");
+    if (selectedLinkedRowKey && selectedLinkedRowKey === nextRowKey) {
+      setLinkedFilters({});
+      setSelectedLinkedRowKey("");
+      return;
+    }
     const nextFilters = linkedFiltersFromRow(row);
+    if (!Object.keys(nextFilters).length) {
+      setLinkedFilters({});
+      setSelectedLinkedRowKey("");
+      return;
+    }
     setLinkedFilters(nextFilters);
-    setSelectedLinkedRowKey(String(rowKey || ""));
-  }, []);
+    setSelectedLinkedRowKey(nextRowKey);
+  }, [selectedLinkedRowKey]);
   const handleClearLinkedFilters = useCallback(() => {
     setLinkedFilters({});
     setSelectedLinkedRowKey("");
