@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getGoogleCredentialConfig, normalizePrivateKey, readSheetRows } from "../lib/googleSheets.js";
+import {
+  clearSheetsCache,
+  getGoogleCredentialConfig,
+  normalizePrivateKey,
+  readSheetRows,
+} from "../lib/googleSheets.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
@@ -66,4 +71,50 @@ test("readSheetRows builds a trimmed quoted range from tab name when range is ab
 
   assert.equal(requestedRange, "'Leads'!A:Y");
   assert.deepEqual(rows, [{ ID: "1" }]);
+});
+
+test("readSheetRows bypasses the cache when a sheets client is injected", async () => {
+  clearSheetsCache();
+  let calls = 0;
+  const sheetsClient = {
+    spreadsheets: {
+      values: {
+        get: async () => {
+          calls += 1;
+          return { data: { values: [["ID"], [String(calls)]] } };
+        },
+      },
+    },
+  };
+  const options = {
+    spreadsheetId: "bypass-id",
+    tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+    sheetsClient,
+  };
+
+  const first = await readSheetRows("leads", options);
+  const second = await readSheetRows("leads", options);
+
+  assert.equal(calls, 2);
+  assert.deepEqual(first, [{ ID: "1" }]);
+  assert.deepEqual(second, [{ ID: "2" }]);
+});
+
+test("readSheetRows can be forced to skip the cache with cache:false", async () => {
+  clearSheetsCache();
+  const options = {
+    spreadsheetId: "nocache-id",
+    cache: false,
+    tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({ data: { values: [["ID"], ["7"]] } }),
+        },
+      },
+    },
+  };
+
+  const rows = await readSheetRows("leads", options);
+  assert.deepEqual(rows, [{ ID: "7" }]);
 });
