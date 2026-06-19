@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./details.module.css";
+import {
+  applyLinkedFiltersToReport,
+  createdHourPart,
+  filterValueText,
+  normalizeDateValue,
+  normalizeHourValue,
+} from "../../../lib/detailsLinkedFilters.js";
 
 const MULTI_VALUE_KEYS = new Set([
   "monthKey",
@@ -114,140 +121,6 @@ function linkedFiltersFromRow(row = {}) {
     next.hour = [`${createdHour}:00`];
   }
   return next;
-}
-
-function filterValueText(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function normalizeDateValue(value = "") {
-  const text = String(value || "").trim();
-  if (!text) {
-    return "";
-  }
-  const token = text.split(/[ T]/)[0] || "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(token)) {
-    return token;
-  }
-  let matched = token.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (matched) {
-    const day = String(Number(matched[1] || 0)).padStart(2, "0");
-    const month = String(Number(matched[2] || 0)).padStart(2, "0");
-    const year = String(Number(matched[3] || 0));
-    return `${year}-${month}-${day}`;
-  }
-  matched = token.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
-  if (matched) {
-    const year = String(Number(matched[1] || 0));
-    const month = String(Number(matched[2] || 0)).padStart(2, "0");
-    const day = String(Number(matched[3] || 0)).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-  matched = token.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (matched) {
-    const day = String(Number(matched[1] || 0)).padStart(2, "0");
-    const month = String(Number(matched[2] || 0)).padStart(2, "0");
-    const year = String(Number(matched[3] || 0));
-    return `${year}-${month}-${day}`;
-  }
-  const parsed = new Date(text);
-  if (!Number.isNaN(parsed.getTime())) {
-    const year = parsed.getUTCFullYear();
-    const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(parsed.getUTCDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-  return "";
-}
-
-function normalizeHourValue(value = "") {
-  const text = String(value || "").trim();
-  if (!text) {
-    return "";
-  }
-  const matched = text.match(/^(\d{1,2})(?::\d{2})?/);
-  if (!matched) {
-    return "";
-  }
-  const hour = Number(matched[1]);
-  if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
-    return "";
-  }
-  return String(hour).padStart(2, "0");
-}
-
-function createdDatePart(value = "") {
-  return normalizeDateValue(value);
-}
-
-function createdHourPart(value = "") {
-  const text = String(value || "").trim();
-  if (!text) {
-    return "";
-  }
-  const matched = text.match(/\b(\d{2}):\d{2}(?::\d{2})?\b/);
-  return matched ? matched[1] : "";
-}
-
-function rowMatchesLinkedFilters(row = {}, linkedFilters = {}) {
-  const entries = Object.entries(linkedFilters || {});
-  if (!entries.length) {
-    return true;
-  }
-  return entries.every(([key, values]) => {
-    const expectedValues = (Array.isArray(values) ? values : [values])
-      .map((value) => {
-        if (key === "date") {
-          return normalizeDateValue(value);
-        }
-        if (key === "hour") {
-          return normalizeHourValue(value);
-        }
-        return filterValueText(value);
-      })
-      .filter(Boolean);
-    if (!expectedValues.length) {
-      return true;
-    }
-    const candidateValues = new Set();
-    const direct =
-      key === "date" ? normalizeDateValue(row?.[key]) : key === "hour" ? normalizeHourValue(row?.[key]) : filterValueText(row?.[key]);
-    if (direct) {
-      candidateValues.add(direct);
-    }
-    if (key === "date") {
-      const createdDate = filterValueText(createdDatePart(row?.created));
-      if (createdDate) {
-        candidateValues.add(createdDate);
-      }
-    }
-    if (key === "hour") {
-      const createdHour = normalizeHourValue(createdHourPart(row?.created));
-      if (createdHour) {
-        candidateValues.add(createdHour);
-      }
-    }
-    if (!candidateValues.size) {
-      return false;
-    }
-    return expectedValues.some((expected) => candidateValues.has(expected));
-  });
-}
-
-function applyLinkedFiltersToReport(report = null, linkedFilters = {}) {
-  if (!report || !Array.isArray(report?.table)) {
-    return report;
-  }
-  const entries = Object.entries(linkedFilters || {});
-  if (!entries.length) {
-    return report;
-  }
-  const detailRows = report.table.filter((row) => row?.__rowKind !== "total");
-  const filteredRows = detailRows.filter((row) => rowMatchesLinkedFilters(row, linkedFilters));
-  return {
-    ...report,
-    table: filteredRows,
-  };
 }
 
 function resolveBestGroupKey(rows = [], columns = [], requestedKey = "") {
@@ -1407,6 +1280,7 @@ export default function DashboardDetailsClientPage() {
     benchmarkRowsReport: null,
     last4Rows: [],
     last4Loading: false,
+    baseSummary: null,
   });
   const [linkedFilters, setLinkedFilters] = useState({});
   const [selectedLinkedRowKey, setSelectedLinkedRowKey] = useState("");
@@ -1465,13 +1339,16 @@ export default function DashboardDetailsClientPage() {
     setSelectedLinkedRowKey("");
   }, []);
 
+  // Base filters describe the fixed entity scope (Desk / Team Leader / Agent)
+  // plus the page context. They deliberately do NOT include `linkedFilters`, so
+  // the static sections (KPI, Last 4 Months, Benchmark) never react to a linked
+  // row selection.
   const entityScopedBaseFilters = useMemo(() => {
     if (!contextFilters) {
       return null;
     }
     const next = {
       ...contextFilters,
-      ...linkedFilters,
       reportMode: "specific",
       specificType: "builder",
       columnDimension: "",
@@ -1494,40 +1371,50 @@ export default function DashboardDetailsClientPage() {
       next.agent = [detailTarget.entityValue];
     }
     return next;
-  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue, linkedFilters]);
+  }, [contextFilters, detailTarget.entityKey, detailTarget.entityValue]);
 
-  const trendFilters = useMemo(() => {
+  // Coordinated filters = base scope + the currently selected linked row. Only
+  // the three linked tables (Daily Trend / Leads Sheet Fields / Traffic Report)
+  // are fetched with these, so selecting a row in one re-queries the others.
+  const linkedScopedFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
       return null;
     }
+    return { ...entityScopedBaseFilters, ...linkedFilters };
+  }, [entityScopedBaseFilters, linkedFilters]);
+
+  const trendFilters = useMemo(() => {
+    if (!linkedScopedFilters) {
+      return null;
+    }
     return {
-      ...entityScopedBaseFilters,
+      ...linkedScopedFilters,
       page: "1",
       rowLimit: "220",
       metricFields: ["leads", "ftd", "kycFtd", "cr", "crTargetReach", "ftdTargetReach"],
       rowDimensions: detailTarget.entityKey === "agent" ? ["date", "hour"] : ["date"],
     };
-  }, [detailTarget.entityKey, entityScopedBaseFilters]);
+  }, [detailTarget.entityKey, linkedScopedFilters]);
 
   const leadsTableFilters = useMemo(() => {
-    if (!entityScopedBaseFilters) {
+    if (!linkedScopedFilters) {
       return null;
     }
     return {
-      ...entityScopedBaseFilters,
+      ...linkedScopedFilters,
       page: "1",
       rowLimit: "220",
       rowDimensions: ["brand", "id", "created", "department", "status", "country", "campaign", "subCampaign", "placement", "agent"],
       metricFields: ["ftd"],
     };
-  }, [entityScopedBaseFilters]);
+  }, [linkedScopedFilters]);
 
   const breakdownFilters = useMemo(() => {
-    if (!entityScopedBaseFilters) {
+    if (!linkedScopedFilters) {
       return null;
     }
     return {
-      ...entityScopedBaseFilters,
+      ...linkedScopedFilters,
       page: "1",
       rowLimit: "280",
       rowDimensions: ["desk", "country", "campaign", "subCampaign", "placement"],
@@ -1544,7 +1431,7 @@ export default function DashboardDetailsClientPage() {
         "missingFtd",
       ],
     };
-  }, [entityScopedBaseFilters]);
+  }, [linkedScopedFilters]);
 
   const benchmarkFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
@@ -1599,6 +1486,13 @@ export default function DashboardDetailsClientPage() {
     () => (benchmarkRowsFilters ? buildReportQuery(benchmarkRowsFilters).toString() : ""),
     [benchmarkRowsFilters],
   );
+  // Identifies the fixed (non-linked) scope. Static sections only reload when
+  // this changes, so a linked-row selection never re-fetches/flickers them.
+  const baseKey = useMemo(
+    () => (entityScopedBaseFilters ? buildReportQuery(entityScopedBaseFilters).toString() : ""),
+    [entityScopedBaseFilters],
+  );
+  const loadedBaseKeyRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
@@ -1621,6 +1515,11 @@ export default function DashboardDetailsClientPage() {
       return undefined;
     }
     const load = async () => {
+      // Static sections (Benchmark, Last 4 Months, KPI) only reload when the
+      // fixed scope changes. A linked-row selection keeps the same baseKey, so
+      // only the three coordinated tables are re-fetched.
+      const reloadStatic = baseKey !== loadedBaseKeyRef.current;
+      const linkedActive = Object.keys(linkedFilters || {}).length > 0;
       setState((prev) => {
         const hasExistingData = Boolean(
           prev.breakdownReport || prev.trendReport || prev.leadsReport || prev.benchmarkRowsReport || prev.last4Rows.length,
@@ -1630,25 +1529,28 @@ export default function DashboardDetailsClientPage() {
           loading: !hasExistingData,
           refreshing: hasExistingData,
           error: "",
-          ...(hasExistingData ? {} : { last4Rows: [], last4Loading: false }),
+          ...(hasExistingData ? {} : reloadStatic ? { last4Rows: [], last4Loading: false } : {}),
         };
       });
       try {
-        const [breakdownResponse, trendResponse, leadsResponse, benchmarkResponse] = await Promise.all([
+        const [breakdownResponse, trendResponse, leadsResponse] = await Promise.all([
           fetch(`/api/dashboard/report?${breakdownQuery}`, { cache: "no-store" }),
           fetch(`/api/dashboard/report?${trendQuery}`, { cache: "no-store" }),
           fetch(`/api/dashboard/report?${leadsQuery}`, { cache: "no-store" }),
-          fetch(`/api/dashboard/report?${benchmarkQuery}`, { cache: "no-store" }),
         ]);
-        const benchmarkRowsPromise = fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" });
-        const [breakdownPayload, trendPayload, leadsPayload, benchmarkPayload] = await Promise.all([
+        // Benchmark reports back the fixed scope only, so skip re-fetching them
+        // when nothing but the linked selection changed.
+        const benchmarkPromise = reloadStatic
+          ? fetch(`/api/dashboard/report?${benchmarkQuery}`, { cache: "no-store" })
+          : null;
+        const benchmarkRowsPromise = reloadStatic
+          ? fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" })
+          : null;
+        const [breakdownPayload, trendPayload, leadsPayload] = await Promise.all([
           readApiPayload(breakdownResponse),
           readApiPayload(trendResponse),
           readApiPayload(leadsResponse),
-          readApiPayload(benchmarkResponse),
         ]);
-        const benchmarkRowsResponse = await benchmarkRowsPromise;
-        const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
         if (!breakdownResponse.ok || breakdownPayload?.ok === false) {
           throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load traffic report.");
         }
@@ -1658,17 +1560,25 @@ export default function DashboardDetailsClientPage() {
         if (!leadsResponse.ok || leadsPayload?.ok === false) {
           throw new Error(leadsPayload?.message || leadsPayload?.error || "Could not load leads details table.");
         }
-        if (!benchmarkResponse.ok || benchmarkPayload?.ok === false) {
-          throw new Error(benchmarkPayload?.message || benchmarkPayload?.error || "Could not load benchmark details.");
-        }
-        if (!benchmarkRowsResponse.ok || benchmarkRowsPayload?.ok === false) {
-          throw new Error(benchmarkRowsPayload?.message || benchmarkRowsPayload?.error || "Could not load benchmark rows table.");
+        let benchmarkReport;
+        let benchmarkRowsReport;
+        if (reloadStatic) {
+          const benchmarkResponse = await benchmarkPromise;
+          const benchmarkRowsResponse = await benchmarkRowsPromise;
+          const benchmarkPayload = await readApiPayload(benchmarkResponse);
+          const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
+          if (!benchmarkResponse.ok || benchmarkPayload?.ok === false) {
+            throw new Error(benchmarkPayload?.message || benchmarkPayload?.error || "Could not load benchmark details.");
+          }
+          if (!benchmarkRowsResponse.ok || benchmarkRowsPayload?.ok === false) {
+            throw new Error(benchmarkRowsPayload?.message || benchmarkRowsPayload?.error || "Could not load benchmark rows table.");
+          }
+          benchmarkReport = benchmarkPayload.report || null;
+          benchmarkRowsReport = benchmarkRowsPayload.report || null;
         }
         const breakdownReport = breakdownPayload.report || null;
         const trendReport = trendPayload.report || null;
         const leadsReport = leadsPayload.report || null;
-        const benchmarkReport = benchmarkPayload.report || null;
-        const benchmarkRowsReport = benchmarkRowsPayload.report || null;
         const monthOptions = Array.isArray(breakdownReport?.options?.months) ? breakdownReport.options.months : [];
         const monthKeysFromOptions = monthOptions.map((month) => String(month?.key || "").trim()).filter(Boolean);
         const monthKeysFromFilters = Array.isArray(contextFilters?.monthKey) ? contextFilters.monthKey.filter(Boolean) : [];
@@ -1687,13 +1597,19 @@ export default function DashboardDetailsClientPage() {
             breakdownReport,
             trendReport,
             leadsReport,
-            benchmarkReport,
-            benchmarkRowsReport,
-            last4Rows: last4MonthKeys.length ? prev.last4Rows : [],
-            last4Loading: last4MonthKeys.length > 0,
+            // Freeze the KPI strip to the unfiltered entity totals.
+            ...(linkedActive ? {} : { baseSummary: breakdownReport?.summary || prev.baseSummary || null }),
+            ...(reloadStatic ? { benchmarkReport, benchmarkRowsReport } : {}),
+            ...(reloadStatic
+              ? { last4Rows: last4MonthKeys.length ? prev.last4Rows : [], last4Loading: last4MonthKeys.length > 0 }
+              : {}),
           }));
         }
+        if (!reloadStatic) {
+          return;
+        }
         if (!last4MonthKeys.length) {
+          loadedBaseKeyRef.current = baseKey;
           return;
         }
         const monthSummaryRequests = await Promise.all(
@@ -1727,6 +1643,7 @@ export default function DashboardDetailsClientPage() {
             last4Rows: monthSummaryRequests,
             last4Loading: false,
           }));
+          loadedBaseKeyRef.current = baseKey;
         }
       } catch (error) {
         if (!cancelled) {
@@ -1765,6 +1682,7 @@ export default function DashboardDetailsClientPage() {
       window.clearTimeout(timerId);
     };
   }, [
+    baseKey,
     benchmarkQuery,
     benchmarkRowsQuery,
     breakdownQuery,
@@ -1773,9 +1691,14 @@ export default function DashboardDetailsClientPage() {
     detailTarget.valid,
     entityScopedBaseFilters,
     leadsQuery,
+    linkedFilters,
     trendQuery,
   ]);
 
+  // The three coordinated tables are filtered client-side as a defensive pass on
+  // top of the server refetch. The filter is dimension-aware (see
+  // applyLinkedFiltersToReport), so a selected key that is not a column of a
+  // given table is ignored instead of emptying it.
   const displayBreakdownReport = useMemo(
     () => applyLinkedFiltersToReport(state.breakdownReport, linkedFilters),
     [linkedFilters, state.breakdownReport],
@@ -1788,12 +1711,11 @@ export default function DashboardDetailsClientPage() {
     () => applyLinkedFiltersToReport(state.leadsReport, linkedFilters),
     [linkedFilters, state.leadsReport],
   );
-  const displayBenchmarkRowsReport = useMemo(
-    () => applyLinkedFiltersToReport(state.benchmarkRowsReport, linkedFilters),
-    [linkedFilters, state.benchmarkRowsReport],
-  );
+  // Benchmark Focus Table is a static section: never filtered by the selection.
+  const displayBenchmarkRowsReport = state.benchmarkRowsReport;
 
-  const summary = displayBreakdownReport?.summary || state.breakdownReport?.summary || {};
+  // KPI strip and benchmark cards are static: always the unfiltered entity scope.
+  const summary = state.baseSummary || state.breakdownReport?.summary || {};
   const summaryItems = [
     { label: "Leads", value: formatNumber(summary.totalLeads || summary.leads || 0) },
     { label: "FTD", value: formatNumber(summary.totalFtd || summary.ftd || 0) },
@@ -1802,9 +1724,9 @@ export default function DashboardDetailsClientPage() {
     { label: "CR Target Reach", value: formatPercent(summary.crTargetReach || 0) },
     { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach || 0) },
   ];
-  const benchmarkMetrics = benchmarkMetricsFromReport(hasLinkedFilters ? displayBenchmarkRowsReport : state.benchmarkReport);
+  const benchmarkMetrics = benchmarkMetricsFromReport(state.benchmarkReport);
   const representativeRow = useMemo(() => {
-    const reports = [displayBenchmarkRowsReport, displayBreakdownReport, displayLeadsReport];
+    const reports = [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport];
     for (const report of reports) {
       const rows = Array.isArray(report?.table) ? report.table : [];
       const row = rows.find((item) => item?.__rowKind !== "total");
@@ -1813,7 +1735,7 @@ export default function DashboardDetailsClientPage() {
       }
     }
     return null;
-  }, [displayBenchmarkRowsReport, displayBreakdownReport, displayLeadsReport]);
+  }, [state.benchmarkRowsReport, state.breakdownReport, state.leadsReport]);
   const officeLabel =
     (Array.isArray(contextFilters?.officeScope) && contextFilters.officeScope.length ? contextFilters.officeScope[0] : "") ||
     "-";
@@ -1889,7 +1811,9 @@ export default function DashboardDetailsClientPage() {
               {linkedFilterEntries.map(([key, values]) => `${key}: ${Array.isArray(values) ? values.join(", ") : values}`).join(" | ")}
             </span>
           ) : (
-            <span className={styles.inlineHint}>None (click a row in any table to filter all tables)</span>
+            <span className={styles.inlineHint}>
+              None (click a row in Daily Trend, Leads Sheet Fields, or Traffic Report to filter those three together)
+            </span>
           )}
         </div>
       </section>
@@ -1932,8 +1856,6 @@ export default function DashboardDetailsClientPage() {
               teamLeaderLabel={teamLeaderLabel}
               agentLabel={agentLabel}
               tableId="last4-summary"
-              onSelectRow={handleLinkedRowSelection}
-              selectedRowKey={selectedLinkedRowKey}
             />
           ) : null}
           <section className={`${styles.panel} ${styles.summaryGrid}`}>
@@ -1958,8 +1880,6 @@ export default function DashboardDetailsClientPage() {
             title="Benchmark Focus Table"
             report={displayBenchmarkRowsReport}
             groupByKey={detailTarget.entityKey === "desk" ? "teamLeader" : ""}
-            onSelectRow={handleLinkedRowSelection}
-            selectedRowKey={selectedLinkedRowKey}
           />
           <section className={styles.dualGrid}>
             <InteractiveDetailTable
