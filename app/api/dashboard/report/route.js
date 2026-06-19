@@ -30,6 +30,8 @@ function queryParams(searchParams) {
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
+    benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
+    benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
   };
