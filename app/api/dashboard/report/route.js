@@ -5,6 +5,9 @@ import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 
 export const maxDuration = 300;
 
+const reportInflight = new Map();
+const REPORT_INFLIGHT_MAX = 50;
+
 function queryParams(searchParams) {
   return {
     monthKey: String(searchParams.get("monthKey") || "").trim(),
@@ -34,7 +37,44 @@ function queryParams(searchParams) {
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
+    page: String(searchParams.get("page") || "").trim(),
+    rowLimit: String(searchParams.get("rowLimit") || "").trim(),
   };
+}
+
+function reportInflightKey(accessContext = {}, query = {}) {
+  const telegramUser = accessContext?.telegramUser || {};
+  return JSON.stringify({
+    userId: String(telegramUser.id || ""),
+    username: String(telegramUser.username || ""),
+    permissionFilters: accessContext?.permissionFilters || {},
+    query,
+  });
+}
+
+function rememberInflightReport(key, promise) {
+  if (reportInflight.size >= REPORT_INFLIGHT_MAX) {
+    const oldestKey = reportInflight.keys().next().value;
+    if (oldestKey) {
+      reportInflight.delete(oldestKey);
+    }
+  }
+  reportInflight.set(key, promise);
+}
+
+function loadDashboardReportDeduped(accessContext, query) {
+  const key = reportInflightKey(accessContext, query);
+  const existing = reportInflight.get(key);
+  if (existing) {
+    return existing;
+  }
+  const pending = loadDashboardReport(accessContext, query).finally(() => {
+    if (reportInflight.get(key) === pending) {
+      reportInflight.delete(key);
+    }
+  });
+  rememberInflightReport(key, pending);
+  return pending;
 }
 
 export async function GET(request) {
@@ -47,7 +87,7 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = queryParams(new URL(request.url).searchParams);
-    const report = await loadDashboardReport(resolved.access, query);
+    const report = await loadDashboardReportDeduped(resolved.access, query);
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     const errorCode = String(error?.code || "").trim();
