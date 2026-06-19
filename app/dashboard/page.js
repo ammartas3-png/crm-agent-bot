@@ -4276,7 +4276,7 @@ export default function DashboardPage() {
         if (preset === "benchmark") {
           return {
             ...basePreset,
-            monthKey: availableMonthKeys,
+            monthKey: availableMonthKeys.slice(0, 4),
             includeWorkTime: true,
             hideNotWorking: false,
             benchmarkMode: true,
