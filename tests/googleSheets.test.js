@@ -357,6 +357,7 @@ test("readSheetRows deduplicates in-flight calls for same sheet range", async ()
       columns: ["ID"],
     },
     sheetsClient,
+    cacheTtlMs: 60000,
   });
   const secondRequest = readSheetRows("leads", {
     spreadsheetId: "spreadsheet-id",
@@ -366,6 +367,7 @@ test("readSheetRows deduplicates in-flight calls for same sheet range", async ()
       columns: ["ID"],
     },
     sheetsClient,
+    cacheTtlMs: 60000,
   });
   assert.equal(requestedCount, 1);
   releaseRequest();
