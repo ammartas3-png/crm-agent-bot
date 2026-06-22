@@ -1343,7 +1343,6 @@ export default function DashboardDetailsClientPage() {
       page: "1",
       rowLimit: "40",
       benchmarkMode: true,
-      benchmarkHydrate: true,
       rowDimensions: [detailTarget.entityKey],
       metricFields: ["avgFtdByDeskLongTerm", "ftdBenchmarkRate", "leads", "ftd"],
     };
@@ -1358,7 +1357,6 @@ export default function DashboardDetailsClientPage() {
       page: "1",
       rowLimit: "260",
       benchmarkMode: true,
-      benchmarkHydrate: true,
       includeWorkTime: true,
       hideNotWorking: false,
       rowDimensions,
