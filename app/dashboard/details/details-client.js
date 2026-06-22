@@ -707,6 +707,8 @@ function InteractiveDetailTable({
                 ? effectiveGroupKey
                 : sourceColumns[0]?.key || "";
               const collapsedSummary = buildCollapsedGroupSummaryRow(rows, sourceColumns, collapseKey, groupLabel);
+              const collapsedRowKey = `${tableId || title}:collapsed:${groupLabel}`;
+              const collapsedSelected = selectedRowKey === collapsedRowKey;
               const headerRow =
                 canGroupCollapse
                   ? [
@@ -722,7 +724,11 @@ function InteractiveDetailTable({
                   : [];
               if (collapsed) {
                 return [
-                  <tr key={`collapsed-${title}-${groupLabel}-${groupIndex}`} className={styles.totalRow}>
+                  <tr
+                    key={`collapsed-${title}-${groupLabel}-${groupIndex}`}
+                    className={`${styles.totalRow} ${styles.selectableRow} ${collapsedSelected ? styles.selectedRow : ""}`}
+                    onClick={() => onSelectRow?.(collapsedRowKey, collapsedSummary)}
+                  >
                     {sourceColumns.map((column) => {
                       const value = collapsedSummary[column.key];
                       const style = tableCellStyle(column, value);
@@ -730,7 +736,14 @@ function InteractiveDetailTable({
                       return (
                         <td key={`collapsed-${title}-${groupLabel}-${groupIndex}-${column.key}`} style={style || undefined}>
                           {isToggleColumn ? (
-                            <button type="button" className={styles.groupButton} onClick={() => toggleGroup(groupLabel)}>
+                            <button
+                              type="button"
+                              className={styles.groupButton}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleGroup(groupLabel);
+                              }}
+                            >
                               <span>▶</span>
                               <span>{String(value || `${groupLabel} Total`)}</span>
                             </button>
