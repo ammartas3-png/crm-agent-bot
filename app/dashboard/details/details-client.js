@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./details.module.css";
+import { sortBuilderRows } from "../../../lib/pivotSort.js";
 
 const MULTI_VALUE_KEYS = new Set([
   "monthKey",
@@ -323,28 +324,6 @@ function hasMeaningfulValue(value) {
   return Boolean(normalized) && normalized !== "-" && normalized !== "—" && normalized !== "n/a";
 }
 
-function compareSortableValues(leftValue, rightValue, columnType = "text") {
-  const leftNumber = parseMaybeNumber(leftValue);
-  const rightNumber = parseMaybeNumber(rightValue);
-  if (columnType === "number" || columnType === "percent") {
-    const leftSafe = leftNumber ?? 0;
-    const rightSafe = rightNumber ?? 0;
-    if (leftSafe === rightSafe) {
-      return 0;
-    }
-    return leftSafe > rightSafe ? 1 : -1;
-  }
-  if (leftNumber !== null && rightNumber !== null) {
-    if (leftNumber === rightNumber) {
-      return 0;
-    }
-    return leftNumber > rightNumber ? 1 : -1;
-  }
-  const leftText = String(leftValue || "");
-  const rightText = String(rightValue || "");
-  return leftText.localeCompare(rightText, "en", { sensitivity: "base" });
-}
-
 function formatCellValue(column = {}, value) {
   if (column.type === "number") {
     return formatNumber(value);
@@ -573,6 +552,7 @@ function InteractiveDetailTable({
   onSelectRow = null,
   selectedRowKey = "",
   enableRowGroupCollapse = true,
+  hierarchyKeys = [],
 }) {
   const sourceColumns = useMemo(() => {
     if (Array.isArray(inputColumns) && inputColumns.length) {
@@ -603,16 +583,24 @@ function InteractiveDetailTable({
 
   const detailRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind !== "total"), [sourceRows]);
   const totalRows = useMemo(() => sourceRows.filter((row) => row?.__rowKind === "total"), [sourceRows]);
+  const hierarchySortKeys = useMemo(() => {
+    const requested = Array.isArray(hierarchyKeys) && hierarchyKeys.length ? hierarchyKeys : [groupByKey];
+    return requested
+      .map((key) => String(key || "").trim())
+      .filter((key) => key && sourceColumns.some((column) => column.key === key));
+  }, [groupByKey, hierarchyKeys, sourceColumns]);
   const sortedDetailRows = useMemo(() => {
     const activeColumn = sourceColumns.find((column) => column.key === sortState.key);
     if (!activeColumn) {
       return detailRows;
     }
-    return [...detailRows].sort((left, right) => {
-      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
-      return sortState.direction === "desc" ? -compare : compare;
+    return sortBuilderRows(detailRows, {
+      hierarchyKeys: hierarchySortKeys,
+      activeColumnKey: activeColumn.key,
+      activeColumnType: activeColumn.type,
+      direction: sortState.direction,
     });
-  }, [detailRows, sortState.direction, sortState.key, sourceColumns]);
+  }, [detailRows, hierarchySortKeys, sortState.direction, sortState.key, sourceColumns]);
   const displayDetailRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
   const effectiveGroupKey = useMemo(
     () => resolveBestGroupKey(displayDetailRows, sourceColumns, groupByKey),
@@ -852,11 +840,13 @@ function HierarchicalTrafficTable({
     if (!activeColumn) {
       return detailRows;
     }
-    return [...detailRows].sort((left, right) => {
-      const compare = compareSortableValues(left?.[activeColumn.key], right?.[activeColumn.key], activeColumn.type);
-      return sortState.direction === "desc" ? -compare : compare;
+    return sortBuilderRows(detailRows, {
+      hierarchyKeys: activeGroupKeys,
+      activeColumnKey: activeColumn.key,
+      activeColumnType: activeColumn.type,
+      direction: sortState.direction,
     });
-  }, [detailRows, sortState.direction, sortState.key, sourceColumns]);
+  }, [activeGroupKeys, detailRows, sortState.direction, sortState.key, sourceColumns]);
   const displayRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
   const [collapsedPaths, setCollapsedPaths] = useState({});
   const groupPathsByDepth = useMemo(() => {
@@ -1353,6 +1343,7 @@ export default function DashboardDetailsClientPage() {
       page: "1",
       rowLimit: "40",
       benchmarkMode: true,
+      benchmarkHydrate: true,
       rowDimensions: [detailTarget.entityKey],
       metricFields: ["avgFtdByDeskLongTerm", "ftdBenchmarkRate", "leads", "ftd"],
     };
@@ -1361,17 +1352,13 @@ export default function DashboardDetailsClientPage() {
     if (!entityScopedBaseFilters) {
       return null;
     }
-    const rowDimensions =
-      detailTarget.entityKey === "desk"
-        ? ["teamLeader", "agent"]
-        : detailTarget.entityKey === "teamLeader"
-          ? ["desk", "teamLeader", "agent"]
-          : ["desk", "teamLeader", "agent"];
+    const rowDimensions = ["desk", "teamLeader", "agent"];
     return {
       ...entityScopedBaseFilters,
       page: "1",
       rowLimit: "260",
       benchmarkMode: true,
+      benchmarkHydrate: true,
       includeWorkTime: true,
       hideNotWorking: false,
       rowDimensions,
@@ -1592,10 +1579,17 @@ export default function DashboardDetailsClientPage() {
   );
 
   const summary = displayBreakdownReport?.summary || state.breakdownReport?.summary || {};
+  const trendSummary = displayTrendReport?.summary || state.trendReport?.summary || {};
+  const hasKycMetric =
+    Object.prototype.hasOwnProperty.call(trendSummary, "kycFtd") ||
+    Object.prototype.hasOwnProperty.call(summary, "kycFtd");
+  const kycSummaryValue = Number(
+    trendSummary.kycFtd ?? summary.kycFtd ?? displayBenchmarkRowsReport?.summary?.kycFtd ?? state.benchmarkRowsReport?.summary?.kycFtd ?? 0,
+  );
   const summaryItems = [
     { label: "Leads", value: formatNumber(summary.totalLeads || summary.leads || 0) },
     { label: "FTD", value: formatNumber(summary.totalFtd || summary.ftd || 0) },
-    { label: "KYC FTD", value: formatNumber(summary.kycFtd || 0) },
+    ...(hasKycMetric ? [{ label: "KYC FTD", value: formatNumber(kycSummaryValue) }] : []),
     { label: "CR", value: formatPercent(summary.cr || 0) },
     { label: "CR Target Reach", value: formatPercent(summary.crTargetReach || 0) },
     { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach || 0) },
@@ -1765,6 +1759,7 @@ export default function DashboardDetailsClientPage() {
               report={displayTrendReport}
               emptyMessage="No daily trend rows found."
               groupByKey="date"
+              hierarchyKeys={["date", "hour"]}
               initialSortKey="date"
               tableId="daily-trend"
               onSelectRow={handleLinkedRowSelection}
@@ -1775,7 +1770,7 @@ export default function DashboardDetailsClientPage() {
               report={displayLeadsReport}
               emptyMessage="No leads rows found for selected filters."
               groupByKey="brand"
-              initialSortKey="created"
+              initialSortKey="brand"
               tableId="leads-fields"
               onSelectRow={handleLinkedRowSelection}
               selectedRowKey={selectedLinkedRowKey}

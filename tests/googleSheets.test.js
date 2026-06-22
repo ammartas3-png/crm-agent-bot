@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getGoogleCredentialConfig, normalizePrivateKey, readSheetRows } from "../lib/googleSheets.js";
+import {
+  clearSheetsCache,
+  getGoogleCredentialConfig,
+  normalizePrivateKey,
+  readSheetRows,
+} from "../lib/googleSheets.js";
 import { hourlyDistribution } from "../lib/calculations.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
@@ -324,4 +329,92 @@ test("hourly distribution uses Created from headerless Leads rows", async () => 
   const distribution = hourlyDistribution(rows, { fields: { created: "Created", id: "ID" } }, {});
   assert.equal(distribution.some((item) => item.label === "08:00"), true);
   assert.equal(distribution.some((item) => item.label === "09:00"), true);
+});
+
+test("readSheetRows deduplicates in-flight calls for same sheet range", async () => {
+  clearSheetsCache();
+  let requestedCount = 0;
+  let releaseRequest = null;
+  const waitForRelease = new Promise((resolve) => {
+    releaseRequest = resolve;
+  });
+  const sheetsClient = {
+    spreadsheets: {
+      values: {
+        get: async () => {
+          requestedCount += 1;
+          await waitForRelease;
+          return { data: { values: [["ID"], ["1001"]] } };
+        },
+      },
+    },
+  };
+  const firstRequest = readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "Leads",
+      range: "'Leads'!A:Y",
+      columns: ["ID"],
+    },
+    sheetsClient,
+  });
+  const secondRequest = readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "Leads",
+      range: "'Leads'!A:Y",
+      columns: ["ID"],
+    },
+    sheetsClient,
+  });
+  assert.equal(requestedCount, 1);
+  releaseRequest();
+  const [firstRows, secondRows] = await Promise.all([firstRequest, secondRequest]);
+  assert.deepEqual(firstRows, [{ ID: "1001" }]);
+  assert.deepEqual(secondRows, [{ ID: "1001" }]);
+  clearSheetsCache();
+});
+
+test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", async () => {
+  clearSheetsCache();
+  const previousTtl = process.env.SHEETS_CACHE_TTL_MS;
+  process.env.SHEETS_CACHE_TTL_MS = "60000";
+  let requestedCount = 0;
+  const sheetsClient = {
+    spreadsheets: {
+      values: {
+        get: async () => {
+          requestedCount += 1;
+          return { data: { values: [["ID"], ["2001"]] } };
+        },
+      },
+    },
+  };
+  try {
+    await readSheetRows("leads", {
+      spreadsheetId: "spreadsheet-id",
+      tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+      sheetsClient,
+    });
+    await readSheetRows("leads", {
+      spreadsheetId: "spreadsheet-id",
+      tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+      sheetsClient,
+    });
+    assert.equal(requestedCount, 1);
+    clearSheetsCache();
+    await readSheetRows("leads", {
+      spreadsheetId: "spreadsheet-id",
+      tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+      sheetsClient,
+    });
+    assert.equal(requestedCount, 2);
+  } finally {
+    if (previousTtl === undefined) {
+      delete process.env.SHEETS_CACHE_TTL_MS;
+    } else {
+      process.env.SHEETS_CACHE_TTL_MS = previousTtl;
+    }
+    clearSheetsCache();
+  }
 });
