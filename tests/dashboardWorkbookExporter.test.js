@@ -309,6 +309,34 @@ test("excel export colors CR Target Reach above 200% as success", async () => {
   assert.equal(String(crReachCell.font?.color?.argb || ""), "FF166534");
 });
 
+test("excel export applies benchmark rate color bands", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columns: [
+        { key: "desk", label: "Desk", type: "text", kind: "dimension" },
+        { key: "ftdBenchmarkRate", label: "Benchmark Rate", type: "percent", kind: "metric" },
+      ],
+    },
+    table: [
+      { desk: "Green Desk", ftdBenchmarkRate: 115 },
+      { desk: "Yellow Desk", ftdBenchmarkRate: 90 },
+      { desk: "Orange Desk", ftdBenchmarkRate: 70 },
+      { desk: "Red Desk", ftdBenchmarkRate: 40 },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, {});
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const worksheet = workbook.getWorksheet("Report");
+
+  assert.equal(String(worksheet.getCell("B2").fill?.fgColor?.argb || ""), "FF16A34A");
+  assert.equal(String(worksheet.getCell("B3").fill?.fgColor?.argb || ""), "FFFACC15");
+  assert.equal(String(worksheet.getCell("B4").fill?.fgColor?.argb || ""), "FFF59E0B");
+  assert.equal(String(worksheet.getCell("B5").fill?.fgColor?.argb || ""), "FFEF4444");
+});
+
 test("excel export formats Missing FTD with report style", async () => {
   const report = {
     tableType: "builder",
