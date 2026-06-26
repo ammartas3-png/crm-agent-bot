@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 
 import {
+  hydrateApprovedUsers,
   isAdminTelegramUser,
   isAllowedTelegramUser,
   UNAUTHORIZED_MESSAGE,
 } from "../../../lib/permissions.js";
+import { hydrateSession } from "../../../lib/session.js";
+import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 import {
   approveAccessRequest,
   createAccessRequest,
   denyAccessRequest,
+  hydrateAccessRequest,
+  hydrateAdminChats,
   notifyAdminsForAccessRequest,
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
@@ -22,6 +27,7 @@ import {
   getTelegramUser,
   getTelegramUserId,
   hasTelegramBotToken,
+  isValidWebhookRequest,
   sendTelegramMessage,
 } from "../../../lib/telegram.js";
 import { answerQuery } from "../../../lib/queryRouter.js";
@@ -49,6 +55,8 @@ export async function GET(request) {
       allowedUsersConfigured: Boolean(process.env.ALLOWED_USERS),
       adminUsersConfigured: Boolean(process.env.ADMIN_USERS),
       adminChatIdsConfigured: Boolean(process.env.ADMIN_CHAT_IDS),
+      telegramWebhookSecretConfigured: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET),
+      persistentStoreConfigured: isPersistenceEnabled(),
     },
   });
 }
@@ -58,6 +66,10 @@ function sendMessageWebhookResponse(chatId, text, replyMarkup) {
 }
 
 export async function POST(request) {
+  if (!isValidWebhookRequest(request)) {
+    return NextResponse.json({ ok: false, error: "Invalid webhook secret" }, { status: 401 });
+  }
+
   let update;
   try {
     update = await request.json();
@@ -77,6 +89,16 @@ export async function POST(request) {
   const text = getMessageText(message);
 
   try {
+    if (isPersistenceEnabled()) {
+      await Promise.all([
+        hydrateApprovedUsers(),
+        hydrateAdminChats(),
+        userId != null ? hydrateSession(userId) : Promise.resolve(),
+      ]).catch((error) => {
+        console.error("Runtime state hydration failed", error);
+      });
+    }
+
     registerAdminChat(telegramUser, chatId);
 
     if (callbackQuery?.data?.startsWith("access:")) {
@@ -91,6 +113,9 @@ export async function POST(request) {
       }
 
       const [, decision, requestId] = callbackQuery.data.split(":");
+      await hydrateAccessRequest(requestId).catch((error) => {
+        console.error("Access request hydration failed", error);
+      });
       const request =
         decision === "approve" ? approveAccessRequest(requestId) : denyAccessRequest(requestId);
       if (!request) {
@@ -176,5 +201,10 @@ export async function POST(request) {
         ? `Report failed.\n${safe.message}\n\nSend /debug for a Sheets diagnostic.`
         : "Sorry, I could not calculate that report right now. Please try again later.",
     );
+  } finally {
+    // Ensure mirrored writes complete before the serverless instance freezes.
+    await flushPersistence().catch((error) => {
+      console.error("Persistence flush failed", error);
+    });
   }
 }
