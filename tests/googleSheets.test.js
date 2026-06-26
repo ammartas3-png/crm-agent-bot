@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
 
 import {
@@ -11,7 +8,6 @@ import {
   readSheetRows,
 } from "../lib/googleSheets.js";
 import { hourlyDistribution } from "../lib/calculations.js";
-import { clearPreparedDataCache } from "../lib/preparedDataCache.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
@@ -337,11 +333,6 @@ test("hourly distribution uses Created from headerless Leads rows", async () => 
 
 test("readSheetRows deduplicates in-flight calls for same sheet range", async () => {
   clearSheetsCache();
-  clearPreparedDataCache();
-  const prevPreparedEnabled = process.env.N8N_PREPARED_CACHE_ENABLED;
-  const prevPreparedRequired = process.env.N8N_PREPARED_CACHE_REQUIRED;
-  process.env.N8N_PREPARED_CACHE_ENABLED = "0";
-  process.env.N8N_PREPARED_CACHE_REQUIRED = "0";
   let requestedCount = 0;
   let releaseRequest = null;
   const waitForRelease = new Promise((resolve) => {
@@ -358,58 +349,39 @@ test("readSheetRows deduplicates in-flight calls for same sheet range", async ()
       },
     },
   };
-  try {
-    const firstRequest = readSheetRows("leads", {
-      spreadsheetId: "spreadsheet-id",
-      tabConfig: {
-        name: "Leads",
-        range: "'Leads'!A:Y",
-        columns: ["ID"],
-      },
-      sheetsClient,
-      cacheTtlMs: 60000,
-    });
-    const secondRequest = readSheetRows("leads", {
-      spreadsheetId: "spreadsheet-id",
-      tabConfig: {
-        name: "Leads",
-        range: "'Leads'!A:Y",
-        columns: ["ID"],
-      },
-      sheetsClient,
-      cacheTtlMs: 60000,
-    });
-    await Promise.resolve();
-    assert.equal(requestedCount, 1);
-    releaseRequest();
-    const [firstRows, secondRows] = await Promise.all([firstRequest, secondRequest]);
-    assert.deepEqual(firstRows, [{ ID: "1001" }]);
-    assert.deepEqual(secondRows, [{ ID: "1001" }]);
-  } finally {
-    if (prevPreparedEnabled === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_ENABLED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_ENABLED = prevPreparedEnabled;
-    }
-    if (prevPreparedRequired === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_REQUIRED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_REQUIRED = prevPreparedRequired;
-    }
-    clearPreparedDataCache();
-    clearSheetsCache();
-  }
+  const firstRequest = readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "Leads",
+      range: "'Leads'!A:Y",
+      columns: ["ID"],
+    },
+    sheetsClient,
+    cacheTtlMs: 60000,
+  });
+  const secondRequest = readSheetRows("leads", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "Leads",
+      range: "'Leads'!A:Y",
+      columns: ["ID"],
+    },
+    sheetsClient,
+    cacheTtlMs: 60000,
+  });
+  await Promise.resolve();
+  assert.equal(requestedCount, 1);
+  releaseRequest();
+  const [firstRows, secondRows] = await Promise.all([firstRequest, secondRequest]);
+  assert.deepEqual(firstRows, [{ ID: "1001" }]);
+  assert.deepEqual(secondRows, [{ ID: "1001" }]);
+  clearSheetsCache();
 });
 
 test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", async () => {
   clearSheetsCache();
-  clearPreparedDataCache();
   const previousTtl = process.env.SHEETS_CACHE_TTL_MS;
-  const prevPreparedEnabled = process.env.N8N_PREPARED_CACHE_ENABLED;
-  const prevPreparedRequired = process.env.N8N_PREPARED_CACHE_REQUIRED;
   process.env.SHEETS_CACHE_TTL_MS = "60000";
-  process.env.N8N_PREPARED_CACHE_ENABLED = "0";
-  process.env.N8N_PREPARED_CACHE_REQUIRED = "0";
   let requestedCount = 0;
   const sheetsClient = {
     spreadsheets: {
@@ -446,155 +418,6 @@ test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", asy
     } else {
       process.env.SHEETS_CACHE_TTL_MS = previousTtl;
     }
-    if (prevPreparedEnabled === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_ENABLED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_ENABLED = prevPreparedEnabled;
-    }
-    if (prevPreparedRequired === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_REQUIRED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_REQUIRED = prevPreparedRequired;
-    }
-    clearPreparedDataCache();
     clearSheetsCache();
-  }
-});
-
-test("readSheetRows uses n8n prepared cache file when available", async () => {
-  clearSheetsCache();
-  clearPreparedDataCache();
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "prepared-cache-"));
-  const manifestPath = path.join(tempDir, "manifest.json");
-  const leadsRowsPath = path.join(tempDir, "sheets", "spreadsheet-id", "tab-leads.json");
-  await mkdir(path.dirname(leadsRowsPath), { recursive: true });
-  await writeFile(
-    manifestPath,
-    JSON.stringify({
-      version: 1,
-      sheets: {
-        "spreadsheet-id": {
-          tabKeys: {
-            leads: "sheets/spreadsheet-id/tab-leads.json",
-          },
-        },
-      },
-    }),
-    "utf8",
-  );
-  await writeFile(leadsRowsPath, JSON.stringify([{ ID: "9999" }]), "utf8");
-  const prevEnabled = process.env.N8N_PREPARED_CACHE_ENABLED;
-  const prevDir = process.env.N8N_PREPARED_CACHE_DIR;
-  const prevManifest = process.env.N8N_PREPARED_CACHE_MANIFEST;
-  const prevRequired = process.env.N8N_PREPARED_CACHE_REQUIRED;
-  process.env.N8N_PREPARED_CACHE_ENABLED = "1";
-  process.env.N8N_PREPARED_CACHE_DIR = tempDir;
-  process.env.N8N_PREPARED_CACHE_MANIFEST = manifestPath;
-  process.env.N8N_PREPARED_CACHE_REQUIRED = "0";
-  let networkCalls = 0;
-  try {
-    const rows = await readSheetRows("leads", {
-      spreadsheetId: "spreadsheet-id",
-      tabConfig: {
-        name: "Leads",
-        range: "'Leads'!A:Y",
-        columns: ["ID"],
-      },
-      sheetsClient: {
-        spreadsheets: {
-          values: {
-            get: async () => {
-              networkCalls += 1;
-              return { data: { values: [["ID"], ["1001"]] } };
-            },
-          },
-        },
-      },
-    });
-    assert.deepEqual(rows, [{ ID: "9999" }]);
-    assert.equal(networkCalls, 0);
-  } finally {
-    if (prevEnabled === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_ENABLED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_ENABLED = prevEnabled;
-    }
-    if (prevDir === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_DIR;
-    } else {
-      process.env.N8N_PREPARED_CACHE_DIR = prevDir;
-    }
-    if (prevManifest === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_MANIFEST;
-    } else {
-      process.env.N8N_PREPARED_CACHE_MANIFEST = prevManifest;
-    }
-    if (prevRequired === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_REQUIRED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_REQUIRED = prevRequired;
-    }
-    clearPreparedDataCache();
-    await rm(tempDir, { recursive: true, force: true });
-  }
-});
-
-test("readSheetRows blocks Google fallback when prepared cache is required", async () => {
-  clearSheetsCache();
-  clearPreparedDataCache();
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "prepared-cache-required-"));
-  const manifestPath = path.join(tempDir, "manifest.json");
-  await writeFile(manifestPath, JSON.stringify({ version: 1, sheets: {} }), "utf8");
-  const prevEnabled = process.env.N8N_PREPARED_CACHE_ENABLED;
-  const prevDir = process.env.N8N_PREPARED_CACHE_DIR;
-  const prevManifest = process.env.N8N_PREPARED_CACHE_MANIFEST;
-  const prevRequired = process.env.N8N_PREPARED_CACHE_REQUIRED;
-  process.env.N8N_PREPARED_CACHE_ENABLED = "1";
-  process.env.N8N_PREPARED_CACHE_DIR = tempDir;
-  process.env.N8N_PREPARED_CACHE_MANIFEST = manifestPath;
-  process.env.N8N_PREPARED_CACHE_REQUIRED = "1";
-  try {
-    await assert.rejects(
-      () =>
-        readSheetRows("leads", {
-          spreadsheetId: "spreadsheet-id",
-          tabConfig: {
-            name: "Leads",
-            range: "'Leads'!A:Y",
-            columns: ["ID"],
-          },
-          sheetsClient: {
-            spreadsheets: {
-              values: {
-                get: async () => ({ data: { values: [["ID"], ["1001"]] } }),
-              },
-            },
-          },
-        }),
-      /Prepared cache miss/,
-    );
-  } finally {
-    if (prevEnabled === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_ENABLED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_ENABLED = prevEnabled;
-    }
-    if (prevDir === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_DIR;
-    } else {
-      process.env.N8N_PREPARED_CACHE_DIR = prevDir;
-    }
-    if (prevManifest === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_MANIFEST;
-    } else {
-      process.env.N8N_PREPARED_CACHE_MANIFEST = prevManifest;
-    }
-    if (prevRequired === undefined) {
-      delete process.env.N8N_PREPARED_CACHE_REQUIRED;
-    } else {
-      process.env.N8N_PREPARED_CACHE_REQUIRED = prevRequired;
-    }
-    clearPreparedDataCache();
-    await rm(tempDir, { recursive: true, force: true });
   }
 });

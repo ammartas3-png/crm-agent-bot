@@ -194,6 +194,8 @@ Required:
 - `N8N_PREPARED_CACHE_MANIFEST` - optional explicit manifest file path.
 - `N8N_PREPARED_CACHE_TTL_MS` - in-memory manifest/file stat refresh interval for
   prepared cache (default: `5000`).
+- `DASHBOARD_DATA_PROVIDER` - dashboard service data provider
+  (`googleSheets` default, `n8nCache` for prepared-cache-first mode).
 
 Private key alternatives are also supported:
 
@@ -317,8 +319,9 @@ In n8n, set:
 
 ### Prepared cache mode (phase-1 backend refactor)
 
-When `N8N_PREPARED_CACHE_ENABLED=1`, backend read paths try prepared cache files
-first and only fall back to Google Sheets when a cache entry is missing.
+Set `DASHBOARD_DATA_PROVIDER=n8nCache` to enable provider-based prepared cache
+mode. In this mode, backend read paths try prepared cache files first and only
+fall back to Google Sheets when a cache entry is missing.
 Frontend/API response schemas stay unchanged.
 
 Supported manifest location:
