@@ -9,6 +9,9 @@ import {
   calculateValidLeads,
   getFtdRowsByDateRange,
   getLeadRowsByDateRange,
+  parseDateValue,
+  uniqueValues,
+  uniqueValuesForFields,
 } from "../lib/calculations.js";
 
 const NOW = new Date("2026-05-12T12:00:00Z");
@@ -155,6 +158,22 @@ test("late FTD falls back to Created vs FTD DATE when flag column is missing", (
   };
 
   assert.equal(calculateLateFtdCount([rows[0], rows[5]], fallbackConfig), 1);
+});
+
+test("uniqueValuesForFields returns the same values as uniqueValues in one pass", () => {
+  const fieldKeys = ["country"];
+  const combined = uniqueValuesForFields(rows, tabConfig, fieldKeys, 500);
+  assert.deepEqual(combined.country, uniqueValues(rows, tabConfig, "country", 500));
+  assert.deepEqual(combined.country, ["Cote D'Ivoire", "Germany"]);
+});
+
+test("parseDateValue memoization returns consistent results for repeated input", () => {
+  const first = parseDateValue("12/05/2026 10:00:00");
+  const second = parseDateValue("12/05/2026 10:00:00");
+  assert.equal(first.getTime(), second.getTime());
+  assert.equal(first.getTime(), Date.UTC(2026, 4, 12, 10, 0, 0));
+  assert.equal(parseDateValue(""), null);
+  assert.equal(parseDateValue("not-a-date"), null);
 });
 
 test("calculation helper functions handle zero denominators", () => {
