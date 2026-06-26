@@ -175,6 +175,10 @@ Required:
   access approval requests.
 - `BENCHMARK_CRON_SECRET` - secret token used by the daily benchmark refresh
   cron endpoint (`/api/dashboard/benchmark-cache`).
+- `N8N_WORKFLOW_SECRET` - shared secret used by the n8n integration endpoint
+  (`/api/integrations/n8n/report`).
+- `REPORT_MAX_SAFE_DURATION_MS` - optional report timeout override in
+  milliseconds (default: `480000`).
 
 Private key alternatives are also supported:
 
@@ -221,6 +225,55 @@ column `D`) of the Office Agents spreadsheet.
 
 Set `BENCHMARK_CRON_SECRET` in Vercel and use the same value as a Bearer token
 if you trigger the endpoint manually.
+
+## n8n workflow integration
+
+This repository includes a ready-to-import n8n workflow:
+
+```text
+n8n/workflows/crm-dashboard-report-workflow.json
+```
+
+The workflow listens on an n8n webhook, forwards the payload to:
+
+```text
+/api/integrations/n8n/report
+```
+
+and returns either:
+
+- `format: "json"` -> full dashboard report payload
+- `format: "xlsx"` -> `{ dataBase64, filename, mimeType }`
+
+### Endpoint auth
+
+Set `N8N_WORKFLOW_SECRET` in this app. Requests must include one of:
+
+- `Authorization: Bearer <N8N_WORKFLOW_SECRET>`
+- `x-n8n-secret: <N8N_WORKFLOW_SECRET>`
+
+### n8n environment variables
+
+In n8n, set:
+
+- `CRM_APP_URL` (for example `https://your-next-app.vercel.app`)
+- `CRM_N8N_SECRET` (same value as `N8N_WORKFLOW_SECRET`)
+
+### Sample n8n webhook body
+
+```json
+{
+  "format": "xlsx",
+  "query": {
+    "officeScope": "Turkey Office",
+    "monthKey": "2026-06",
+    "reportMode": "specific",
+    "specificType": "builder",
+    "rowDimensions": "desk,teamLeader,agent",
+    "metricFields": "leads,ftd,cr,crTargetReach,ftdTargetReach"
+  }
+}
+```
 
 ## Local development
 

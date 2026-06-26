@@ -1,0 +1,97 @@
+{
+  "name": "CRM Dashboard Report Bridge",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-dashboard-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a3f63a3d-7b49-4cb3-bfc7-0af4e4c4d8a7",
+      "name": "Incoming Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "crm-dashboard-report"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CRM_APP_URL}}/api/integrations/n8n/report",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.CRM_N8N_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { format: $json.body?.format || 'xlsx', query: $json.body?.query || $json.body || {} } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "ce7f3702-ab6f-49d2-a11c-e8eac676fe58",
+      "name": "Call CRM API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "id": "6d8420d4-a40a-49e6-9879-dde9016b9257",
+      "name": "Return Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        860,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming Request": {
+      "main": [
+        [
+          {
+            "node": "Call CRM API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call CRM API": {
+      "main": [
+        [
+          {
+            "node": "Return Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "versionId": "fb7fb55b-bf66-4ce6-99f7-2cdc68b0af88"
+}
