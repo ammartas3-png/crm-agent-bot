@@ -185,6 +185,15 @@ Required:
   (default: `180`).
 - `N8N_BATCH_MAX_EXPORTS` - optional hard limit for n8n batch monthly export
   target count per request (default: `48`).
+- `N8N_PREPARED_CACHE_ENABLED` - enable reading prepared n8n JSON cache files
+  before Google Sheets (`1`/`0`, default: `0`).
+- `N8N_PREPARED_CACHE_REQUIRED` - when enabled, block Google Sheets fallback if
+  prepared cache entry is missing (default: `0`).
+- `N8N_PREPARED_CACHE_DIR` - directory that stores prepared cache files (default:
+  `.cache/n8n-prepared`).
+- `N8N_PREPARED_CACHE_MANIFEST` - optional explicit manifest file path.
+- `N8N_PREPARED_CACHE_TTL_MS` - in-memory manifest/file stat refresh interval for
+  prepared cache (default: `5000`).
 
 Private key alternatives are also supported:
 
@@ -305,6 +314,46 @@ In n8n, set:
   }
 }
 ```
+
+### Prepared cache mode (phase-1 backend refactor)
+
+When `N8N_PREPARED_CACHE_ENABLED=1`, backend read paths try prepared cache files
+first and only fall back to Google Sheets when a cache entry is missing.
+Frontend/API response schemas stay unchanged.
+
+Supported manifest location:
+
+```text
+${N8N_PREPARED_CACHE_MANIFEST}
+# or
+${N8N_PREPARED_CACHE_DIR}/manifest.json
+```
+
+Example manifest:
+
+```json
+{
+  "version": 1,
+  "officeMonthMap": "office-month-map.json",
+  "sheets": {
+    "spreadsheet-id-1": {
+      "tabKeys": {
+        "leads": "sheets/spreadsheet-id-1/tab-leads.json",
+        "infoAgents": "sheets/spreadsheet-id-1/tab-infoAgents.json",
+        "ftd": "sheets/spreadsheet-id-1/tab-ftd.json"
+      },
+      "ranges": {
+        "'Leads'!A:Y": "sheets/spreadsheet-id-1/range-leads-A-Y.json"
+      }
+    }
+  }
+}
+```
+
+Each referenced file can be either:
+
+- a raw JSON array of row objects, or
+- an object containing `rows` (array).
 
 ## Local development
 
