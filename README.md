@@ -179,6 +179,12 @@ Required:
   (`/api/integrations/n8n/report`).
 - `REPORT_MAX_SAFE_DURATION_MS` - optional report timeout override in
   milliseconds (default: `480000`).
+- `REPORT_RESULT_CACHE_TTL_MS` - optional in-memory report result cache TTL in
+  milliseconds (default: `45000`).
+- `REPORT_RESULT_CACHE_MAX` - optional max in-memory report cache entries
+  (default: `180`).
+- `N8N_BATCH_MAX_EXPORTS` - optional hard limit for n8n batch monthly export
+  target count per request (default: `48`).
 
 Private key alternatives are also supported:
 
@@ -228,10 +234,11 @@ if you trigger the endpoint manually.
 
 ## n8n workflow integration
 
-This repository includes a ready-to-import n8n workflow:
+This repository includes ready-to-import n8n workflows:
 
 ```text
 n8n/workflows/crm-dashboard-report-workflow.json
+n8n/workflows/crm-dashboard-monthly-excel-batch-workflow.json
 ```
 
 The workflow listens on an n8n webhook, forwards the payload to:
@@ -240,10 +247,14 @@ The workflow listens on an n8n webhook, forwards the payload to:
 /api/integrations/n8n/report
 ```
 
-and returns either:
+The integration endpoint supports these actions:
 
-- `format: "json"` -> full dashboard report payload
-- `format: "xlsx"` -> `{ dataBase64, filename, mimeType }`
+- `action: "report"` (default) with:
+  - `format: "json"` -> full dashboard report payload
+  - `format: "xlsx"` -> `{ dataBase64, filename, mimeType }`
+- `action: "bootstrap"` -> available office scopes + month keys
+- `action: "batch_monthly_excel"` -> generate many monthly XLSX files in one
+  call (`officeScopes[] x monthKeys[]`), optionally with controlled concurrency
 
 ### Endpoint auth
 
@@ -263,6 +274,7 @@ In n8n, set:
 
 ```json
 {
+  "action": "report",
   "format": "xlsx",
   "query": {
     "officeScope": "Turkey Office",
@@ -271,6 +283,25 @@ In n8n, set:
     "specificType": "builder",
     "rowDimensions": "desk,teamLeader,agent",
     "metricFields": "leads,ftd,cr,crTargetReach,ftdTargetReach"
+  }
+}
+```
+
+### Sample batch monthly body
+
+```json
+{
+  "action": "batch_monthly_excel",
+  "officeScopes": ["Turkey Office", "Baku Office"],
+  "monthKeys": ["2026-06", "2026-05", "2026-04"],
+  "concurrency": 2,
+  "includeBase64": true,
+  "filenamePrefix": "crm-monthly",
+  "query": {
+    "reportMode": "specific",
+    "specificType": "builder",
+    "rowDimensions": "desk,teamLeader,agent",
+    "metricFields": "leads,ftd,avgFtdByDeskLongTerm,ftdBenchmarkRate,cr,crTargetReach,ftdTargetReach"
   }
 }
 ```

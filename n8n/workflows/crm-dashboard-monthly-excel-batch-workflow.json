@@ -1,22 +1,22 @@
 {
-  "name": "CRM Dashboard Report Bridge",
+  "name": "CRM Monthly Excel Batch Bridge",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "crm-dashboard-report",
+        "path": "crm-dashboard-monthly-excel-batch",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "a3f63a3d-7b49-4cb3-bfc7-0af4e4c4d8a7",
+      "id": "e2d25a7e-5e9f-4e0a-b857-7456a8f8b6e5",
       "name": "Incoming Request",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        260,
-        300
+        240,
+        320
       ],
-      "webhookId": "crm-dashboard-report"
+      "webhookId": "crm-dashboard-monthly-excel-batch"
     },
     {
       "parameters": {
@@ -34,18 +34,18 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { action: $json.body?.action || 'report', format: $json.body?.format || 'xlsx', query: $json.body?.query || $json.body?.filters || $json.body || {}, officeScopes: $json.body?.officeScopes, monthKeys: $json.body?.monthKeys, includeBase64: $json.body?.includeBase64, concurrency: $json.body?.concurrency, filenamePrefix: $json.body?.filenamePrefix } }}",
+        "jsonBody": "={{ { action: 'batch_monthly_excel', includeBase64: $json.body?.includeBase64 ?? true, concurrency: $json.body?.concurrency || 2, officeScopes: $json.body?.officeScopes, monthKeys: $json.body?.monthKeys, filenamePrefix: $json.body?.filenamePrefix || 'crm-monthly', query: $json.body?.query || { reportMode: 'specific', specificType: 'builder', rowDimensions: 'desk,teamLeader,agent', metricFields: 'leads,ftd,avgFtdByDeskLongTerm,ftdBenchmarkRate,cr,crTargetReach,ftdTargetReach' } } }}",
         "options": {
           "timeout": 300000
         }
       },
-      "id": "ce7f3702-ab6f-49d2-a11c-e8eac676fe58",
-      "name": "Call CRM API",
+      "id": "4f9ec75f-17e3-4502-8cdd-a723d754f7be",
+      "name": "Call CRM Batch API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         560,
-        300
+        320
       ]
     },
     {
@@ -54,13 +54,13 @@
         "responseBody": "={{$json}}",
         "options": {}
       },
-      "id": "6d8420d4-a40a-49e6-9879-dde9016b9257",
+      "id": "8f3cbf94-6a26-4e52-85df-37cc3c6618c8",
       "name": "Return Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
         860,
-        300
+        320
       ]
     }
   ],
@@ -69,14 +69,14 @@
       "main": [
         [
           {
-            "node": "Call CRM API",
+            "node": "Call CRM Batch API",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Call CRM API": {
+    "Call CRM Batch API": {
       "main": [
         [
           {
@@ -93,5 +93,5 @@
     "executionOrder": "v1"
   },
   "pinData": {},
-  "versionId": "fb7fb55b-bf66-4ce6-99f7-2cdc68b0af88"
+  "versionId": "2d8f58fd-8f2d-453d-95f8-4135b8ad5ee8"
 }
