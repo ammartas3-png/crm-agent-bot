@@ -1,41 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  dateFilterToRange,
-  loadLeadRows,
-  scopeFromFilters,
-} from "../lib/dataProvider.js";
+import { loadLeadRows } from "../lib/dataProvider.js";
+import { clearLeadsStore, saveSource } from "../lib/leadsStore.js";
 
-const NOW = new Date("2026-05-15T12:00:00Z");
-
-test("dateFilterToRange maps bot date filters to coarse ranges", () => {
-  assert.deepEqual(dateFilterToRange({ type: "today" }, NOW), {
-    dateStart: "2026-05-15",
-    dateEnd: "2026-05-15",
-  });
-  assert.deepEqual(dateFilterToRange({ type: "month", month: 4, year: 2026 }, NOW), {
-    dateStart: "2026-05-01",
-    dateEnd: "2026-05-31",
-  });
-  assert.deepEqual(
-    dateFilterToRange({ type: "range", start: "01/05/2026", end: "10/05/2026" }, NOW),
-    { dateStart: "01/05/2026", dateEnd: "10/05/2026" },
-  );
-  assert.deepEqual(dateFilterToRange(null, NOW), {});
-});
-
-test("scopeFromFilters only derives a scope from a date filter", () => {
-  assert.deepEqual(scopeFromFilters({ country: "Turkey" }, NOW), {});
-  assert.deepEqual(scopeFromFilters({ date: { type: "today" } }, NOW), {
-    dateStart: "2026-05-15",
-    dateEnd: "2026-05-15",
-  });
-});
-
-test("loadLeadRows falls back to Google Sheets when the database is disabled", async () => {
-  // DATABASE_URL is unset in tests, so this should hit the Sheets path. An
-  // injected sheets client keeps the read offline and deterministic.
+test("loadLeadRows falls back to Google Sheets when no dataset is ingested", async () => {
+  clearLeadsStore();
   const rows = await loadLeadRows("leads", {
     spreadsheetId: "test-id",
     cache: false,
@@ -50,4 +20,30 @@ test("loadLeadRows falls back to Google Sheets when the database is disabled", a
   });
 
   assert.deepEqual(rows, [{ ID: "1" }, { ID: "2" }]);
+});
+
+test("loadLeadRows serves ingested rows across all sources when present", async () => {
+  clearLeadsStore();
+  saveSource("istanbul:2026-05:leads", { office: "Istanbul" }, [{ ID: "1" }, { ID: "2" }]);
+  saveSource("ankara:2026-05:leads", { office: "Ankara" }, [{ ID: "3" }]);
+
+  // The sheets client should never be called when ingested data exists.
+  const rows = await loadLeadRows("leads", {
+    tabConfig: { name: "Leads", columns: ["ID"] },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => {
+            throw new Error("should not read Google Sheets when dataset is active");
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(
+    rows.map((row) => row.ID).sort(),
+    ["1", "2", "3"],
+  );
+  clearLeadsStore();
 });
