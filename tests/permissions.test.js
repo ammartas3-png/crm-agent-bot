@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   DEFAULT_ADMIN_USERS,
   approveTelegramUser,
+  clearRegistryAllowedUsers,
   clearRuntimeApprovals,
   getTelegramUserRole,
   isAdminTelegramUser,
@@ -11,6 +12,7 @@ import {
   parseAdminChatIds,
   parseAdminUsers,
   parseAllowedUsers,
+  setRegistryAllowedUsers,
 } from "../lib/permissions.js";
 
 test("parseAllowedUsers reads comma-separated Telegram IDs", () => {
@@ -70,4 +72,16 @@ test("runtime-approved users are allowed until memory resets", () => {
   assert.equal(isAllowedTelegramUser(user, new Set(), new Set()), true);
   assert.equal(getTelegramUserRole(user, new Set(), new Set()), "user");
   clearRuntimeApprovals();
+});
+
+test("registry users tab grants access (normalized usernames and IDs)", () => {
+  clearRegistryAllowedUsers();
+  const user = { id: 888, username: "OfficeUser" };
+
+  assert.equal(isAllowedTelegramUser(user, new Set(), new Set()), false);
+  setRegistryAllowedUsers(["@OfficeUser", "999"]);
+  assert.equal(isAllowedTelegramUser(user, new Set(), new Set()), true);
+  assert.equal(getTelegramUserRole(user, new Set(), new Set()), "user");
+  assert.equal(isAllowedTelegramUser(999, new Set(), new Set()), true);
+  clearRegistryAllowedUsers();
 });

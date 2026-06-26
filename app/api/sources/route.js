@@ -4,6 +4,7 @@ import { getAuthorityConfig, getTabConfig } from "../../../config/sheetsConfig.j
 import { readSheetRows } from "../../../lib/googleSheets.js";
 import { saveSource } from "../../../lib/leadsStore.js";
 import { readAuthorizedUsers, readOfficeSources } from "../../../lib/registry.js";
+import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
 import { prepareRowsForStore } from "../../../lib/sheetRowMapper.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
@@ -112,10 +113,20 @@ export async function POST(request) {
       }
     }
 
+    // Refresh authorized users from the registry's users tab alongside the data.
+    let authorizedUsers = null;
+    try {
+      const result = await refreshRegistryUsers({ force: true });
+      authorizedUsers = result.count;
+    } catch (error) {
+      console.error("Registry user refresh failed", error);
+    }
+
     return NextResponse.json({
       ok: true,
       synced: results.filter((result) => !result.error).length,
       failed: results.filter((result) => result.error).length,
+      authorizedUsers,
       persisted: isPersistenceEnabled(),
       results,
     });

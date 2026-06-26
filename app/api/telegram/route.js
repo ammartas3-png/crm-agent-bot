@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 
 import {
   hydrateApprovedUsers,
+  hydrateRegistryAllowedUsers,
   isAdminTelegramUser,
   isAllowedTelegramUser,
   UNAUTHORIZED_MESSAGE,
 } from "../../../lib/permissions.js";
 import { hydrateSession } from "../../../lib/session.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
+import { isRegistryAuthEnabled, refreshRegistryUsers } from "../../../lib/registryUsers.js";
 import {
   approveAccessRequest,
   createAccessRequest,
@@ -94,9 +96,16 @@ export async function POST(request) {
       await Promise.all([
         hydrateApprovedUsers(),
         hydrateAdminChats(),
+        hydrateRegistryAllowedUsers(),
         userId != null ? hydrateSession(userId) : Promise.resolve(),
       ]).catch((error) => {
         console.error("Runtime state hydration failed", error);
+      });
+    }
+
+    if (isRegistryAuthEnabled()) {
+      await refreshRegistryUsers().catch((error) => {
+        console.error("Registry user refresh failed", error);
       });
     }
 
