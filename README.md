@@ -23,19 +23,23 @@ calculates simple metrics, and replies with a short answer.
 app/api/telegram/route.js
 app/api/ingest/route.js        # n8n ingestion endpoint (optional)
 app/api/sources/route.js       # Bot Authority registry: list + sync (optional)
+app/api/report/route.js        # dashboard + quick reports as JSON (optional)
 lib/telegram.js
 lib/googleSheets.js
 lib/registry.js                # reads the Bot Authority spreadsheet (sources/users)
 lib/registryUsers.js           # authorizes users from the registry "users" tab
+lib/tabResolver.js             # auto-detects each file's data tab by header match
 lib/dataProvider.js            # reads from the ingested dataset or Google Sheets
 lib/leadsStore.js              # SQL-less dataset store (Redis/KV + in-memory)
 lib/sheetRowMapper.js          # prepares sheet rows for storage (KPI shape kept)
+lib/reports.js                 # builds dashboard/quick report JSON
 lib/store.js                   # Redis/KV persistence (state + dataset)
 lib/queryRouter.js
 lib/calculations.js
 lib/permissions.js
 config/sheetsConfig.js
 n8n/crm-registry-sync.json     # n8n: one-call registry-driven sync
+n8n/crm-dashboard.json         # n8n: sync + fetch metrics for display
 n8n/crm-sheets-sync.json       # n8n: define sheet IDs in a node
 ```
 
@@ -327,8 +331,20 @@ addition to `ALLOWED_USERS` / `ADMIN_USERS`. The list is read with a TTL
 (`REGISTRY_USERS_TTL_MS`, default 10 min), refreshed on every `POST /api/sources`
 sync, and persisted to Redis/KV when configured.
 
-n8n: import `n8n/crm-registry-sync.json` for the one-call registry sync, or
-`n8n/crm-sheets-sync.json` to define the sheet IDs inside an n8n node instead.
+Each office file may name its data tab differently. During sync, `lib/tabResolver`
+lists each file's tabs and picks the one(s) whose header matches the CRM columns
+(`ID`, `Country`, `FTD MAKER`, `Lead Date`, …), so the right sheet is read
+regardless of its name.
+
+`GET /api/report` returns the dashboard and quick reports as JSON (same KPI math
+as the bot): `type=all|summary|quick`, plus `office`, `country`, `agent`,
+`campaign`, `teamLeader`, `status`, and `date=today|yesterday|thisMonth|lastMonth`
+(or `start`+`end`). n8n calls this to display metrics; see `n8n/README.md` for the
+working map.
+
+n8n workflows: `n8n/crm-registry-sync.json` (one-call sync),
+`n8n/crm-dashboard.json` (sync + fetch metrics to display), or
+`n8n/crm-sheets-sync.json` (define the sheet IDs inside an n8n node).
 
 Optional tab/range overrides:
 
