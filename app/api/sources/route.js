@@ -6,6 +6,7 @@ import { saveSource } from "../../../lib/leadsStore.js";
 import { readAuthorizedUsers, readOfficeSources } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
 import { prepareRowsForStore } from "../../../lib/sheetRowMapper.js";
+import { resolveDataTabs } from "../../../lib/tabResolver.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
@@ -81,6 +82,7 @@ export async function POST(request) {
   const onlySourceKey = url.searchParams.get("sourceKey");
   const onlyPeriod = url.searchParams.get("period");
   const leadsConfig = getTabConfig("leads");
+  const authorityCfg = getAuthorityConfig();
 
   try {
     let sources = await readOfficeSources();
@@ -93,18 +95,36 @@ export async function POST(request) {
     const results = [];
     for (const source of sources) {
       try {
-        const tabConfig = { ...leadsConfig, range: source.range || leadsConfig.range };
-        const rows = await readSheetRows("leads", {
-          tabConfig,
-          spreadsheetId: source.spreadsheetId,
-          cache: false,
+        // Each office file may name its data tab differently; detect the right
+        // tab(s) by matching the CRM column headers.
+        const tabs = await resolveDataTabs(source.spreadsheetId, leadsConfig, {
+          fallbackTab: authorityCfg.dataTab,
         });
-        const prepared = prepareRowsForStore(rows, leadsConfig, {
+        const combinedRows = [];
+        for (const tab of tabs) {
+          const rows = await readSheetRows("leads", {
+            tabConfig: { ...leadsConfig, range: tab.range },
+            spreadsheetId: source.spreadsheetId,
+            cache: false,
+          });
+          for (const row of rows) {
+            combinedRows.push(row);
+          }
+        }
+        const prepared = prepareRowsForStore(combinedRows, leadsConfig, {
           office: source.office,
           period: source.period,
         });
-        saveSource(source.sourceKey, source, prepared);
-        results.push({ sourceKey: source.sourceKey, stored: prepared.length });
+        saveSource(
+          source.sourceKey,
+          { ...source, tabs: tabs.map((tab) => tab.title) },
+          prepared,
+        );
+        results.push({
+          sourceKey: source.sourceKey,
+          tabs: tabs.map((tab) => tab.title),
+          stored: prepared.length,
+        });
       } catch (error) {
         results.push({
           sourceKey: source.sourceKey,
