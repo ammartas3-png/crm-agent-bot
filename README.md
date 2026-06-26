@@ -77,17 +77,22 @@ generateReport({ groupField, selectedValue, dateRange })
 
 Global KPI formulas:
 
-- Total Leads: `COUNT(ID)`
+- Raw Lead Count: `COUNT(ID)` (exposed only in debug output as `rawLeadCount`)
 - Different Month Leads: `COUNT(Diffrent Month)`
-- Valid Leads: `COUNT(ID) - COUNT(Diffrent Month)`
+- Total Leads: `COUNT(ID) - COUNT(Diffrent Month)`
+- Valid Leads: same value as Total Leads (`COUNT(ID) - COUNT(Diffrent Month)`)
 - Total FTD: `COUNT(FTD MAKER)`
 - CR: `COUNT(FTD MAKER) / Total Leads`
 - CR Target: `AVG(CR TARGET)`
 - CR Target Reach: `CR / AVG(CR TARGET)`
-- Late FTD: `COUNT(LATE FTD Difrrence)`
+- Late FTD: `COUNT(LATE FTD +30 Day = 1)` (see fallback below)
 
 Rows with empty `ID` are ignored. CR values return `0` when the denominator is
 zero. `CR TARGET` is normalized when stored as `7%`, `0.07`, or `7`.
+
+`Total Leads` and `Valid Leads` are the same number in this implementation:
+both already exclude `Diffrent Month` rows. `rawLeadCount` (the unfiltered
+`COUNT(ID)`) is only surfaced in debug output, not in production reports.
 
 Lead and FTD date filters are intentionally separate:
 
@@ -95,8 +100,8 @@ Lead and FTD date filters are intentionally separate:
 - FTD calculations use `FTD DATE` (column Q).
 - FTD count does not require the lead to have been created inside the selected
   Lead Date range.
-- `Diffrent Month` affects only Valid Leads, not Total Leads, FTD count, or CR
-  denominator.
+- `Diffrent Month` is excluded from Total Leads / Valid Leads (and therefore the
+  CR denominator), but does not affect the FTD count.
 - Late FTD uses `LATE FTD +30 Day` (column T) when present. If column T is not
   present, the fallback is `FTD DATE - Created > 30 days`.
 - Production reports do not show debug values. Debug fields are only exposed in
@@ -106,8 +111,9 @@ After each report, the bot shows optional breakdown buttons such as Top Agents,
 Campaign Breakdown, Country Breakdown, Status Distribution, and Hourly Breakdown
 depending on the selected report type.
 
-Session state is currently stored in memory in `lib/session.js`; this can be
-moved to a database later without changing the Telegram webhook contract.
+Session state lives in memory in `lib/session.js`. When a persistent store is
+configured (see below) sessions are mirrored to it and re-hydrated after a cold
+start, without changing the Telegram webhook contract.
 
 ## Google Sheets defaults
 
@@ -173,6 +179,13 @@ Required:
   access. Defaults to `@antoniotsd`, `@Cuervo0o0o`, and `@talhapervaiz97`.
 - `ADMIN_CHAT_IDS` - optional comma-separated admin chat IDs for proactive
   access approval requests.
+- `TELEGRAM_WEBHOOK_SECRET` - optional. When set, the webhook only accepts
+  requests whose `X-Telegram-Bot-Api-Secret-Token` header matches this value.
+  Use the same value as `secret_token` when registering the webhook.
+- `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` /
+  `UPSTASH_REDIS_REST_TOKEN`) - optional persistent store, see above.
+- `GOOGLE_SHEETS_CACHE_TTL_MS` - optional Sheets read cache window in ms
+  (default `60000`).
 
 Private key alternatives are also supported:
 
@@ -199,9 +212,28 @@ When an unauthorized user sends a message:
 
 Admin notifications require `TELEGRAM_BOT_TOKEN` because Telegram must send a
 separate message to the admin chat. Add admin chat IDs to `ADMIN_CHAT_IDS`, or
-have an admin open the bot first so their chat ID can be remembered in memory.
-The approved user list is also in memory for now and will reset on serverless
-cold starts; move it to a database when persistent access control is needed.
+have an admin open the bot first so their chat ID can be remembered. The approved
+user list, remembered admin chats, and pending access requests are kept in
+memory and, when a persistent store is configured, mirrored to it so they
+survive serverless cold starts.
+
+## Persistent store (optional)
+
+Runtime state (sessions, approved users, remembered admin chats, and pending
+access requests) defaults to in-memory storage, which resets on serverless cold
+starts. To make it durable, configure an Upstash / Vercel KV REST endpoint:
+
+- `KV_REST_API_URL` and `KV_REST_API_TOKEN`, or
+- `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+
+When both URL and token are present the bot mirrors writes to the store and
+re-hydrates memory at the start of each webhook request. When unset, behaviour is
+unchanged (in-memory only). No extra npm dependency is required; the store uses
+the REST API over `fetch`.
+
+Google Sheets reads are cached in memory for a short window to avoid repeated API
+calls during a single guided-report session. Tune it with
+`GOOGLE_SHEETS_CACHE_TTL_MS` (milliseconds, default `60000`; set `0` to disable).
 
 Optional tab/range overrides:
 
@@ -228,6 +260,17 @@ export PUBLIC_APP_URL="https://your-next-app.vercel.app"
 curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -H "Content-Type: application/json" \
   -d "{\"url\":\"${PUBLIC_APP_URL}/api/telegram\"}"
+```
+
+If you set `TELEGRAM_WEBHOOK_SECRET`, register the same value so Telegram sends
+it back on every request:
+
+```bash
+export TELEGRAM_WEBHOOK_SECRET="your-webhook-secret"
+
+curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d "{\"url\":\"${PUBLIC_APP_URL}/api/telegram\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\"}"
 ```
 
 Inbound webhook replies are returned directly to Telegram as webhook method
