@@ -41,6 +41,12 @@ export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
   "matservice@mitservice.iam.gserviceaccount.com";
 export const DEFAULT_LEADS_TAB = "Leads";
 
+// "Bot Authority" registry spreadsheet: an Offices tab mapping office x month to
+// the data spreadsheet ID, and a users tab. Lets the bot discover which Google
+// Sheets to read instead of hardcoding them.
+export const DEFAULT_AUTHORITY_SPREADSHEET_ID =
+  "1mwnrhktfXR_E7R15-4uDDk4FG9euG27U5XhrbztsLBc";
+
 export function quoteSheetName(sheetName) {
   const trimmedName = String(sheetName || "").trim();
   return `'${trimmedName.replace(/'/g, "''")}'`;
@@ -120,4 +126,20 @@ export function getTabConfig(tabKey) {
     throw new Error(`Unknown sheet tab config: ${tabKey}`);
   }
   return tab;
+}
+
+export function getAuthorityConfig(env = process.env) {
+  const officesTab = (env.GOOGLE_AUTHORITY_OFFICES_TAB || "Offices").trim();
+  const usersTab = (env.GOOGLE_AUTHORITY_USERS_TAB || "users").trim();
+  const dataTab = (env.GOOGLE_AUTHORITY_DATA_TAB || leadsTabName).trim();
+  return {
+    spreadsheetId: env.GOOGLE_AUTHORITY_SPREADSHEET_ID || DEFAULT_AUTHORITY_SPREADSHEET_ID,
+    officesTab,
+    usersTab,
+    officesRange: sheetRange(officesTab, "A:Z"),
+    usersRange: sheetRange(usersTab, "A:Z"),
+    // Tab/range to read inside each office's monthly spreadsheet.
+    dataTab,
+    dataRange: env.GOOGLE_AUTHORITY_DATA_RANGE || sheetRange(dataTab, "A:Y"),
+  };
 }
