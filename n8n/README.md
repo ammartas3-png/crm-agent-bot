@@ -1,19 +1,19 @@
-# n8n → Postgres ingestion
+# n8n ingestion (SQL-less)
 
 This folder contains a ready-to-import n8n workflow that periodically reads the
 CRM Google Sheets and pushes their rows into the bot's `/api/ingest` endpoint,
-which normalizes and stores them in PostgreSQL. The Telegram bot then answers
-reports from Postgres (fast, multi-month) instead of reading every sheet live.
+which stores them in Redis/KV plus an in-memory dataset (no SQL database). The
+Telegram bot then answers reports from that dataset instead of reading every
+sheet live.
 
 ## Why this architecture
 
 - **Many growing sheets** — 4 new sheets per office every month. Each sheet is a
   *source* identified by a stable `sourceKey` (e.g. `istanbul:2026-05:leads`).
   Adding sheets is data (a new row in the workflow's source list), not code.
-- **6-month / cross-month reports** — Postgres indexes `lead_date`, `ftd_date`,
-  `office`, `country` and `period`, so wide date ranges across every office stay
-  fast. The KPI math is unchanged: the full original row is stored as JSONB and
-  the bot runs the exact same calculations on it.
+- **Small data, no SQL** — rows are kept as JSON per source. The KPI math is
+  unchanged: rows are stored exactly as they come from the sheet and the bot runs
+  the exact same calculations on them.
 - **n8n is the scheduler/ETL only.** It does not compute KPIs; it just ships raw
   rows. All calculation criteria live in the bot so they cannot drift.
 
@@ -22,25 +22,20 @@ reports from Postgres (fast, multi-month) instead of reading every sheet live.
 ```
 Schedule → Define Sources → Loop → Read Google Sheet → Aggregate → POST /api/ingest
                                                                        ↓
-                                                        normalize + upsert (Postgres)
+                                                  store rows (Redis/KV + in-memory)
                                                                        ↓
-                                                 Telegram bot reads Postgres for reports
+                                              Telegram bot reads the dataset for reports
 ```
 
 ## Setup
 
-1. Apply the schema once:
-
-   ```bash
-   psql "$DATABASE_URL" -f db/schema.sql
-   ```
-
-2. Configure the app (Vercel env or `.env.local`):
-   - `DATABASE_URL` — PostgreSQL connection string.
+1. Configure the app (Vercel env or `.env.local`):
    - `INGEST_SECRET` — shared secret the workflow sends as `x-ingest-secret`.
-   - Optionally `KV_REST_API_URL` / `KV_REST_API_TOKEN` for Redis result caching.
+   - `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` /
+     `UPSTASH_REDIS_REST_TOKEN`) so the dataset survives serverless cold starts.
+     Without KV the dataset lives in memory and is rebuilt on the next sync.
 
-3. In n8n:
+2. In n8n:
    - Import `n8n/crm-sheets-sync.json`.
    - Set environment variables `PUBLIC_APP_URL` and `INGEST_SECRET` in n8n.
    - Attach a Google credential to the **Read Google Sheet** node (a service
@@ -76,3 +71,5 @@ Notes:
 - Column names must match the sheet headers documented in the project README
   (`ID`, `Lead Date`, `FTD DATE`, `FTD MAKER`, `Diffrent Month`, `CR TARGET`,
   `LATE FTD +30 Day`, etc.) so the KPI calculations stay correct.
+- Set `LEADS_SOURCE=ingest` to force the bot to use ingested data, or leave it on
+  `auto` to use ingested data when present and fall back to Google Sheets.
