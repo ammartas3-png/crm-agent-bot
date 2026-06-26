@@ -14,17 +14,28 @@ calculates simple metrics, and replies with a short answer.
 - Telegram webhook
 - Google Sheets API
 - Node.js
+- Optional: PostgreSQL + n8n (historical/multi-sheet reporting) and Redis/KV
+  (state persistence + result cache)
 
 ## Structure
 
 ```text
 app/api/telegram/route.js
+app/api/ingest/route.js        # n8n → PostgreSQL ingestion (optional)
 lib/telegram.js
 lib/googleSheets.js
+lib/dataProvider.js            # reads from PostgreSQL or Google Sheets
+lib/leadsRepository.js         # PostgreSQL queries (optional)
+lib/sheetRowMapper.js          # sheet row → DB record (KPI columns preserved)
+lib/db.js                      # PostgreSQL pool (optional)
+lib/cache.js                   # in-memory + Redis result cache
+lib/store.js                   # Redis/KV state persistence (optional)
 lib/queryRouter.js
 lib/calculations.js
 lib/permissions.js
 config/sheetsConfig.js
+db/schema.sql                  # PostgreSQL schema
+n8n/crm-sheets-sync.json       # importable n8n workflow
 ```
 
 ## Supported MVP questions
@@ -234,6 +245,48 @@ the REST API over `fetch`.
 Google Sheets reads are cached in memory for a short window to avoid repeated API
 calls during a single guided-report session. Tune it with
 `GOOGLE_SHEETS_CACHE_TTL_MS` (milliseconds, default `60000`; set `0` to disable).
+
+## Historical reporting via n8n + PostgreSQL (optional)
+
+For a growing number of sheets (e.g. 4 new sheets per office every month) and
+fast multi-month reports (6-month ranges across every office), the bot can read
+from PostgreSQL instead of reading every Google Sheet live.
+
+Architecture:
+
+```
+n8n (scheduled) → reads each Google Sheet → POST /api/ingest
+   → normalize (same KPI columns) → upsert into PostgreSQL (lead_rows)
+Telegram bot → reads PostgreSQL (indexed by office/period/country/lead_date/ftd_date)
+            → runs the exact same KPI calculations → replies
+Redis/KV → optional shared cache for query results
+```
+
+Key properties:
+
+- **Calculation criteria never change.** Each sheet row is stored verbatim as
+  JSONB; the bot runs the same calculations it uses for Google Sheets, so Total
+  Leads / Valid Leads, FTD, CR, CR Target Reach and Late FTD stay identical.
+- **n8n only does ETL.** It ships raw rows; it does not compute KPIs.
+- **Idempotent sync.** Each sheet is a *source* (`sourceKey`); re-ingesting
+  replaces that source's rows.
+- **Fast date ranges.** `lead_date` and `ftd_date` are indexed and queried as a
+  union, correctly covering cross-month FTDs.
+- **Safe fallback.** When `DATABASE_URL` is unset the bot behaves exactly as
+  before (reads Google Sheets directly).
+
+Setup:
+
+1. `psql "$DATABASE_URL" -f db/schema.sql`
+2. Set `DATABASE_URL` and `INGEST_SECRET` (and optionally `KV_REST_API_URL` /
+   `KV_REST_API_TOKEN` for Redis result caching).
+3. Import `n8n/crm-sheets-sync.json` into n8n and follow `n8n/README.md`.
+
+Relevant env vars:
+
+- `DATABASE_URL` (or `POSTGRES_URL`) - enables the PostgreSQL path.
+- `INGEST_SECRET` - required secret for the `/api/ingest` endpoint n8n calls.
+- `DATA_CACHE_TTL_SECONDS` - cache window for DB-backed reads (default `60`).
 
 Optional tab/range overrides:
 
