@@ -26,6 +26,7 @@ app/api/sources/route.js       # Bot Authority registry: list + sync (optional)
 lib/telegram.js
 lib/googleSheets.js
 lib/registry.js                # reads the Bot Authority spreadsheet (sources/users)
+lib/registryUsers.js           # authorizes users from the registry "users" tab
 lib/dataProvider.js            # reads from the ingested dataset or Google Sheets
 lib/leadsStore.js              # SQL-less dataset store (Redis/KV + in-memory)
 lib/sheetRowMapper.js          # prepares sheet rows for storage (KPI shape kept)
@@ -34,7 +35,8 @@ lib/queryRouter.js
 lib/calculations.js
 lib/permissions.js
 config/sheetsConfig.js
-n8n/crm-sheets-sync.json       # importable n8n workflow
+n8n/crm-registry-sync.json     # n8n: one-call registry-driven sync
+n8n/crm-sheets-sync.json       # n8n: define sheet IDs in a node
 ```
 
 ## Supported MVP questions
@@ -318,6 +320,15 @@ With this, the simplest setup is a scheduler (n8n Schedule, Vercel Cron, …) th
 just calls `POST /api/sources` periodically — no per-sheet wiring needed. The
 service account must be shared (read access) on the registry **and** on every
 office sheet it references.
+
+The `users` tab can also drive authorization. Set `AUTHORIZE_FROM_REGISTRY=true`
+to allow the Telegram principals (usernames or numeric IDs) listed there, in
+addition to `ALLOWED_USERS` / `ADMIN_USERS`. The list is read with a TTL
+(`REGISTRY_USERS_TTL_MS`, default 10 min), refreshed on every `POST /api/sources`
+sync, and persisted to Redis/KV when configured.
+
+n8n: import `n8n/crm-registry-sync.json` for the one-call registry sync, or
+`n8n/crm-sheets-sync.json` to define the sheet IDs inside an n8n node instead.
 
 Optional tab/range overrides:
 

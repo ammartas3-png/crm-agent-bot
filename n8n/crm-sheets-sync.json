@@ -26,7 +26,7 @@
       "parameters": {
         "jsExecMode": "once",
         "language": "javaScript",
-        "jsCode": "// One item per Google Sheet to sync. Add 4 rows per office per month here\n// (or load them from a database / the bot's /api/ingest source registry).\n// sourceKey must be stable and unique per sheet so re-syncs are idempotent.\nreturn [\n  {\n    json: {\n      sourceKey: 'istanbul:2026-05:leads',\n      office: 'Istanbul',\n      period: '2026-05',\n      category: 'leads',\n      spreadsheetId: 'REPLACE_WITH_SPREADSHEET_ID',\n      sheetName: 'Leads',\n      range: 'A:Y'\n    }\n  }\n];"
+        "jsCode": "// Paste the spreadsheet IDs from your Bot Authority > Offices tab.\n// Add 4 rows per office per month as needed. sourceKey must be stable so\n// re-syncs replace (not duplicate) the data.\nconst sources = [\n  { office: 'Turkiye Office',   period: '2026-01', spreadsheetId: 'PASTE_TURKIYE_JANUARY_ID' },\n  { office: 'Turkiye Office',   period: '2026-03', spreadsheetId: 'PASTE_TURKIYE_MARCH_ID' },\n  { office: 'Dubai Office',     period: '2026-03', spreadsheetId: 'PASTE_DUBAI_MARCH_ID' },\n  { office: 'Argentina Office', period: '2026-03', spreadsheetId: 'PASTE_ARGENTINA_MARCH_ID' },\n  { office: 'Pakistan Office',  period: '2026-01', spreadsheetId: 'PASTE_PAKISTAN_JANUARY_ID' }\n];\nreturn sources.map((s) => ({ json: { office: s.office, period: s.period, category: 'leads', spreadsheetId: s.spreadsheetId, sheetName: 'Leads', range: 'A:Y', sourceKey: s.office.toLowerCase().split(' ').join('-') + ':' + s.period + ':leads' } }));"
       },
       "id": "22222222-2222-2222-2222-222222222222",
       "name": "Define Sources",

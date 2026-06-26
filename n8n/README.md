@@ -6,22 +6,35 @@ which stores them in Redis/KV plus an in-memory dataset (no SQL database). The
 Telegram bot then answers reports from that dataset instead of reading every
 sheet live.
 
-## Simplest option: let the bot read the Bot Authority registry
+## Two ways to set this up — pick one
 
-If you keep a **Bot Authority** spreadsheet whose `Offices` tab maps office ×
-month to each data spreadsheet ID (see the project README), you do not need to
-wire Google Sheets nodes in n8n at all. Just schedule a single HTTP call:
+### Option A — Bot Authority registry (recommended, least n8n work)
+
+Keep a **Bot Authority** spreadsheet whose `Offices` tab maps office × month to
+each data spreadsheet ID (and a `users` tab for authorized users). Then n8n does
+**not** need any Google Sheets nodes — just one scheduled HTTP call:
 
 ```
 Schedule → HTTP Request: POST {PUBLIC_APP_URL}/api/sources
            header x-ingest-secret: {INGEST_SECRET}
 ```
 
-The bot reads the registry, pulls each office sheet itself, and stores the rows.
-Narrow large syncs with `?period=YYYY-MM` or `?sourceKey=...`. The service account
-must be shared on the registry and on every office sheet it lists.
+Import `crm-registry-sync.json` for exactly this. The bot reads the registry,
+pulls each office sheet itself, stores the rows, and (if `AUTHORIZE_FROM_REGISTRY`
+is on) refreshes authorized users from the `users` tab. Narrow large syncs with
+`?period=YYYY-MM` or `?sourceKey=...`.
 
-The workflow below is the alternative where n8n reads the sheets and pushes them.
+Why this is easier when sheets grow: adding "4 sheets per office per month" is
+editing a spreadsheet, not editing/redeploying an n8n workflow. The service
+account must be shared on the registry **and** on every office sheet it lists.
+
+### Option B — define the sheet IDs in n8n (no registry sheet)
+
+If you prefer to keep the list inside n8n, import `crm-sheets-sync.json` and edit
+the **Define Sources** Code node — paste the office/month/spreadsheetId rows
+there. n8n then reads each Google Sheet and pushes it to `/api/ingest`. This is
+fine for a small, fairly static list; you edit the workflow whenever sheets are
+added. The workflow below describes this option.
 
 ## Why this architecture
 
