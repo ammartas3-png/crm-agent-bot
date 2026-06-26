@@ -8,7 +8,6 @@ import {
 } from "../../../lib/permissions.js";
 import { hydrateSession } from "../../../lib/session.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
-import { isDatabaseEnabled } from "../../../lib/db.js";
 import {
   approveAccessRequest,
   createAccessRequest,
@@ -58,7 +57,7 @@ export async function GET(request) {
       adminChatIdsConfigured: Boolean(process.env.ADMIN_CHAT_IDS),
       telegramWebhookSecretConfigured: Boolean(process.env.TELEGRAM_WEBHOOK_SECRET),
       persistentStoreConfigured: isPersistenceEnabled(),
-      databaseConfigured: isDatabaseEnabled(),
+      ingestSecretConfigured: Boolean(process.env.INGEST_SECRET),
     },
   });
 }

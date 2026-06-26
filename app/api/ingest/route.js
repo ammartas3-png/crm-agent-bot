@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getTabConfig } from "../../../config/sheetsConfig.js";
-import { isDatabaseEnabled } from "../../../lib/db.js";
 import { rowsToObjects } from "../../../lib/googleSheets.js";
-import { replaceSourceRows } from "../../../lib/leadsRepository.js";
-import { mapSheetRowsToRecords } from "../../../lib/sheetRowMapper.js";
-import { flushPersistence } from "../../../lib/store.js";
+import { saveSource } from "../../../lib/leadsStore.js";
+import { prepareRowsForStore, derivePeriod } from "../../../lib/sheetRowMapper.js";
+import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
 
@@ -26,8 +25,8 @@ export function GET() {
   return NextResponse.json({
     ok: true,
     service: "crm-ingest",
-    databaseEnabled: isDatabaseEnabled(),
     ingestSecretConfigured: Boolean(ingestSecret()),
+    persistentStoreConfigured: isPersistenceEnabled(),
   });
 }
 
@@ -41,12 +40,6 @@ export async function POST(request) {
   }
   if (providedSecret(request) !== secret) {
     return NextResponse.json({ ok: false, error: "Invalid ingest secret" }, { status: 401 });
-  }
-  if (!isDatabaseEnabled()) {
-    return NextResponse.json(
-      { ok: false, error: "DATABASE_URL is not configured." },
-      { status: 503 },
-    );
   }
 
   let body;
@@ -64,11 +57,11 @@ export async function POST(request) {
   const tabConfig = getTabConfig(body.tabKey || "leads");
 
   // Accept either header-keyed objects (`rows`) or raw sheet `values` arrays.
-  let rows = [];
+  let rawRows = [];
   if (Array.isArray(body.rows)) {
-    rows = body.rows;
+    rawRows = body.rows;
   } else if (Array.isArray(body.values)) {
-    rows = rowsToObjects(body.values, tabConfig.columns);
+    rawRows = rowsToObjects(body.values, tabConfig.columns);
   } else {
     return NextResponse.json(
       { ok: false, error: "Provide rows[] (objects) or values[][] (raw sheet rows)." },
@@ -77,7 +70,6 @@ export async function POST(request) {
   }
 
   const meta = {
-    sourceKey,
     office: body.office ? String(body.office).trim() : null,
     period: body.period ? String(body.period).trim() : null,
     category: body.category ? String(body.category).trim() : null,
@@ -86,13 +78,18 @@ export async function POST(request) {
   };
 
   try {
-    const records = mapSheetRowsToRecords(rows, tabConfig, meta);
-    const result = await replaceSourceRows(sourceKey, meta, records);
+    const rows = prepareRowsForStore(rawRows, tabConfig, meta);
+    if (!meta.period && rows.length > 0) {
+      const fields = tabConfig.fields || {};
+      meta.period = derivePeriod(rows[0][fields.leadDate], rows[0][fields.created]);
+    }
+    const result = saveSource(sourceKey, meta, rows);
     return NextResponse.json({
       ok: true,
       sourceKey,
-      received: rows.length,
+      received: rawRows.length,
       stored: result.rowCount,
+      persisted: isPersistenceEnabled(),
     });
   } catch (error) {
     console.error("Ingestion failed", error);
