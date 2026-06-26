@@ -428,6 +428,29 @@ function shortMonthLabel(monthKey = "", fallbackLabel = "") {
   return `${shortMonth}-${String(year).slice(-2)}`;
 }
 
+function monthRowsFromLast4Report(report = null) {
+  if (!report) {
+    return [];
+  }
+  const monthRows = Array.isArray(report?.monthRows) ? report.monthRows : [];
+  if (monthRows.length) {
+    return monthRows.map((item) => ({
+      monthKey: String(item?.monthKey || "").trim(),
+      monthLabel: String(item?.label || item?.monthLabel || item?.monthKey || "").trim(),
+      summary: {
+        totalLeads: Number(item?.totalLeads || 0),
+        totalFtd: Number(item?.totalFtd || 0),
+        ftdTarget: Number(item?.ftdTarget || 0),
+        ftdTargetReach: Number(item?.ftdTargetReach || 0),
+        cr: Number(item?.cr || 0),
+        crTarget: Number(item?.crTarget || 0),
+        crTargetReach: Number(item?.crTargetReach || 0),
+      },
+    }));
+  }
+  return [];
+}
+
 function Last4MonthsMatrixTable({
   title = "Last 4 Months Results",
   monthRows = [],
@@ -1214,7 +1237,6 @@ export default function DashboardDetailsClientPage() {
     breakdownReport: null,
     trendReport: null,
     leadsReport: null,
-    benchmarkReport: null,
     benchmarkRowsReport: null,
     last4Rows: [],
     last4Loading: false,
@@ -1347,19 +1369,6 @@ export default function DashboardDetailsClientPage() {
     };
   }, [entityScopedBaseFilters]);
 
-  const benchmarkFilters = useMemo(() => {
-    if (!entityScopedBaseFilters) {
-      return null;
-    }
-    return {
-      ...entityScopedBaseFilters,
-      page: "1",
-      rowLimit: "40",
-      benchmarkMode: true,
-      rowDimensions: [detailTarget.entityKey],
-      metricFields: ["avgFtdByDeskLongTerm", "ftdBenchmarkRate", "leads", "ftd"],
-    };
-  }, [detailTarget.entityKey, entityScopedBaseFilters]);
   const benchmarkRowsFilters = useMemo(() => {
     if (!entityScopedBaseFilters) {
       return null;
@@ -1387,18 +1396,29 @@ export default function DashboardDetailsClientPage() {
   const breakdownQuery = useMemo(() => (breakdownFilters ? buildReportQuery(breakdownFilters).toString() : ""), [breakdownFilters]);
   const trendQuery = useMemo(() => (trendFilters ? buildReportQuery(trendFilters).toString() : ""), [trendFilters]);
   const leadsQuery = useMemo(() => (leadsTableFilters ? buildReportQuery(leadsTableFilters).toString() : ""), [leadsTableFilters]);
-  const benchmarkQuery = useMemo(
-    () => (benchmarkFilters ? buildReportQuery(benchmarkFilters).toString() : ""),
-    [benchmarkFilters],
-  );
   const benchmarkRowsQuery = useMemo(
     () => (benchmarkRowsFilters ? buildReportQuery(benchmarkRowsFilters).toString() : ""),
     [benchmarkRowsFilters],
   );
+  const last4Query = useMemo(() => {
+    if (!entityScopedBaseFilters) {
+      return "";
+    }
+    const payload = {
+      ...entityScopedBaseFilters,
+      reportMode: "last4",
+      specificType: "",
+      benchmarkMode: false,
+      includeWorkTime: false,
+      page: "1",
+      rowLimit: "120",
+    };
+    return buildReportQuery(payload).toString();
+  }, [entityScopedBaseFilters]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!contextFilters || !breakdownQuery || !trendQuery || !leadsQuery || !benchmarkQuery || !benchmarkRowsQuery) {
+    if (!contextFilters || !breakdownQuery || !trendQuery || !leadsQuery || !benchmarkRowsQuery || !last4Query) {
       return undefined;
     }
     if (!detailTarget.valid) {
@@ -1409,7 +1429,6 @@ export default function DashboardDetailsClientPage() {
         breakdownReport: null,
         trendReport: null,
         leadsReport: null,
-        benchmarkReport: null,
         benchmarkRowsReport: null,
         last4Rows: [],
         last4Loading: false,
@@ -1426,25 +1445,25 @@ export default function DashboardDetailsClientPage() {
           loading: !hasExistingData,
           refreshing: hasExistingData,
           error: "",
-          ...(hasExistingData ? {} : { last4Rows: [], last4Loading: false }),
+          last4Loading: true,
+          ...(hasExistingData ? {} : { last4Rows: [] }),
         };
       });
       try {
-        const [breakdownResponse, trendResponse, leadsResponse, benchmarkResponse] = await Promise.all([
+        const [breakdownResponse, trendResponse, leadsResponse, benchmarkRowsResponse, last4Response] = await Promise.all([
           fetch(`/api/dashboard/report?${breakdownQuery}`, { cache: "no-store" }),
           fetch(`/api/dashboard/report?${trendQuery}`, { cache: "no-store" }),
           fetch(`/api/dashboard/report?${leadsQuery}`, { cache: "no-store" }),
-          fetch(`/api/dashboard/report?${benchmarkQuery}`, { cache: "no-store" }),
+          fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" }),
+          fetch(`/api/dashboard/report?${last4Query}`, { cache: "no-store" }),
         ]);
-        const benchmarkRowsPromise = fetch(`/api/dashboard/report?${benchmarkRowsQuery}`, { cache: "no-store" });
-        const [breakdownPayload, trendPayload, leadsPayload, benchmarkPayload] = await Promise.all([
+        const [breakdownPayload, trendPayload, leadsPayload, benchmarkRowsPayload, last4Payload] = await Promise.all([
           readApiPayload(breakdownResponse),
           readApiPayload(trendResponse),
           readApiPayload(leadsResponse),
-          readApiPayload(benchmarkResponse),
+          readApiPayload(benchmarkRowsResponse),
+          readApiPayload(last4Response),
         ]);
-        const benchmarkRowsResponse = await benchmarkRowsPromise;
-        const benchmarkRowsPayload = await readApiPayload(benchmarkRowsResponse);
         if (!breakdownResponse.ok || breakdownPayload?.ok === false) {
           throw new Error(breakdownPayload?.message || breakdownPayload?.error || "Could not load traffic report.");
         }
@@ -1454,26 +1473,18 @@ export default function DashboardDetailsClientPage() {
         if (!leadsResponse.ok || leadsPayload?.ok === false) {
           throw new Error(leadsPayload?.message || leadsPayload?.error || "Could not load leads details table.");
         }
-        if (!benchmarkResponse.ok || benchmarkPayload?.ok === false) {
-          throw new Error(benchmarkPayload?.message || benchmarkPayload?.error || "Could not load benchmark details.");
-        }
         if (!benchmarkRowsResponse.ok || benchmarkRowsPayload?.ok === false) {
           throw new Error(benchmarkRowsPayload?.message || benchmarkRowsPayload?.error || "Could not load benchmark rows table.");
+        }
+        if (!last4Response.ok || last4Payload?.ok === false) {
+          throw new Error(last4Payload?.message || last4Payload?.error || "Could not load last 4 months summary.");
         }
         const breakdownReport = breakdownPayload.report || null;
         const trendReport = trendPayload.report || null;
         const leadsReport = leadsPayload.report || null;
-        const benchmarkReport = benchmarkPayload.report || null;
         const benchmarkRowsReport = benchmarkRowsPayload.report || null;
-        const monthOptions = Array.isArray(breakdownReport?.options?.months) ? breakdownReport.options.months : [];
-        const monthKeysFromOptions = monthOptions.map((month) => String(month?.key || "").trim()).filter(Boolean);
-        const monthKeysFromFilters = Array.isArray(contextFilters?.monthKey) ? contextFilters.monthKey.filter(Boolean) : [];
-        const last4MonthKeys = [...new Set(monthKeysFromOptions.length ? monthKeysFromOptions : monthKeysFromFilters)].slice(0, 4);
-        const monthLabelByKey = new Map(
-          monthOptions
-            .map((month) => [String(month?.key || "").trim(), String(month?.month_label || month?.label || month?.key || "").trim()])
-            .filter(([key]) => Boolean(key)),
-        );
+        const last4Report = last4Payload.report || null;
+        const monthRows = monthRowsFromLast4Report(last4Report);
         if (!cancelled) {
           setState((prev) => ({
             ...prev,
@@ -1483,44 +1494,8 @@ export default function DashboardDetailsClientPage() {
             breakdownReport,
             trendReport,
             leadsReport,
-            benchmarkReport,
             benchmarkRowsReport,
-            last4Rows: last4MonthKeys.length ? prev.last4Rows : [],
-            last4Loading: last4MonthKeys.length > 0,
-          }));
-        }
-        if (!last4MonthKeys.length) {
-          return;
-        }
-        const monthSummaryRequests = await Promise.all(
-          last4MonthKeys.map(async (monthKey) => {
-            const monthQuery = buildReportQuery({
-              ...entityScopedBaseFilters,
-              monthKey: [monthKey],
-              rowDimensions: [detailTarget.entityKey],
-              metricFields: ["leads", "ftd", "ftdTarget", "cr", "crTarget", "crTargetReach", "ftdTargetReach"],
-              includeWorkTime: false,
-              benchmarkMode: false,
-              page: "1",
-              rowLimit: "40",
-            }).toString();
-            const response = await fetch(`/api/dashboard/report?${monthQuery}`, { cache: "no-store" });
-            const payload = await readApiPayload(response);
-            if (!response.ok || payload?.ok === false) {
-              throw new Error(payload?.message || payload?.error || `Could not load ${monthKey} monthly summary.`);
-            }
-            return {
-              monthKey,
-              monthLabel: monthLabelByKey.get(monthKey) || monthKey,
-              summary: payload?.report?.summary || {},
-            };
-          }),
-        );
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            refreshing: false,
-            last4Rows: monthSummaryRequests,
+            last4Rows: monthRows,
             last4Loading: false,
           }));
         }
@@ -1546,7 +1521,6 @@ export default function DashboardDetailsClientPage() {
               breakdownReport: null,
               trendReport: null,
               leadsReport: null,
-              benchmarkReport: null,
               benchmarkRowsReport: null,
               last4Rows: [],
               last4Loading: false,
@@ -1561,13 +1535,11 @@ export default function DashboardDetailsClientPage() {
       window.clearTimeout(timerId);
     };
   }, [
-    benchmarkQuery,
     benchmarkRowsQuery,
     breakdownQuery,
     contextFilters,
-    detailTarget.entityKey,
     detailTarget.valid,
-    entityScopedBaseFilters,
+    last4Query,
     leadsQuery,
     trendQuery,
   ]);
@@ -1605,7 +1577,7 @@ export default function DashboardDetailsClientPage() {
     { label: "CR Target Reach", value: formatPercent(summary.crTargetReach || 0) },
     { label: "FTD Target Reach", value: formatPercent(summary.ftdTargetReach || 0) },
   ];
-  const benchmarkMetrics = benchmarkMetricsFromReport(hasLinkedFilters ? displayBenchmarkRowsReport : state.benchmarkReport);
+  const benchmarkMetrics = benchmarkMetricsFromReport(hasLinkedFilters ? displayBenchmarkRowsReport : state.benchmarkRowsReport);
   const representativeRow = useMemo(() => {
     const reports = [displayBenchmarkRowsReport, displayBreakdownReport, displayLeadsReport];
     for (const report of reports) {

@@ -34,7 +34,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { action: 'batch_monthly_excel', includeBase64: $json.body?.includeBase64 ?? true, concurrency: $json.body?.concurrency || 2, officeScopes: $json.body?.officeScopes, monthKeys: $json.body?.monthKeys, filenamePrefix: $json.body?.filenamePrefix || 'crm-monthly', query: $json.body?.query || { reportMode: 'specific', specificType: 'builder', rowDimensions: 'desk,teamLeader,agent', metricFields: 'leads,ftd,avgFtdByDeskLongTerm,ftdBenchmarkRate,cr,crTargetReach,ftdTargetReach' } } }}",
+        "jsonBody": "={{ { action: 'batch_monthly_excel_async', concurrency: $json.body?.concurrency || 2, officeScopes: $json.body?.officeScopes, monthKeys: $json.body?.monthKeys, filenamePrefix: $json.body?.filenamePrefix || 'crm-monthly', idempotencyKey: $json.body?.idempotencyKey || `${$execution.id}`, query: $json.body?.query || { reportMode: 'specific', specificType: 'builder', rowDimensions: 'desk,teamLeader,agent', metricFields: 'leads,ftd,avgFtdByDeskLongTerm,ftdBenchmarkRate,cr,crTargetReach,ftdTargetReach' } } }}",
         "options": {
           "timeout": 300000
         }

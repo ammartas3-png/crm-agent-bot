@@ -185,6 +185,14 @@ Required:
   (default: `180`).
 - `N8N_BATCH_MAX_EXPORTS` - optional hard limit for n8n batch monthly export
   target count per request (default: `48`).
+- `N8N_BATCH_JOB_TTL_MS` - optional TTL for async n8n batch jobs kept in memory
+  (default: `3600000`).
+- `N8N_BATCH_JOB_MAX` - optional max async n8n job records kept in memory
+  (default: `200`).
+- `ALERT_WEBHOOK_URL` - optional webhook URL for structured error alerts from
+  report/export/n8n/benchmark routes.
+- `IDEMPOTENCY_TTL_MS` - optional in-memory TTL for integration idempotency
+  responses (default: `900000`).
 - `N8N_PREPARED_CACHE_ENABLED` - enable reading prepared n8n JSON cache files
   before Google Sheets (`1`/`0`, default: `0`).
 - `N8N_PREPARED_CACHE_REQUIRED` - when enabled, block Google Sheets fallback if
@@ -266,6 +274,16 @@ The integration endpoint supports these actions:
 - `action: "bootstrap"` -> available office scopes + month keys
 - `action: "batch_monthly_excel"` -> generate many monthly XLSX files in one
   call (`officeScopes[] x monthKeys[]`), optionally with controlled concurrency
+- `action: "batch_monthly_excel_async"` -> queue background batch job and return
+  `jobId` + `statusUrl`
+- `action: "batch_job_status"` -> read async batch job progress and artifact URLs
+
+Async job helper endpoints:
+
+```text
+GET /api/integrations/n8n/report/jobs/:jobId
+GET /api/integrations/n8n/report/jobs/:jobId/artifacts/:artifactId
+```
 
 ### Endpoint auth
 
@@ -273,6 +291,10 @@ Set `N8N_WORKFLOW_SECRET` in this app. Requests must include one of:
 
 - `Authorization: Bearer <N8N_WORKFLOW_SECRET>`
 - `x-n8n-secret: <N8N_WORKFLOW_SECRET>`
+
+Optional idempotency key header:
+
+- `x-idempotency-key: <unique-key>`
 
 ### n8n environment variables
 
@@ -316,6 +338,29 @@ In n8n, set:
   }
 }
 ```
+
+### Sample async batch body
+
+```json
+{
+  "action": "batch_monthly_excel_async",
+  "officeScopes": ["Turkey Office", "Baku Office"],
+  "monthKeys": ["2026-06", "2026-05", "2026-04"],
+  "concurrency": 2,
+  "filenamePrefix": "crm-monthly",
+  "query": {
+    "reportMode": "specific",
+    "specificType": "builder",
+    "rowDimensions": "desk,teamLeader,agent",
+    "metricFields": "leads,ftd,avgFtdByDeskLongTerm,ftdBenchmarkRate,cr,crTargetReach,ftdTargetReach"
+  }
+}
+```
+
+### Health endpoint
+
+Use `/api/health` for fast status and `/api/health?full=1` for a provider read
+probe (reads one leads dataset through the active provider).
 
 ### Prepared cache mode (phase-1 backend refactor)
 

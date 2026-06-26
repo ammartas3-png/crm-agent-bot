@@ -1,51 +1,16 @@
 import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
+import { mapDashboardServiceError } from "../../../../lib/dashboardApiErrors.js";
+import { isEnabledFlag, parseDashboardQueryFromSearchParams } from "../../../../lib/dashboardQuery.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { createRequestId, logAndAlertError, logEvent } from "../../../../lib/opsLogger.js";
 
 export const maxDuration = 300;
 
-function queryParams(searchParams) {
-  return {
-    monthKey: String(searchParams.get("monthKey") || "").trim(),
-    officeScope: String(searchParams.get("officeScope") || "").trim(),
-    reportMode: String(searchParams.get("reportMode") || "").trim(),
-    specificType: String(searchParams.get("specificType") || "").trim(),
-    date: String(searchParams.get("date") || "").trim(),
-    hour: String(searchParams.get("hour") || "").trim(),
-    desk: String(searchParams.get("desk") || "").trim(),
-    country: String(searchParams.get("country") || "").trim(),
-    brand: String(searchParams.get("brand") || "").trim(),
-    campaign: String(searchParams.get("campaign") || "").trim(),
-    subCampaign: String(searchParams.get("subCampaign") || "").trim(),
-    placement: String(searchParams.get("placement") || "").trim(),
-    status: String(searchParams.get("status") || "").trim(),
-    teamLeader: String(searchParams.get("teamLeader") || "").trim(),
-    agent: String(searchParams.get("agent") || "").trim(),
-    groupBy: String(searchParams.get("groupBy") || "").trim(),
-    rowDimensions: String(searchParams.get("rowDimensions") || "").trim(),
-    metricFields: String(searchParams.get("metricFields") || "").trim(),
-    totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
-    columnDimension: String(searchParams.get("columnDimension") || "").trim(),
-    includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
-    agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
-    last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
-    includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
-    hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
-    benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
-    benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
-    debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
-    page: String(searchParams.get("page") || "").trim(),
-    rowLimit: String(searchParams.get("rowLimit") || "").trim(),
-    monitor: String(searchParams.get("monitor") || "").trim(),
-  };
-}
-
-function asBool(value = "") {
-  return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
-}
-
 export async function GET(request) {
+  const requestId = createRequestId("dashboard-report");
+  const startedAt = Date.now();
   try {
     const resolved = await dashboardAccessFromRequest(request);
     if (!resolved.authenticated) {
@@ -54,8 +19,8 @@ export async function GET(request) {
     if (!resolved.access?.authorized) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    const query = queryParams(new URL(request.url).searchParams);
-    if (asBool(query.monitor)) {
+    const query = parseDashboardQueryFromSearchParams(new URL(request.url).searchParams);
+    if (isEnabledFlag(query.monitor)) {
       const encoder = new TextEncoder();
       let latestProgress = {
         startTime: new Date().toISOString(),
@@ -82,10 +47,25 @@ export async function GET(request) {
                 writeEvent({ type: "progress", ...latestProgress });
               },
             });
+            logEvent("info", "dashboard_report_stream_completed", {
+              requestId,
+              elapsedMs: Date.now() - startedAt,
+              reportMode: String(query.reportMode || ""),
+              officeScope: String(query.officeScope || ""),
+            });
             writeEvent({ type: "result", report });
           } catch (error) {
             const errorCode = String(error?.code || "").trim();
             const isTooHeavy = errorCode === "report_too_heavy";
+            await logAndAlertError("dashboard_report_stream_failed", {
+              requestId,
+              elapsedMs: Date.now() - startedAt,
+              error: isTooHeavy ? "report_too_heavy" : "report_route_failed",
+              message: error?.message || "Could not load report.",
+              stage: error?.stage || latestProgress.step || "",
+              reportMode: String(query.reportMode || ""),
+              officeScope: String(query.officeScope || ""),
+            });
             writeEvent({
               type: "error",
               ok: false,
@@ -112,18 +92,20 @@ export async function GET(request) {
       });
     }
     const report = await loadDashboardReport(resolved.access, query);
+    logEvent("info", "dashboard_report_completed", {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+      reportMode: String(query.reportMode || ""),
+      officeScope: String(query.officeScope || ""),
+    });
     return NextResponse.json({ ok: true, report });
   } catch (error) {
-    const errorCode = String(error?.code || "").trim();
-    const isTooHeavy = errorCode === "report_too_heavy";
-    return NextResponse.json(
-      {
-        ok: false,
-        error: isTooHeavy ? "report_too_heavy" : "report_route_failed",
-        message: error?.message || "Could not load report.",
-        stage: error?.stage || "",
-      },
-      { status: isTooHeavy ? 422 : 500 },
-    );
+    const mapped = mapDashboardServiceError(error, "report_route_failed");
+    await logAndAlertError("dashboard_report_failed", {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+      ...mapped.body,
+    });
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }
