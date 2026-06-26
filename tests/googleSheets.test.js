@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getGoogleCredentialConfig, normalizePrivateKey, readSheetRows } from "../lib/googleSheets.js";
+import {
+  clearSheetCache,
+  getGoogleCredentialConfig,
+  normalizePrivateKey,
+  readSheetRows,
+} from "../lib/googleSheets.js";
 
 const RAW_KEY = "-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----\\n";
 const NORMALIZED_KEY = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----";
@@ -45,9 +50,11 @@ test("getGoogleCredentialConfig reads service account JSON", () => {
 });
 
 test("readSheetRows builds a trimmed quoted range from tab name when range is absent", async () => {
+  clearSheetCache();
   let requestedRange = "";
   const rows = await readSheetRows("leads", {
     spreadsheetId: "spreadsheet-id",
+    cache: false,
     tabConfig: {
       name: "  Leads  ",
       columns: ["ID"],
@@ -66,4 +73,36 @@ test("readSheetRows builds a trimmed quoted range from tab name when range is ab
 
   assert.equal(requestedRange, "'Leads'!A:Y");
   assert.deepEqual(rows, [{ ID: "1" }]);
+});
+
+test("readSheetRows caches reads per spreadsheet/range within the TTL", async () => {
+  clearSheetCache();
+  let getCalls = 0;
+  const sheetsClient = {
+    spreadsheets: {
+      values: {
+        get: async () => {
+          getCalls += 1;
+          return { data: { values: [["1"], ["2"]] } };
+        },
+      },
+    },
+  };
+  const options = {
+    spreadsheetId: "cache-test-id",
+    tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+    sheetsClient,
+  };
+
+  const first = await readSheetRows("leads", options);
+  const second = await readSheetRows("leads", options);
+
+  assert.equal(getCalls, 1, "second read should be served from cache");
+  assert.deepEqual(first, second);
+
+  const fresh = await readSheetRows("leads", { ...options, cache: false });
+  assert.equal(getCalls, 2, "cache: false should force a fresh read");
+  assert.deepEqual(fresh, first);
+
+  clearSheetCache();
 });
