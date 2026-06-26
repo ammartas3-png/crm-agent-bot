@@ -22,8 +22,10 @@ calculates simple metrics, and replies with a short answer.
 ```text
 app/api/telegram/route.js
 app/api/ingest/route.js        # n8n ingestion endpoint (optional)
+app/api/sources/route.js       # Bot Authority registry: list + sync (optional)
 lib/telegram.js
 lib/googleSheets.js
+lib/registry.js                # reads the Bot Authority spreadsheet (sources/users)
 lib/dataProvider.js            # reads from the ingested dataset or Google Sheets
 lib/leadsStore.js              # SQL-less dataset store (Redis/KV + in-memory)
 lib/sheetRowMapper.js          # prepares sheet rows for storage (KPI shape kept)
@@ -287,6 +289,35 @@ Relevant env vars:
 - `INGEST_SECRET` - required secret for the `/api/ingest` endpoint n8n calls.
 - `LEADS_SOURCE` - `auto` (default) | `ingest` | `sheets`.
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` - durable storage for the dataset.
+
+### Bot Authority registry (which sheets to use)
+
+Instead of hardcoding spreadsheet IDs, the bot can read a central **Bot
+Authority** spreadsheet. Its `Offices` tab maps office × month to the data
+spreadsheet ID:
+
+```text
+Office          | January 26              | February 26 | March 26
+Turkiye Office  | <spreadsheet id or url> |             | <spreadsheet id>
+Dubai Office    |                         |             | <spreadsheet id>
+```
+
+Each non-empty cell becomes a *source* (`<office>:<YYYY-MM>:leads`). A `users`
+tab can list authorized principals. Configure it with
+`GOOGLE_AUTHORITY_SPREADSHEET_ID` (and optionally the tab/range overrides).
+
+Endpoints (protected by `INGEST_SECRET`):
+
+- `GET /api/sources` - lists the discovered sheets (add `?includeUsers=1` to also
+  return the users tab). Useful for n8n to iterate, or just to verify access.
+- `POST /api/sources` - registry-driven sync: the bot reads each office sheet
+  itself and stores it. Narrow with `?sourceKey=...` or `?period=YYYY-MM` to
+  avoid serverless timeouts on large registries.
+
+With this, the simplest setup is a scheduler (n8n Schedule, Vercel Cron, …) that
+just calls `POST /api/sources` periodically — no per-sheet wiring needed. The
+service account must be shared (read access) on the registry **and** on every
+office sheet it references.
 
 Optional tab/range overrides:
 

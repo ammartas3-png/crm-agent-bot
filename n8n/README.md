@@ -6,6 +6,23 @@ which stores them in Redis/KV plus an in-memory dataset (no SQL database). The
 Telegram bot then answers reports from that dataset instead of reading every
 sheet live.
 
+## Simplest option: let the bot read the Bot Authority registry
+
+If you keep a **Bot Authority** spreadsheet whose `Offices` tab maps office ×
+month to each data spreadsheet ID (see the project README), you do not need to
+wire Google Sheets nodes in n8n at all. Just schedule a single HTTP call:
+
+```
+Schedule → HTTP Request: POST {PUBLIC_APP_URL}/api/sources
+           header x-ingest-secret: {INGEST_SECRET}
+```
+
+The bot reads the registry, pulls each office sheet itself, and stores the rows.
+Narrow large syncs with `?period=YYYY-MM` or `?sourceKey=...`. The service account
+must be shared on the registry and on every office sheet it lists.
+
+The workflow below is the alternative where n8n reads the sheets and pushes them.
+
 ## Why this architecture
 
 - **Many growing sheets** — 4 new sheets per office every month. Each sheet is a
