@@ -1090,26 +1090,44 @@ function HierarchicalTrafficTable({
   );
 }
 
+// In-cell progress bar (bullet) toward the 100% target, keeping the green/red
+// status colour. Pure style change — markup and flow are unchanged.
 function reachCellStyle(value) {
   const numeric = Number(value || 0);
-  if (numeric >= 100) {
-    return { background: "#dcfce7", color: "#166534", fontWeight: 700 };
-  }
-  return { background: "#fee2e2", color: "#b91c1c", fontWeight: 700 };
+  const fill = Math.max(0, Math.min(100, numeric));
+  const isGood = numeric >= 100;
+  const fillColor = isGood ? "#bbf7d0" : "#fecaca";
+  const color = isGood ? "#166534" : "#b91c1c";
+  return {
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    color,
+    fontWeight: 700,
+  };
 }
 
 function benchmarkRateCellStyle(value) {
   const numeric = Number(value || 0);
+  const fill = Math.max(0, Math.min(100, numeric));
+  let fillColor;
+  let color;
   if (numeric >= 110) {
-    return { background: "#16a34a", color: "#ffffff", fontWeight: 700 };
+    fillColor = "#bbf7d0";
+    color = "#166534";
+  } else if (numeric >= 85) {
+    fillColor = "#d9f99d";
+    color = "#3f6212";
+  } else if (numeric >= 60) {
+    fillColor = "#fde68a";
+    color = "#92400e";
+  } else {
+    fillColor = "#fecaca";
+    color = "#b91c1c";
   }
-  if (numeric >= 85) {
-    return { background: "#65a30d", color: "#ffffff", fontWeight: 700 };
-  }
-  if (numeric >= 60) {
-    return { background: "#facc15", color: "#713f12", fontWeight: 700 };
-  }
-  return { background: "#ef4444", color: "#ffffff", fontWeight: 700 };
+  return {
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    color,
+    fontWeight: 700,
+  };
 }
 
 function statusCellStyle(value) {

@@ -67,12 +67,19 @@ function reachColor(value) {
   return "#b91c1c";
 }
 
+// In-cell progress bar (bullet) for "Target Reach" cells: the bar fills toward
+// the 100% target and keeps the green (met) / red (below) status colour. Pure
+// style change — no markup/flow change.
 function reachCellStyle(value) {
   const number = Number(value || 0);
-  if (number >= 100) {
-    return { background: "#dcfce7", color: "#166534" };
-  }
-  return { background: "#fee2e2", color: "#b91c1c" };
+  const fill = Math.max(0, Math.min(100, number));
+  const isGood = number >= 100;
+  const fillColor = isGood ? "#bbf7d0" : "#fecaca";
+  const color = isGood ? "#166534" : "#b91c1c";
+  return {
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    color,
+  };
 }
 
 function benchmarkRateStyle(value) {
@@ -80,16 +87,26 @@ function benchmarkRateStyle(value) {
   if (!Number.isFinite(number)) {
     return { background: "transparent", color: "#0f172a" };
   }
+  const fill = Math.max(0, Math.min(100, number));
+  let fillColor;
+  let color;
   if (number >= 110) {
-    return { background: "#16a34a", color: "#ffffff" };
+    fillColor = "#bbf7d0";
+    color = "#166534";
+  } else if (number >= 85) {
+    fillColor = "#d9f99d";
+    color = "#3f6212";
+  } else if (number >= 60) {
+    fillColor = "#fde68a";
+    color = "#92400e";
+  } else {
+    fillColor = "#fecaca";
+    color = "#b91c1c";
   }
-  if (number >= 85) {
-    return { background: "#65a30d", color: "#ffffff" };
-  }
-  if (number >= 60) {
-    return { background: "#facc15", color: "#713f12" };
-  }
-  return { background: "#ef4444", color: "#ffffff" };
+  return {
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    color,
+  };
 }
 
 function workingStatusStyle(value) {
