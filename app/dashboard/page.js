@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
+import { DataBar } from "./viz.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -3498,6 +3499,8 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
       <div className={styles.comparisonGrid}>
         {tables.map((table) => {
           const selectedValue = String(selections?.[table.key] || "").trim();
+          const maxLeads = Math.max(1, ...table.rows.map((row) => Number(row.leads) || 0));
+          const maxFtd = Math.max(1, ...table.rows.map((row) => Number(row.ftd) || 0));
           return (
             <div key={`comparison-${table.key}`} className={`${styles.panel} ${styles.tableCard}`}>
               <div className={styles.comparisonHeader}>
@@ -3547,8 +3550,14 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                           <td className={`${styles.tableStrong} ${styles.comparisonNameCell}`}>
                             <span className={styles.comparisonNameText}>{row.label}</span>
                           </td>
-                          <td>{formatNumber(row.leads)}</td>
-                          <td>{formatNumber(row.ftd)}</td>
+                          <td style={{ position: "relative" }}>
+                            <DataBar value={row.leads} max={maxLeads} color="#bfdbfe" />
+                            <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.leads)}</span>
+                          </td>
+                          <td style={{ position: "relative" }}>
+                            <DataBar value={row.ftd} max={maxFtd} color="#bbf7d0" />
+                            <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
+                          </td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
