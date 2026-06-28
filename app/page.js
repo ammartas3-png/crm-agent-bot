@@ -6,6 +6,9 @@ export default function Home() {
         The Telegram reporting webhook is available at <code>/api/telegram</code>.
       </p>
       <p>
+        Web dashboard is available at <a href="/dashboard">/dashboard</a>.
+      </p>
+      <p>
         Configure Telegram, Google Sheets, and allowed users with environment
         variables before using the bot.
       </p>

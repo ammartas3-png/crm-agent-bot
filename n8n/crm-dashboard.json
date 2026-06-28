@@ -1,0 +1,83 @@
+{
+  "name": "CRM Dashboard (sync + metrics)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-320, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PUBLIC_APP_URL }}/api/sources",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-ingest-secret", "value": "={{ $env.INGEST_SECRET }}" }
+          ]
+        },
+        "options": { "timeout": 120000 }
+      },
+      "id": "c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2",
+      "name": "Sync from Bot Authority",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-100, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.PUBLIC_APP_URL }}/api/report?type=all",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-ingest-secret", "value": "={{ $env.INGEST_SECRET }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3",
+      "name": "Get Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, 0]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const d = $json; return [{ json: { rowCount: d.rowCount, summary: d.summary, columns: d.columns, topAgents: (d.quick && d.quick.topAgentsByFtd || []).slice(0, 5), topCountries: (d.quick && d.quick.topCountries || []).slice(0, 5), status: d.quick && d.quick.statusDistribution } }];"
+      },
+      "id": "c4c4c4c4-c4c4-c4c4-c4c4-c4c4c4c4c4c4",
+      "name": "Show Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [340, 0]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [[{ "node": "Sync from Bot Authority", "type": "main", "index": 0 }]]
+    },
+    "Sync from Bot Authority": {
+      "main": [[{ "node": "Get Dashboard", "type": "main", "index": 0 }]]
+    },
+    "Get Dashboard": {
+      "main": [[{ "node": "Show Metrics", "type": "main", "index": 0 }]]
+    }
+  }
+}
