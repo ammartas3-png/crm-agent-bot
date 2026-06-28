@@ -12,13 +12,23 @@ test("scoreHeaderMatch counts matching headers case-insensitively", () => {
   assert.equal(scoreHeaderMatch(["ID", "ID", "Country"], expectedColumns), 2);
 });
 
-test("pickDataTabs returns tabs above the threshold, best first", () => {
+test("pickDataTabs returns the single best-scoring tab", () => {
   const scored = [
     { title: "Summary", score: 1 },
     { title: "Leads", score: 6 },
     { title: "April Leads", score: 4 },
   ];
-  assert.deepEqual(pickDataTabs(scored, { threshold: 3 }), ["Leads", "April Leads"]);
+  assert.deepEqual(pickDataTabs(scored, { threshold: 3 }), ["Leads"]);
+});
+
+test("pickDataTabs prefers the configured tab over higher-scoring auxiliary tabs", () => {
+  // Real-world case: "CR DATA"/"TRANSACTION" tabs share headers with Leads.
+  const scored = [
+    { title: "CR DATA", score: 6 },
+    { title: "TRANSACTION", score: 5 },
+    { title: "Leads", score: 4 },
+  ];
+  assert.deepEqual(pickDataTabs(scored, { threshold: 3, fallbackTab: "Leads" }), ["Leads"]);
 });
 
 test("pickDataTabs falls back to the configured tab then the first tab", () => {
