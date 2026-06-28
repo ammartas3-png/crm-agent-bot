@@ -13,10 +13,10 @@ const DEFAULT_LEADS_COLUMNS = [
   "FTD",
   null,
   "FTD MAKER",
-  "Office",
+  "Desk",
   "CR TARGET",
   "FTD DATE",
-  null,
+  "Selfs",
   "LATE FTD Difrrence",
   "LATE FTD +30 Day",
   "Diffrent Month",
@@ -35,6 +35,18 @@ const DEFAULT_TRANSACTION_COLUMNS = [
   "Type",
   "Country",
 ];
+const DEFAULT_INFO_AGENTS_COLUMNS = (() => {
+  const columns = new Array(42).fill(null);
+  columns[0] = "Working Status";
+  columns[2] = "Agent Name";
+  columns[3] = "Agent Target";
+  columns[5] = "Office";
+  columns[6] = "Team Leader";
+  columns[11] = "Starting Date";
+  columns[41] = "Job Entry";
+  return columns;
+})();
+const DEFAULT_AGENT_DIRECTORY_COLUMNS = ["Agent Name", "Agent ID"];
 
 export const DEFAULT_GOOGLE_SPREADSHEET_ID = "1cXyL60QniZevYOb06adN5FPHWN5tbYhiHX12yIa6kG4";
 export const DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL =
@@ -56,9 +68,33 @@ export function sheetRange(sheetName, columns = "A:Z") {
   return `${quoteSheetName(sheetName)}!${String(columns || "A:Z").trim()}`;
 }
 
+function columnLabelToIndex(label = "") {
+  return String(label || "")
+    .trim()
+    .toUpperCase()
+    .split("")
+    .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0);
+}
+
+function ensureMinEndColumnRange(range, sheetName, minimumEndColumn = "AP") {
+  const normalizedRange = String(range || "").trim();
+  const match = normalizedRange.match(/!([A-Z]+)\d*:([A-Z]+)\d*$/i);
+  if (!match) {
+    return normalizedRange || sheetRange(sheetName, `A:${minimumEndColumn}`);
+  }
+  const startColumn = String(match[1] || "A").toUpperCase();
+  const currentEndColumn = String(match[2] || minimumEndColumn).toUpperCase();
+  const minEnd = String(minimumEndColumn || "AP").toUpperCase();
+  const finalEndColumn =
+    columnLabelToIndex(currentEndColumn) >= columnLabelToIndex(minEnd) ? currentEndColumn : minEnd;
+  return sheetRange(sheetName, `${startColumn}:${finalEndColumn}`);
+}
+
 const leadsTabName = (process.env.GOOGLE_LEADS_TAB || DEFAULT_LEADS_TAB).trim();
 const ftdTabName = (process.env.GOOGLE_FTD_TAB || "FTD").trim();
 const transactionTabName = (process.env.GOOGLE_TRANSACTION_TAB || "TRANSACTION").trim();
+const infoAgentsTabName = (process.env.GOOGLE_INFO_AGENTS_TAB || "Info Agents").trim();
+const agentDirectoryTabName = (process.env.GOOGLE_AGENT_DIRECTORY_TAB || "Agent ID").trim();
 
 export const sheetsConfig = {
   spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID || DEFAULT_GOOGLE_SPREADSHEET_ID,
@@ -84,9 +120,11 @@ export const sheetsConfig = {
         teamLeader: "Team Leader",
         ftd: "FTD",
         ftdMaker: "FTD MAKER",
-        office: "Office",
+        office: "Desk",
+        desk: "Desk",
         crTarget: "CR TARGET",
         ftdDate: "FTD DATE",
+        selfsIndicator: "Selfs",
         lateFtdDifference: "LATE FTD Difrrence",
         lateFtdPlus30Day: "LATE FTD +30 Day",
         differentMonth: "Diffrent Month",
@@ -116,6 +154,33 @@ export const sheetsConfig = {
       statusColumn: "Type",
       amountColumn: "Amount",
       columns: DEFAULT_TRANSACTION_COLUMNS,
+    },
+    infoAgents: {
+      key: "infoAgents",
+      name: infoAgentsTabName,
+      range: ensureMinEndColumnRange(
+        process.env.GOOGLE_INFO_AGENTS_RANGE || sheetRange(infoAgentsTabName, "A:AP"),
+        infoAgentsTabName,
+        "AP",
+      ),
+      columns: DEFAULT_INFO_AGENTS_COLUMNS,
+      fields: {
+        workingStatus: "Working Status",
+        agentName: "Agent Name",
+        agentTarget: "Agent Target",
+        office: "Office",
+        teamLeader: "Team Leader",
+      },
+    },
+    agentDirectory: {
+      key: "agentDirectory",
+      name: agentDirectoryTabName,
+      range: process.env.GOOGLE_AGENT_DIRECTORY_RANGE || sheetRange(agentDirectoryTabName, "A:B"),
+      columns: DEFAULT_AGENT_DIRECTORY_COLUMNS,
+      fields: {
+        agentName: "Agent Name",
+        agentId: "Agent ID",
+      },
     },
   },
 };

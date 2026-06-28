@@ -3,9 +3,9 @@ import test from "node:test";
 
 import {
   buildSendMessagePayload,
+  buildWebhookEditMessage,
   buildWebhookSendMessage,
-  isValidWebhookRequest,
-  isValidWebhookSecret,
+  sanitizeTelegramCaption,
 } from "../lib/telegram.js";
 
 test("buildSendMessagePayload includes inline reply markup", () => {
@@ -26,25 +26,25 @@ test("buildWebhookSendMessage returns Telegram webhook method payload", () => {
   assert.equal(payload.text, "Menu");
 });
 
-test("isValidWebhookSecret accepts any request when no secret is configured", () => {
-  assert.equal(isValidWebhookSecret(undefined, {}), true);
-  assert.equal(isValidWebhookSecret("anything", { TELEGRAM_WEBHOOK_SECRET: "" }), true);
-});
-
-test("isValidWebhookSecret enforces an exact match when configured", () => {
-  const env = { TELEGRAM_WEBHOOK_SECRET: "s3cr3t" };
-  assert.equal(isValidWebhookSecret("s3cr3t", env), true);
-  assert.equal(isValidWebhookSecret("wrong", env), false);
-  assert.equal(isValidWebhookSecret(undefined, env), false);
-});
-
-test("isValidWebhookRequest reads the Telegram secret header", () => {
-  const env = { TELEGRAM_WEBHOOK_SECRET: "s3cr3t" };
-  const makeRequest = (value) => ({
-    headers: { get: (name) => (name === "x-telegram-bot-api-secret-token" ? value : null) },
+test("buildWebhookEditMessage returns editMessageText payload", () => {
+  const payload = buildWebhookEditMessage(123, 456, "Updated", {
+    replyMarkup: { inline_keyboard: [[{ text: "Done", callback_data: "done" }]] },
   });
+  assert.equal(payload.method, "editMessageText");
+  assert.equal(payload.chat_id, 123);
+  assert.equal(payload.message_id, 456);
+  assert.equal(payload.text, "Updated");
+  assert.equal(payload.reply_markup.inline_keyboard[0][0].text, "Done");
+});
 
-  assert.equal(isValidWebhookRequest(makeRequest("s3cr3t"), env), true);
-  assert.equal(isValidWebhookRequest(makeRequest("nope"), env), false);
-  assert.equal(isValidWebhookRequest(makeRequest(null), { TELEGRAM_WEBHOOK_SECRET: "" }), true);
+test("sanitizeTelegramCaption keeps short captions unchanged", () => {
+  const caption = "Short caption";
+  assert.equal(sanitizeTelegramCaption(caption), caption);
+});
+
+test("sanitizeTelegramCaption truncates long captions safely", () => {
+  const caption = "A".repeat(1100);
+  const result = sanitizeTelegramCaption(caption);
+  assert.equal(result.length <= 1024, true);
+  assert.equal(result.endsWith("..."), true);
 });

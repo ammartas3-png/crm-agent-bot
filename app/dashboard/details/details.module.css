@@ -1,0 +1,279 @@
+.page {
+  min-height: 100vh;
+  padding: 10px;
+  background: #edf2f7;
+  color: #0f172a;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #dce4ed;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  padding: 10px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+
+.backButton {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.backButton:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.contextGrid {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.contextChip {
+  border: 1px solid #dbe4ee;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 6px 8px;
+  display: grid;
+  gap: 2px;
+}
+
+.contextLabel {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.loading {
+  margin: 0;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.summaryGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.dualGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summaryCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.summaryLabel {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.summaryValue {
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.tableHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actionButton {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: #f1f5f9;
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 15px;
+}
+
+.inlineHint {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.linkedFilterBar {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.linkedFilterValue {
+  font-size: 12px;
+  color: #0f172a;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.tableScroll {
+  overflow: auto;
+  max-height: 56vh;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 960px;
+}
+
+.table th {
+  text-align: left;
+  font-size: 12px;
+  color: #ffffff;
+  background: #334155;
+  border-bottom: 1px solid #475569;
+  padding: 7px 9px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+}
+
+.table td {
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.matrixTable th,
+.matrixTable td {
+  text-align: center;
+}
+
+.matrixTable th {
+  position: static;
+}
+
+.matrixTable th:nth-child(-n + 3),
+.matrixTable td:nth-child(-n + 3) {
+  text-align: left;
+}
+
+.selectableRow {
+  cursor: pointer;
+}
+
+.selectableRow:hover td {
+  box-shadow: inset 0 0 0 9999px rgba(37, 99, 235, 0.08);
+}
+
+.selectedRow td {
+  box-shadow: inset 0 0 0 9999px rgba(29, 78, 216, 0.14);
+}
+
+.totalRow td {
+  background: #eff6ff;
+  font-weight: 700;
+}
+
+.groupRow td {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 4px 8px;
+}
+
+.groupButton {
+  border: 0;
+  background: transparent;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.tableFooterActions {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.emptyCell {
+  text-align: center;
+  color: #64748b;
+  padding: 14px;
+}
+
+@media (max-width: 1100px) {
+  .dualGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

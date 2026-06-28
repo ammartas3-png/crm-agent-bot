@@ -195,13 +195,8 @@ Required:
   access. Defaults to `@antoniotsd`, `@Cuervo0o0o`, and `@talhapervaiz97`.
 - `ADMIN_CHAT_IDS` - optional comma-separated admin chat IDs for proactive
   access approval requests.
-- `TELEGRAM_WEBHOOK_SECRET` - optional. When set, the webhook only accepts
-  requests whose `X-Telegram-Bot-Api-Secret-Token` header matches this value.
-  Use the same value as `secret_token` when registering the webhook.
-- `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` /
-  `UPSTASH_REDIS_REST_TOKEN`) - optional persistent store, see above.
-- `GOOGLE_SHEETS_CACHE_TTL_MS` - optional Sheets read cache window in ms
-  (default `60000`).
+- `BENCHMARK_CRON_SECRET` - secret token used by the daily benchmark refresh
+  cron endpoint (`/api/dashboard/benchmark-cache`).
 
 Private key alternatives are also supported:
 
@@ -351,6 +346,17 @@ Optional tab/range overrides:
 - `GOOGLE_LEADS_TAB`, `GOOGLE_LEADS_RANGE`
 - `GOOGLE_FTD_TAB`, `GOOGLE_FTD_RANGE`
 - `GOOGLE_TRANSACTION_TAB`, `GOOGLE_TRANSACTION_RANGE`
+
+## Daily benchmark cache refresh
+
+`vercel.json` includes a cron entry that calls `/api/dashboard/benchmark-cache`
+every day at `12:00` (UTC). This endpoint recalculates benchmark values from
+all mapped office/month leads data and writes them to the `Language` tab
+(`A:D`, with `LESS THAN 2 MONTHS` in column `C` and `MORE THAN 2 MONTHS` in
+column `D`) of the Office Agents spreadsheet.
+
+Set `BENCHMARK_CRON_SECRET` in Vercel and use the same value as a Bearer token
+if you trigger the endpoint manually.
 
 ## Local development
 

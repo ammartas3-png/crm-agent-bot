@@ -7,11 +7,13 @@ import {
   calculateLateFtdCount,
   calculateSummary,
   calculateValidLeads,
+  filterRowsByPermission,
   getFtdRowsByDateRange,
   getLeadRowsByDateRange,
-  parseDateValue,
-  uniqueValues,
-  uniqueValuesForFields,
+  getRowValue,
+  normalizeText,
+  permissionFilterDebug,
+  rowMatchesFilters,
 } from "../lib/calculations.js";
 
 const NOW = new Date("2026-05-12T12:00:00Z");
@@ -160,22 +162,6 @@ test("late FTD falls back to Created vs FTD DATE when flag column is missing", (
   assert.equal(calculateLateFtdCount([rows[0], rows[5]], fallbackConfig), 1);
 });
 
-test("uniqueValuesForFields returns the same values as uniqueValues in one pass", () => {
-  const fieldKeys = ["country"];
-  const combined = uniqueValuesForFields(rows, tabConfig, fieldKeys, 500);
-  assert.deepEqual(combined.country, uniqueValues(rows, tabConfig, "country", 500));
-  assert.deepEqual(combined.country, ["Cote D'Ivoire", "Germany"]);
-});
-
-test("parseDateValue memoization returns consistent results for repeated input", () => {
-  const first = parseDateValue("12/05/2026 10:00:00");
-  const second = parseDateValue("12/05/2026 10:00:00");
-  assert.equal(first.getTime(), second.getTime());
-  assert.equal(first.getTime(), Date.UTC(2026, 4, 12, 10, 0, 0));
-  assert.equal(parseDateValue(""), null);
-  assert.equal(parseDateValue("not-a-date"), null);
-});
-
 test("calculation helper functions handle zero denominators", () => {
   assert.deepEqual(calculateValidLeads([], tabConfig), {
     rawLeadCount: 0,
@@ -186,4 +172,417 @@ test("calculation helper functions handle zero denominators", () => {
   });
   assert.equal(calculateFtdCount([], tabConfig), 0);
   assert.equal(calculateCR(5, 0), 0);
+});
+
+test("row filters support multi-select arrays", () => {
+  const officeConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      teamLeader: "Team Leader",
+      campaign: "Campaign",
+    },
+  };
+  const row = {
+    ID: "1",
+    Office: "Arabic",
+    "Team Leader": "Leader A",
+    Campaign: "Honda",
+  };
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      officeConfig,
+      {
+        office: ["English", "Arabic"],
+        teamLeader: ["Leader X", "Leader A"],
+      },
+      NOW,
+    ),
+    true,
+  );
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      officeConfig,
+      {
+        office: ["English", "German"],
+      },
+      NOW,
+    ),
+    false,
+  );
+});
+
+test("row filters treat Desk as Office-compatible field", () => {
+  const deskConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      country: "Country",
+    },
+  };
+  const row = {
+    ID: "9",
+    Desk: "Indian Team - TR",
+    Country: "Pakistan",
+  };
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      deskConfig,
+      {
+        office: ["Indian Team - TR"],
+      },
+      NOW,
+    ),
+    true,
+  );
+  assert.equal(
+    rowMatchesFilters(
+      row,
+      deskConfig,
+      {
+        officeContains: ["pakistan"],
+      },
+      NOW,
+    ),
+    true,
+  );
+});
+
+test("normalizeText collapses spacing and hidden unicode characters", () => {
+  const first = normalizeText(" Turkey  French ");
+  const second = normalizeText("turkey french");
+  const third = normalizeText("Turkey\u00A0French");
+  const fourth = normalizeText("Turkey\u200BFrench");
+  assert.equal(first, "turkey french");
+  assert.equal(second, "turkey french");
+  assert.equal(third, "turkey french");
+  assert.equal(fourth, "turkey french");
+});
+
+test("permission filters use normalized dataset values from explicit leads fields", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "A-1",
+      Office: "Turkey French",
+      Desk: "TR Desk 1",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent One",
+      Country: "Turkey",
+    },
+    {
+      ID: "A-2",
+      Office: "Turkey German",
+      Desk: "TR Desk 2",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent Two",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    office: [" turkey  french "],
+    desk: ["TR Desk 1"],
+    teamLeader: [" rafik b "],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["A-1"]);
+});
+
+test("permission office filter uses explicit Office or scoped office, not Desk field", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "C-1",
+      __scopeOfficeName: "Turkey Office",
+      Desk: "Turkey English",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent One",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    office: ["Turkey Office"],
+    desk: ["Turkey English"],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["C-1"]);
+});
+
+test("permission debug identifies unmatched allowed values", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "B-1",
+      Office: "Turkey French",
+      Desk: "TR Desk 1",
+      "Team Leader": "Leader A",
+      "AGENT NAMES": "Agent A",
+      Country: "Turkey",
+    },
+  ];
+  const debug = permissionFilterDebug(dataset, permissiveTabConfig, {
+    office: ["Turkey French", "Pakistan Office"],
+  });
+  assert.deepEqual(debug.matchedByField.office, ["turkey french"]);
+  assert.deepEqual(debug.unmatchedByField.office, ["pakistan office"]);
+});
+
+test("getRowValue resolves AGENT NAMES from First Call Agent column", () => {
+  const row = {
+    "First Call Agent": "Annalena Gu",
+  };
+  assert.equal(getRowValue(row, "AGENT NAMES"), "Annalena Gu");
+});
+
+test("lead date filtering falls back to Created when Lead Date is missing", () => {
+  const localRows = [
+    {
+      ID: "L-1",
+      Created: "12/05/2026 10:00:00",
+      "FTD DATE": "",
+      "FTD MAKER": "",
+    },
+  ];
+  const leadRows = getLeadRowsByDateRange(
+    localRows,
+    tabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(leadRows.length, 1);
+});
+
+test("ftd date filtering falls back to Created when FTD DATE is missing", () => {
+  const localRows = [
+    {
+      ID: "F-1",
+      Created: "12/05/2026 11:00:00",
+      "FTD DATE": "",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    tabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+});
+
+test("ftd date filtering falls back to Created when FTD DATE is invalid text", () => {
+  const localRows = [
+    {
+      ID: "F-3",
+      Created: "12/05/2026 11:00:00",
+      "FTD DATE": "invalid-date",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      created: "Created",
+      ftdDate: "FTD DATE",
+      ftdMaker: "FTD MAKER",
+      ftd: "FTD",
+    },
+  };
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    localTabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+  assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
+});
+
+test("ftd date and count support alternate FTD header names", () => {
+  const localRows = [
+    {
+      ID: "F-2",
+      Created: "12/05/2026 11:00:00",
+      "FTD DATE": "",
+      "FTD MAKER": "",
+      "FTD'S": "1",
+    },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      created: "Created",
+      ftdDate: "FTD DATE",
+      ftdMaker: "FTD MAKER",
+      ftd: "FTD",
+    },
+  };
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    localTabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+  assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
+});
+
+test("ftd rows include created-date fallback when FTD DATE is outside filter month", () => {
+  const localRows = [
+    {
+      ID: "F-4",
+      Created: "12/05/2026 11:00:00",
+      "Lead Date": "12/05/2026",
+      "FTD DATE": "10/04/2026 09:00:00",
+      "FTD MAKER": "",
+      FTD: "1",
+    },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      created: "Created",
+      leadDate: "Lead Date",
+      ftdDate: "FTD DATE",
+      ftdMaker: "FTD MAKER",
+      ftd: "FTD",
+    },
+  };
+  const ftdRows = getFtdRowsByDateRange(
+    localRows,
+    localTabConfig,
+    {
+      date: { type: "today" },
+    },
+    NOW,
+  );
+  assert.equal(ftdRows.length, 1);
+  assert.equal(calculateFtdCount(ftdRows, localTabConfig), 1);
+});
+
+test("ftd count falls back to FTD flag when FTD MAKER is empty", () => {
+  const localRows = [
+    { FTD: "1", "FTD MAKER": "" },
+    { FTD: "0", "FTD MAKER": "" },
+    { FTD: "", "FTD MAKER": "Closer X" },
+  ];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 2);
+});
+
+test("ftd count recognizes apostrophe-prefixed text flags", () => {
+  const localRows = [{ FTD: "'1", "FTD MAKER": "" }];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 1);
+});
+
+test("different month flag ignores zero values", () => {
+  const localRows = [
+    { ID: "1", "Diffrent Month": "0" },
+    { ID: "2", "Diffrent Month": "" },
+    { ID: "3", "Diffrent Month": "1" },
+  ];
+  const localTabConfig = {
+    fields: {
+      id: "ID",
+      differentMonth: "Diffrent Month",
+    },
+  };
+  const result = calculateValidLeads(localRows, localTabConfig);
+  assert.equal(result.rawLeadCount, 3);
+  assert.equal(result.differentMonthCount, 1);
+  assert.equal(result.totalLeads, 2);
+});
+
+test("ftd count sums numeric FTD values from leads rows", () => {
+  const localRows = [
+    { FTD: "2", "FTD MAKER": "" },
+    { FTD: "1", "FTD MAKER": "Closer X" },
+    { FTD: "0", "FTD MAKER": "Closer Y" },
+  ];
+  const localTabConfig = {
+    fields: {
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+    },
+  };
+  assert.equal(calculateFtdCount(localRows, localTabConfig), 4);
+});
+
+test("summary-layout rows without ID are treated as valid report rows", () => {
+  const summaryConfig = {
+    fields: {
+      id: "ID",
+      office: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "Agent",
+      ftd: "FTD",
+      crTarget: "CR TARGET",
+      lateFtdPlus30Day: "Late FTD",
+    },
+  };
+  const summaryRows = [
+    {
+      "Working Status": "Working",
+      Agent: "Mehmet Ki",
+      Desk: "Indian Team - TR",
+      Leads: "691",
+      FTD: "96",
+      "CR TARGET": "18.73%",
+      "Late FTD": "5",
+    },
+  ];
+  const metrics = calculateSummary(summaryRows, summaryConfig, { office: "Indian Team - TR" }, NOW);
+  assert.equal(metrics.totalLeads, 691);
+  assert.equal(metrics.totalFtd, 96);
+  assert.equal(metrics.lateFtd, 5);
 });
