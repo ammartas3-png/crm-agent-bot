@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 
 import { getAuthorityConfig, getTabConfig } from "../../../config/sheetsConfig.js";
 import { readSheetRows } from "../../../lib/googleSheets.js";
-import { saveSource } from "../../../lib/leadsStore.js";
 import { readAuthorizedUsers, readOfficeSources } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
+import { saveReport } from "../../../lib/reportCache.js";
+import { buildDashboard } from "../../../lib/reports.js";
 import { prepareRowsForStore } from "../../../lib/sheetRowMapper.js";
 import { resolveDataTabs } from "../../../lib/tabResolver.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
@@ -115,15 +116,21 @@ export async function POST(request) {
           office: source.office,
           period: source.period,
         });
-        saveSource(
+        // Precompute the compact dashboard for this source and cache it (small,
+        // KV-friendly, durable). Raw rows are not stored.
+        const dashboard = buildDashboard(prepared, leadsConfig, {}, new Date(), { limit: 10 });
+        saveReport(
           source.sourceKey,
-          { ...source, tabs: tabs.map((tab) => tab.title) },
-          prepared,
+          { office: source.office, period: source.period },
+          dashboard,
         );
         results.push({
           sourceKey: source.sourceKey,
           tabs: tabs.map((tab) => tab.title),
           stored: prepared.length,
+          totalLeads: dashboard.summary.totalLeads,
+          totalFtd: dashboard.summary.totalFtd,
+          cr: dashboard.summary.cr,
         });
       } catch (error) {
         results.push({

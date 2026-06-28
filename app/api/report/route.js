@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getTabConfig } from "../../../config/sheetsConfig.js";
-import { createDateRangeFilter } from "../../../lib/calculations.js";
-import { loadLeadRows } from "../../../lib/dataProvider.js";
-import { buildDashboard } from "../../../lib/reports.js";
+import { getReportsBy } from "../../../lib/reportCache.js";
+import { mergeDashboards } from "../../../lib/reports.js";
 
 export const runtime = "nodejs";
 
@@ -23,39 +21,37 @@ function providedSecret(request, url) {
   return url.searchParams.get("secret") || "";
 }
 
-function buildFilters(url, now) {
-  const params = url.searchParams;
-  const filters = {};
-  for (const key of ["country", "office", "teamLeader", "brand", "campaign", "status"]) {
-    const value = params.get(key);
-    if (value) {
-      filters[key] = value;
-    }
-  }
-  const agent = params.get("agent");
-  if (agent) {
-    filters.agent = agent;
-    filters.agentField = "agentNames";
-  }
+function monthKey(year, monthIndex) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
 
-  const start = params.get("start");
-  const end = params.get("end");
-  if (start && end) {
-    filters.date = { type: "range", start, end };
-  } else {
-    const dateKey = params.get("date");
-    if (dateKey && dateKey !== "all") {
-      if (dateKey === "today") {
-        filters.date = { type: "today" };
-      } else {
-        const range = createDateRangeFilter(dateKey, now);
-        if (range?.filter) {
-          filters.date = range.filter;
-        }
-      }
-    }
+// Resolves the cache filter from query params. Supported scopes:
+//   ?office=&period=YYYY-MM  -> one office, one month
+//   ?office=                 -> one office, all cached months
+//   ?period=YYYY-MM          -> all offices, one month
+//   ?months=N (+office?)     -> last N months up to now
+//   (none)                   -> everything cached
+function cacheFilter(url, now) {
+  const params = url.searchParams;
+  const filter = {};
+  const office = params.get("office");
+  if (office) {
+    filter.office = office;
   }
-  return filters;
+  const period = params.get("period");
+  if (period) {
+    filter.period = period;
+  }
+  const months = Number(params.get("months"));
+  if (!period && Number.isFinite(months) && months > 0) {
+    const periods = [];
+    for (let index = 0; index < months; index += 1) {
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - index, 1));
+      periods.push(monthKey(date.getUTCFullYear(), date.getUTCMonth()));
+    }
+    filter.periods = periods;
+  }
+  return filter;
 }
 
 export async function GET(request) {
@@ -72,27 +68,35 @@ export async function GET(request) {
   }
 
   const now = new Date();
-  const tabConfig = getTabConfig("leads");
-  const filters = buildFilters(url, now);
   const type = (url.searchParams.get("type") || "all").toLowerCase();
-  const limit = Number(url.searchParams.get("limit")) || 10;
+  const filter = cacheFilter(url, now);
 
   try {
-    const rows = await loadLeadRows("leads", { tabConfig });
-    const dashboard = buildDashboard(rows, tabConfig, filters, now, { limit });
-
-    if (type === "summary") {
+    const entries = await getReportsBy(filter);
+    if (entries.length === 0) {
       return NextResponse.json({
         ok: true,
-        rowCount: dashboard.rowCount,
-        filters,
-        summary: dashboard.summary,
+        empty: true,
+        scope: filter,
+        message: "No precomputed report for this scope. Run POST /api/sources first.",
       });
     }
-    if (type === "quick") {
-      return NextResponse.json({ ok: true, filters, quick: dashboard.quick });
+
+    const dashboard = mergeDashboards(entries.map((entry) => entry.dashboard));
+    const meta = {
+      scope: filter,
+      sources: entries.length,
+      periods: [...new Set(entries.map((entry) => entry.period))].sort(),
+      offices: [...new Set(entries.map((entry) => entry.office))].sort(),
+    };
+
+    if (type === "summary") {
+      return NextResponse.json({ ok: true, ...meta, rowCount: dashboard.rowCount, summary: dashboard.summary });
     }
-    return NextResponse.json({ ok: true, ...dashboard });
+    if (type === "quick") {
+      return NextResponse.json({ ok: true, ...meta, quick: dashboard.quick });
+    }
+    return NextResponse.json({ ok: true, ...meta, ...dashboard });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: String(error?.message || error).slice(0, 300) },
