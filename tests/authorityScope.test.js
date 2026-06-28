@@ -7,6 +7,18 @@ import {
   resolveAuthorityScopeForUser,
 } from "../lib/authorityScope.js";
 
+test("resolveAuthorityScopeForUser grants ALL authority to configured admins", async () => {
+  clearAuthorityScopeCache();
+  // Admin via username and via numeric ID (no Bot Authority sheet read needed).
+  const byUsername = await resolveAuthorityScopeForUser({ id: 1, username: "antoniotsd" });
+  assert.equal(byUsername.allowed, true);
+  assert.equal(byUsername.unrestricted, true);
+
+  const byId = await resolveAuthorityScopeForUser({ id: 1240141730 });
+  assert.equal(byId.allowed, true);
+  assert.equal(byId.unrestricted, true);
+});
+
 test("computeAuthorityScopeFromRows denies unknown user", () => {
   const scope = computeAuthorityScopeFromRows(
     [
