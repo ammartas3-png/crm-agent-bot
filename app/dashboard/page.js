@@ -3339,12 +3339,14 @@ const COMPARISON_TABLE_DIMENSIONS = [
   { key: "subCampaign", label: "Sub-Campaign" },
 ];
 const COMPARISON_DEFAULT_SORT = { key: "leads", direction: "desc" };
+// Comparison tables show one name column + 3 metrics so they fit without a
+// horizontal scrollbar in the 3-up grid. (The report still computes all metrics;
+// this only limits the compact comparison display.)
 const COMPARISON_COLUMNS = [
   { key: "label", label: "Name", type: "text" },
   { key: "leads", label: "Leads", type: "number" },
   { key: "ftd", label: "FTD", type: "number" },
-  { key: "cr", label: "CR", type: "number" },
-  { key: "crTargetReach", label: "CR Target Reach", type: "number" },
+  { key: "crTargetReach", label: "CR Reach", type: "number" },
 ];
 
 function asOptions(values = []) {
@@ -3547,14 +3549,13 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                           </td>
                           <td>{formatNumber(row.leads)}</td>
                           <td>{formatNumber(row.ftd)}</td>
-                          <td>{formatPercent(row.cr)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
                     })}
                     {!table.rows.length ? (
                       <tr>
-                        <td colSpan={5} className={styles.tableEmpty}>
+                        <td colSpan={COMPARISON_COLUMNS.length} className={styles.tableEmpty}>
                           No rows found.
                         </td>
                       </tr>
