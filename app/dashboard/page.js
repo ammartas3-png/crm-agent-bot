@@ -4273,8 +4273,12 @@ export default function DashboardPage() {
     const selectedTotalDimensions = Array.isArray(report?.builder?.selectedTotalDimensions)
       ? report.builder.selectedTotalDimensions
       : [];
-    const hasHierarchyTotals = rows.some((row) => row.__rowKind === "total") && selectedDimensions.length > 1;
-    if (!hasHierarchyTotals) {
+    // Preserve the Desk → Team Leader → Agent grouping when sorting by any
+    // column. Use hierarchical ordering whenever there is more than one
+    // dimension, even if the report has no subtotal rows; only a single-dimension
+    // table is sorted flat (where there is no grouping to break).
+    const isHierarchical = selectedDimensions.length > 1;
+    if (!isHierarchical) {
       rows.sort((left, right) => {
         const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
         return builderSort.direction === "desc" ? -compare : compare;
