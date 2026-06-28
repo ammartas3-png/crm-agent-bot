@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
-import { DataBar } from "./viz.js";
+import { DataBar, RankBars } from "./viz.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -944,6 +944,66 @@ function SingleChoiceChipGroup({
         <div className={styles.orderValue}>{selectedKey ? items.find((item) => item.key === selectedKey)?.label || selectedKey : noLabel}</div>
       </div>
     </div>
+  );
+}
+
+// Overview band derived from the loaded report: ranks the top values of the
+// report's first dimension (e.g. Desk / Country) by FTD and by Leads. Pure
+// additive panel — renders above the report tables, no new data fetch.
+function OverviewBand({ report }) {
+  const data = useMemo(() => {
+    if (!report || report.tableType !== "builder") {
+      return null;
+    }
+    const columns = report?.builder?.columns || [];
+    const dimensions = columns.filter((column) => column.kind === "dimension");
+    if (!dimensions.length) {
+      return null;
+    }
+    const dimensionKey = dimensions[0].key;
+    const rows = (Array.isArray(report.table) ? report.table : []).filter(
+      (row) => row.__rowKind !== "total",
+    );
+    if (!rows.length) {
+      return null;
+    }
+    const byDimension = new Map();
+    for (const row of rows) {
+      const label = String(row[dimensionKey] || "-").trim() || "-";
+      const entry = byDimension.get(label) || { ftd: 0, leads: 0 };
+      entry.ftd += Number(row.ftd) || 0;
+      entry.leads += Number(row.leads) || 0;
+      byDimension.set(label, entry);
+    }
+    const entries = [...byDimension.entries()];
+    const topFtd = entries
+      .map(([label, value]) => ({ label, value: value.ftd }))
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 8);
+    const topLeads = entries
+      .map(([label, value]) => ({ label, value: value.leads }))
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 8);
+    return { dimensionLabel: dimensions[0].label || dimensionKey, topFtd, topLeads };
+  }, [report]);
+
+  if (!data || (!data.topFtd.some((item) => item.value) && !data.topLeads.some((item) => item.value))) {
+    return null;
+  }
+  return (
+    <section className={styles.panel} style={{ marginBottom: 12 }}>
+      <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>{`Overview — Top ${data.dimensionLabel}`}</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+        <div>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By FTD</div>
+          <RankBars items={data.topFtd} color="#16a34a" formatValue={(value) => formatNumber(value)} />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By Leads</div>
+          <RankBars items={data.topLeads} color="#2563eb" formatValue={(value) => formatNumber(value)} />
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -4990,6 +5050,7 @@ export default function DashboardPage() {
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
           {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
           {!isComparisonReportView ? <StatusCards stats={report.stats || {}} /> : null}
+          {!isComparisonReportView ? <OverviewBand report={report} /> : null}
           {report.tableType === "pivot" ? (
             <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
           ) : null}
