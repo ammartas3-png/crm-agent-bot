@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./details.module.css";
 import { sortBuilderRows } from "../../../lib/pivotSort.js";
+import { Heatmap, TrendChart } from "../viz.js";
 
 const MULTI_VALUE_KEYS = new Set([
   "monthKey",
@@ -1607,6 +1608,60 @@ export default function DashboardDetailsClientPage() {
     [linkedFilters, state.benchmarkRowsReport],
   );
 
+  // Derive a daily Leads/FTD trend series and an hourly CR heatmap from the
+  // already-loaded trend report rows (date / hour / leads / ftd). Purely
+  // additive — the existing Daily Trend table is unchanged.
+  const trendVisuals = useMemo(() => {
+    const rows = Array.isArray(displayTrendReport?.table) ? displayTrendReport.table : [];
+    const byDate = new Map();
+    for (const row of rows) {
+      const date = String(row?.date || "").trim();
+      if (!date) {
+        continue;
+      }
+      const entry = byDate.get(date) || { leads: 0, ftd: 0 };
+      entry.leads += Number(row?.leads) || 0;
+      entry.ftd += Number(row?.ftd) || 0;
+      byDate.set(date, entry);
+    }
+    const dates = [...byDate.keys()].sort();
+    const leads = dates.map((date) => byDate.get(date).leads);
+    const ftd = dates.map((date) => byDate.get(date).ftd);
+
+    const hasHourly = rows.some((row) => String(row?.hour ?? "").trim() !== "");
+    let hourLabels = [];
+    let heatRows = [];
+    let heatMatrix = [];
+    if (hasHourly) {
+      const hourSet = new Set();
+      const cellMap = new Map();
+      for (const row of rows) {
+        const date = String(row?.date || "").trim();
+        const hour = String(row?.hour ?? "").trim();
+        if (!date || hour === "") {
+          continue;
+        }
+        hourSet.add(hour);
+        if (!cellMap.has(date)) {
+          cellMap.set(date, new Map());
+        }
+        const cell = cellMap.get(date).get(hour) || { leads: 0, ftd: 0 };
+        cell.leads += Number(row?.leads) || 0;
+        cell.ftd += Number(row?.ftd) || 0;
+        cellMap.get(date).set(hour, cell);
+      }
+      hourLabels = [...hourSet].sort((left, right) => Number(left) - Number(right));
+      heatRows = [...cellMap.keys()].sort();
+      heatMatrix = heatRows.map((date) =>
+        hourLabels.map((hour) => {
+          const cell = cellMap.get(date)?.get(hour);
+          return cell && cell.leads ? (cell.ftd / cell.leads) * 100 : null;
+        }),
+      );
+    }
+    return { dates, leads, ftd, hasHourly, hourLabels, heatRows, heatMatrix };
+  }, [displayTrendReport]);
+
   const summary = displayBreakdownReport?.summary || state.breakdownReport?.summary || {};
   const trendSummary = displayTrendReport?.summary || state.trendReport?.summary || {};
   const hasKycMetric =
@@ -1782,6 +1837,35 @@ export default function DashboardDetailsClientPage() {
             onSelectRow={handleLinkedRowSelection}
             selectedRowKey={selectedLinkedRowKey}
           />
+          {trendVisuals.dates.length >= 2 ? (
+            <section className={styles.panel}>
+              <div className={styles.tableHeaderRow}>
+                <h2 className={styles.sectionTitle}>Daily Trend</h2>
+                <div style={{ display: "flex", gap: 12, fontSize: 12, color: "#475569" }}>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#2563eb", borderRadius: 2, marginRight: 4 }} />Leads</span>
+                  <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#16a34a", borderRadius: 2, marginRight: 4 }} />FTD</span>
+                </div>
+              </div>
+              <TrendChart
+                xLabels={trendVisuals.dates}
+                series={[
+                  { label: "Leads", values: trendVisuals.leads, color: "#2563eb" },
+                  { label: "FTD", values: trendVisuals.ftd, color: "#16a34a" },
+                ]}
+              />
+              {trendVisuals.hasHourly && trendVisuals.heatRows.length ? (
+                <div style={{ marginTop: 14 }}>
+                  <div className={styles.sectionTitle} style={{ marginBottom: 6, fontSize: 13 }}>Hourly CR Heatmap</div>
+                  <Heatmap
+                    rowLabels={trendVisuals.heatRows}
+                    colLabels={trendVisuals.hourLabels}
+                    matrix={trendVisuals.heatMatrix}
+                    formatValue={(value) => `${Math.round(value)}%`}
+                  />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
           <section className={styles.dualGrid}>
             <InteractiveDetailTable
               title="Daily Trend"
