@@ -9,10 +9,6 @@ export default function Home() {
         Configure Telegram, Google Sheets, and allowed users with environment
         variables before using the bot.
       </p>
-      <p>
-        Reporting dashboard: <a href="/dashboard">/dashboard</a> (requires the
-        access key when <code>INGEST_SECRET</code> is set).
-      </p>
     </main>
   );
 }
