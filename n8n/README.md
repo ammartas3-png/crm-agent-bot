@@ -199,10 +199,13 @@ flowchart LR
 2. Choose how the LLM is called:
    - **Direct OpenAI:** set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`,
      default `gpt-4o-mini`) on the app. Nothing else needed.
-   - **Via n8n (keep the key in n8n):** import `crm-ai-openai-relay.json`,
-     activate it, and set `AI_N8N_WEBHOOK_URL` on the app to that webhook's URL.
-     The bot POSTs `{ messages, question }`; n8n runs OpenAI and responds
-     `{ text }`.
+   - **Via n8n (keep the key in n8n):** import `crm-ai-openai-relay.json` as a
+     **new, separate workflow** — do NOT modify your existing dashboard/report
+     bridge. It uses its own webhook path (`/webhook/crm-ai`), so it won't
+     collide. Activate it and set `AI_N8N_WEBHOOK_URL` on the app to that
+     webhook's URL. The bot POSTs `{ messages, question }`; n8n runs OpenAI and
+     responds `{ text }`. (If OpenAI errors, the node continues and the bot uses
+     its deterministic fallback.)
    - **Neither:** the bot replies with the deterministic draft answer.
 
 ### `/api/ai` (optional external callers)

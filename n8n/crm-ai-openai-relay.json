@@ -40,7 +40,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [-100, 0],
-      "notes": "Token-efficient: the model only rephrases the compact facts JSON the app prepared. Swap for the native OpenAI node + credential if preferred."
+      "onError": "continueRegularOutput",
+      "notes": "Token-efficient: the model only rephrases the compact facts JSON the app prepared. On error it continues so Respond still returns (empty) and the bot falls back fast. Swap for the native OpenAI node + credential if preferred."
     },
     {
       "parameters": {
