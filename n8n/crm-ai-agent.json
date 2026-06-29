@@ -1,0 +1,125 @@
+{
+  "name": "CRM AI Agent (admin Q&A)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [-360, 0],
+      "webhookId": "crm-ai-agent",
+      "notes": "Use a DEDICATED Telegram bot (second token). The report bot already owns the /api/telegram webhook and Telegram allows only one receiver per bot. The app still verifies the sender is an admin."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PUBLIC_APP_URL }}/api/ai",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-ai-secret", "value": "={{ $env.AI_AGENT_SECRET || $env.INGEST_SECRET }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"question\": $json.message.text, \"telegramUserId\": $json.message.from.id } }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2",
+      "name": "AI Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-140, 0],
+      "notes": "Server-side: detects scope/entity and returns compact `facts` + `messages` (or a refusal). No raw rows are sent to OpenAI."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-scope",
+              "leftValue": "={{ $json.outOfScope }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3",
+      "name": "Out of scope?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.refusal }}",
+        "additionalFields": {}
+      },
+      "id": "a4a4a4a4-a4a4-a4a4-a4a4-a4a4a4a4a4a4",
+      "name": "Reply Refusal",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [320, -120],
+      "notes": "Out-of-scope path: answers from the canned multilingual refusal. OpenAI is NOT called -> 0 tokens."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": $env.OPENAI_MODEL || \"gpt-4o-mini\", \"messages\": $json.messages, \"max_tokens\": 220, \"temperature\": 0.2 } }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "a5a5a5a5-a5a5-a5a5-a5a5-a5a5a5a5a5a5",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 120],
+      "notes": "Token-efficient: the model only rephrases the small `facts` JSON the app prepared. Swap for the native OpenAI node + credential if preferred."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.choices && $json.choices[0] && $json.choices[0].message ? $json.choices[0].message.content : $('AI Context').item.json.draftAnswer }}",
+        "additionalFields": {}
+      },
+      "id": "a6a6a6a6-a6a6-a6a6-a6a6-a6a6a6a6a6a6",
+      "name": "Reply Answer",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [560, 120],
+      "notes": "Falls back to the app's deterministic draftAnswer if OpenAI returns no content."
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": { "main": [[{ "node": "AI Context", "type": "main", "index": 0 }]] },
+    "AI Context": { "main": [[{ "node": "Out of scope?", "type": "main", "index": 0 }]] },
+    "Out of scope?": {
+      "main": [
+        [{ "node": "Reply Refusal", "type": "main", "index": 0 }],
+        [{ "node": "OpenAI", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI": { "main": [[{ "node": "Reply Answer", "type": "main", "index": 0 }]] }
+  }
+}

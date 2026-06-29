@@ -146,3 +146,80 @@ Notes:
   `LATE FTD +30 Day`, etc.) so the KPI calculations stay correct.
 - Set `LEADS_SOURCE=ingest` to force the bot to use ingested data, or leave it on
   `auto` to use ingested data when present and fall back to Google Sheets.
+
+## AI agent (admin-only Q&A) — `crm-ai-agent.json`
+
+An optional natural-language layer **for admins only**: an admin messages the
+bot and asks about a desk, team leader, agent, country or campaign, and gets a
+grounded answer built from the same KPIs the dashboard uses.
+
+### How it is token-efficient
+
+The LLM never sees raw rows. The flow is:
+
+```mermaid
+flowchart LR
+  TG["Telegram (admin)"] --> CTX["POST /api/ai<br/>(x-ai-secret + telegramUserId)"]
+  CTX --> RES{"outOfScope?"}
+  RES -- "yes" --> REF["Canned refusal<br/>(no OpenAI, 0 tokens)"]
+  RES -- "no" --> AGG["aiAgent.js:<br/>resolve entity + aggregate<br/>(leads/FTD/CR/status, breakdowns)"]
+  AGG --> SMALL["compact facts JSON + messages"]
+  SMALL --> OAI["OpenAI (only rephrases)"]
+  OAI --> REPLY["Telegram reply"]
+```
+
+- `/api/ai` resolves the question to an **entity** (agent / team leader / desk /
+  country / campaign / brand / placement) or an **overview**, then aggregates a
+  small, rounded `facts` object (totals, per-country/campaign/agent breakdowns,
+  status shares such as no-answer / call-again). Only that compact JSON — never
+  the rows — is sent to OpenAI.
+- **Out-of-scope** questions (anything not about these reports) are flagged
+  server-side and answered with a canned refusal **in the user's language**;
+  OpenAI is not called at all.
+- A deterministic `draftAnswer` is also returned and used as a fallback if
+  OpenAI is unavailable.
+
+### Setup
+
+1. Set `AI_AGENT_SECRET` (or reuse `INGEST_SECRET`), `OPENAI_API_KEY`, and
+   optionally `OPENAI_MODEL` (default `gpt-4o-mini`) in the app + n8n env.
+2. Make sure the configured admins (`ADMIN_USERS`) are correct — the endpoint
+   verifies `telegramUserId` is an admin and refuses everyone else.
+3. Use a **dedicated Telegram bot** (a second bot token) for the AI agent. The
+   report bot already owns the `/api/telegram` webhook and Telegram allows only
+   one receiver per bot, so reusing the same token would break the report bot.
+4. Import `crm-ai-agent.json`, select the AI bot's Telegram credential on the
+   trigger and the two reply nodes, and activate. (You can swap the raw OpenAI
+   HTTP node for n8n's native OpenAI node + credential if you prefer.)
+
+### Request contract
+
+`POST {PUBLIC_APP_URL}/api/ai` with header `x-ai-secret: <AI_AGENT_SECRET>`:
+
+```json
+{ "question": "Ali ajanı hangi ülkede iyi?", "telegramUserId": 12345678 }
+```
+
+Returns either `{ "outOfScope": true, "refusal": "...", "language": "tr" }` or
+`{ "outOfScope": false, "intent": {...}, "facts": {...}, "draftAnswer": "...", "messages": [...] }`.
+
+### What it can answer (question taxonomy)
+
+The agent maps a question to whatever metrics/rows are relevant. Examples:
+
+- **Desk** → which team leaders/teams work in it and how each performs
+  (leads, FTD, CR, target reach), strongest/weakest countries & campaigns.
+  - "Istanbul masasında hangi takımlar var, performansları nasıl?"
+- **Team leader** → their agents ranked, best vs weakest agent, team totals.
+  - "Lider 2'nin ajanları nasıl, en zayıf kim?"
+- **Agent** → where they are strong vs weak by country/campaign, status
+  problems (high no-answer, high call-again with low FTD), CR vs target.
+  - "Ahmet hangi ülke/kampanyada iyi, nerede kötü? No-answer'ı yüksek mi?"
+- **Country** → top desks/campaigns/agents in that country, totals, CR.
+  - "Almanya'da en iyi masa ve kampanya hangisi?"
+- **Campaign / brand / placement** → countries/desks/agents driving it.
+- **Overview / metric + date** → "Bu ay kaç FTD?", "Dünkü en iyi 5 ajan?".
+
+Other useful patterns it supports: "Which agents have many call-agains but no
+FTD?", "Compare Germany vs Turkey CR target reach", "Worst desks by target
+reach this month", "Top campaigns by FTD in Spain".
