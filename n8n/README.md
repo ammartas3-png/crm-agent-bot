@@ -147,54 +147,69 @@ Notes:
 - Set `LEADS_SOURCE=ingest` to force the bot to use ingested data, or leave it on
   `auto` to use ingested data when present and fall back to Google Sheets.
 
-## AI agent (admin-only Q&A) — `crm-ai-agent.json`
+## AI agent (admin-only Q&A) — built into the same bot
 
-An optional natural-language layer **for admins only**: an admin messages the
-bot and asks about a desk, team leader, agent, country or campaign, and gets a
-grounded answer built from the same KPIs the dashboard uses.
+An optional natural-language layer **for admins only**, inside the **same report
+bot** (no second bot): an admin asks about a desk, team leader, agent, country or
+campaign and gets a grounded answer built from the same KPIs the dashboard uses.
+
+### Same bot, no clutter
+
+The bot doesn't show two crowded menus. Instead:
+
+- The Start menu has a single **🤖 AI Assistant** entry (admins only), and
+- the first time an admin just types a free-text question, the bot **asks once**:
+  *"🤖 AI ile sor"* or *"📊 Hazır raporlar"*, then remembers the choice.
+
+Commands: `/ai` enters AI chat mode; `/menu` (or the "Hazır Raporlara Dön"
+button) leaves it.
+
+> Why no Telegram-trigger workflow? Telegram allows only one receiver per bot and
+> the report bot already owns the `/api/telegram` webhook. So the AI lives in the
+> bot itself; n8n is only an **optional OpenAI relay** (below).
 
 ### How it is token-efficient
 
-The LLM never sees raw rows. The flow is:
+The LLM never sees raw rows:
 
 ```mermaid
 flowchart LR
-  TG["Telegram (admin)"] --> CTX["POST /api/ai<br/>(x-ai-secret + telegramUserId)"]
-  CTX --> RES{"outOfScope?"}
-  RES -- "yes" --> REF["Canned refusal<br/>(no OpenAI, 0 tokens)"]
-  RES -- "no" --> AGG["aiAgent.js:<br/>resolve entity + aggregate<br/>(leads/FTD/CR/status, breakdowns)"]
-  AGG --> SMALL["compact facts JSON + messages"]
-  SMALL --> OAI["OpenAI (only rephrases)"]
-  OAI --> REPLY["Telegram reply"]
+  TG["Telegram (admin)"] --> BOT["/api/telegram (same bot)"]
+  BOT --> AGG["aiAgent.js: resolve entity + aggregate<br/>(leads/FTD/CR/status, breakdowns)"]
+  AGG --> RES{"outOfScope?"}
+  RES -- "yes" --> REF["Canned refusal in the user's language<br/>(no LLM, 0 tokens)"]
+  RES -- "no" --> SMALL["compact facts JSON + messages"]
+  SMALL --> LLM["OpenAI (direct) OR n8n relay<br/>— only rephrases"]
+  LLM --> REPLY["Telegram reply (draftAnswer fallback)"]
 ```
 
-- `/api/ai` resolves the question to an **entity** (agent / team leader / desk /
+- The bot resolves the question to an **entity** (agent / team leader / desk /
   country / campaign / brand / placement) or an **overview**, then aggregates a
   small, rounded `facts` object (totals, per-country/campaign/agent breakdowns,
   status shares such as no-answer / call-again). Only that compact JSON — never
-  the rows — is sent to OpenAI.
-- **Out-of-scope** questions (anything not about these reports) are flagged
-  server-side and answered with a canned refusal **in the user's language**;
-  OpenAI is not called at all.
-- A deterministic `draftAnswer` is also returned and used as a fallback if
-  OpenAI is unavailable.
+  the rows — is sent to the LLM.
+- **Out-of-scope** questions are answered with a canned refusal **in the user's
+  language**, with no LLM call.
+- A deterministic `draftAnswer` is the fallback when no LLM is configured or the
+  call fails, so the bot always answers.
 
 ### Setup
 
-1. Set `AI_AGENT_SECRET` (or reuse `INGEST_SECRET`), `OPENAI_API_KEY`, and
-   optionally `OPENAI_MODEL` (default `gpt-4o-mini`) in the app + n8n env.
-2. Make sure the configured admins (`ADMIN_USERS`) are correct — the endpoint
-   verifies `telegramUserId` is an admin and refuses everyone else.
-3. Use a **dedicated Telegram bot** (a second bot token) for the AI agent. The
-   report bot already owns the `/api/telegram` webhook and Telegram allows only
-   one receiver per bot, so reusing the same token would break the report bot.
-4. Import `crm-ai-agent.json`, select the AI bot's Telegram credential on the
-   trigger and the two reply nodes, and activate. (You can swap the raw OpenAI
-   HTTP node for n8n's native OpenAI node + credential if you prefer.)
+1. Set the admins (`ADMIN_USERS`) correctly — AI is admin-only.
+2. Choose how the LLM is called:
+   - **Direct OpenAI:** set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`,
+     default `gpt-4o-mini`) on the app. Nothing else needed.
+   - **Via n8n (keep the key in n8n):** import `crm-ai-openai-relay.json`,
+     activate it, and set `AI_N8N_WEBHOOK_URL` on the app to that webhook's URL.
+     The bot POSTs `{ messages, question }`; n8n runs OpenAI and responds
+     `{ text }`.
+   - **Neither:** the bot replies with the deterministic draft answer.
 
-### Request contract
+### `/api/ai` (optional external callers)
 
-`POST {PUBLIC_APP_URL}/api/ai` with header `x-ai-secret: <AI_AGENT_SECRET>`:
+The same context is also exposed as an admin-only endpoint for external tools.
+`POST {PUBLIC_APP_URL}/api/ai` with header `x-ai-secret: <AI_AGENT_SECRET>`
+(falls back to `INGEST_SECRET`):
 
 ```json
 { "question": "Ali ajanı hangi ülkede iyi?", "telegramUserId": 12345678 }

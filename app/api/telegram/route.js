@@ -77,6 +77,9 @@ import {
 } from "../../../lib/databaseCheck.js";
 import { getSession, setSession } from "../../../lib/session.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
+import { buildAnswerContext } from "../../../lib/aiAgent.js";
+import { generateAiReply } from "../../../lib/aiResponder.js";
+import { loadLeadRows } from "../../../lib/dataProvider.js";
 
 export const runtime = "nodejs";
 
@@ -760,6 +763,57 @@ function isAllScopeReply(text) {
   return /^(?:all|total|genel|hepsi)$/i.test(String(text || "").trim());
 }
 
+const AI_MODE_PROMPT = [
+  "🤖 AI Asistan açık.",
+  "Ajan, takım lideri, masa, ülke veya kampanya hakkında soru sorabilirsin.",
+  "Örn: \"Ahmet hangi ülkede iyi, nerede kötü?\" · \"Istanbul masasında hangi takımlar var?\"",
+  "Hazır raporlara dönmek için aşağıdaki butona bas veya /menu yaz.",
+].join("\n");
+
+const AI_CHOOSER_TEXT = [
+  "Nasıl ilerleyelim?",
+  "🤖 AI ile sohbet ederek mi, yoksa 📊 hazır raporlardan mı sonuç istersin?",
+].join("\n");
+
+function aiModeKeyboard() {
+  return { inline_keyboard: [[{ text: "📊 Hazır Raporlara Dön", callback_data: "ai:exit" }]] };
+}
+
+function aiChooserKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: "🤖 AI ile sor", callback_data: "ai:ask" }],
+      [{ text: "📊 Hazır raporlar", callback_data: "ai:reports" }],
+    ],
+  };
+}
+
+function isAiCommand(text) {
+  return /^\/?ai(?:@\w+)?$/i.test(String(text || "").trim());
+}
+
+// Words that take an admin out of AI chat mode back to the report menus.
+function isAiExitText(text) {
+  const normalized = String(text || "").trim().toLocaleLowerCase("tr-TR");
+  if (!normalized) {
+    return false;
+  }
+  if (/^\/?(menu|menü|start|ai_off|stop)\b/.test(normalized)) {
+    return true;
+  }
+  return ["çıkış", "cikis", "exit", "hazır rapor", "hazir rapor", "raporlar"].includes(normalized);
+}
+
+// Builds the AI assistant reply: server-side retrieval/aggregation (token-free)
+// then the configured LLM (direct OpenAI or n8n relay) just rephrases the facts.
+async function buildAiAnswerText(question, now) {
+  const tabConfig = getTabConfig("leads");
+  const rows = await loadLeadRows("leads", { tabConfig });
+  const context = buildAnswerContext({ question, rows, tabConfig, now });
+  context.question = question;
+  return generateAiReply(context);
+}
+
 function isAccessRequestsCommand(text) {
   return /^\/?access_requests\b/i.test(String(text || "").trim());
 }
@@ -1248,6 +1302,14 @@ export async function POST(request) {
       return sendMessageWebhookResponse(chatId, "Hello mode stopped. Use /hello to start again.");
     }
 
+    if (!callbackQuery && isAiCommand(text)) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "AI assistant is available to admins only.");
+      }
+      setSession(userId, { aiAssistant: { active: true }, chatAssistant: null, aiPending: null });
+      return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT, aiModeKeyboard());
+    }
+
     if (callbackQuery) {
       if (hasTelegramBotToken()) {
         await answerCallbackQuery(callbackQuery.id).catch((error) => {
@@ -1284,6 +1346,32 @@ export async function POST(request) {
       if (callbackQuery.data === "root:results") {
         const response = await startMenu(userId, { telegramUser, authorityScope });
         return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
+      }
+      if (callbackQuery.data === "ai:open" || callbackQuery.data === "ai:ask") {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "AI assistant is available to admins only.");
+        }
+        const previous = getSession(userId) || {};
+        const pending = callbackQuery.data === "ai:ask" ? previous.aiPending : null;
+        setSession(userId, { aiAssistant: { active: true }, chatAssistant: null, aiPending: null });
+        if (pending) {
+          const answer = await buildAiAnswerText(pending, now);
+          return sendMessageWebhookResponse(chatId, answer, aiModeKeyboard());
+        }
+        return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT, aiModeKeyboard());
+      }
+      if (callbackQuery.data === "ai:reports" || callbackQuery.data === "ai:exit") {
+        const previous = getSession(userId) || {};
+        setSession(userId, { aiAssistant: { active: false }, aiPending: null });
+        if (callbackQuery.data === "ai:reports" && previous.aiPending) {
+          const answer = await answerQuery(previous.aiPending, {
+            now,
+            readRows: scopedReadRows,
+            scopeFilters: scopeFiltersFromAuthority(authorityScope),
+          });
+          return sendMessageWebhookResponse(chatId, answer);
+        }
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
       }
       if (callbackQuery.data === "root:access_requests") {
         if (!isAdminTelegramUser(telegramUser)) {
@@ -1384,6 +1472,16 @@ export async function POST(request) {
       );
     }
 
+    const aiSession = getSession(userId);
+    if (!callbackQuery && aiSession.aiAssistant?.active && isAdminTelegramUser(telegramUser)) {
+      if (isAiExitText(text)) {
+        setSession(userId, { aiAssistant: { active: false }, aiPending: null });
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+      }
+      const answer = await buildAiAnswerText(text, now);
+      return sendMessageWebhookResponse(chatId, answer, aiModeKeyboard());
+    }
+
     const dbTextResponse = await handleDatabaseCheckText(userId, text, {
       isAdmin: isAdminTelegramUser(telegramUser),
     });
@@ -1435,6 +1533,14 @@ export async function POST(request) {
 
     if (isGreeting(text)) {
       return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+    }
+
+    // Admins haven't picked a lane yet: ask once whether they want the AI
+    // assistant or the ready reports, then remember the choice (so the bot
+    // doesn't keep cluttering every message with the prompt).
+    if (isAdminTelegramUser(telegramUser) && session.aiAssistant === undefined) {
+      setSession(userId, { aiPending: text });
+      return sendMessageWebhookResponse(chatId, AI_CHOOSER_TEXT, aiChooserKeyboard());
     }
 
     const answer = await answerQuery(text, {
