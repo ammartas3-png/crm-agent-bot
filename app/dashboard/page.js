@@ -75,10 +75,10 @@ function reachCellStyle(value) {
   const number = Number(value || 0);
   const fill = Math.max(0, Math.min(100, number));
   const isGood = number >= 100;
-  const fillColor = isGood ? "#bbf7d0" : "#fecaca";
+  const fillColor = isGood ? "#86efac" : "#fca5a5";
   const color = isGood ? "#166534" : "#b91c1c";
   return {
-    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #e5e7eb ${fill}%)`,
     color,
   };
 }
@@ -2629,6 +2629,19 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
+  // Column maxima (detail rows only) for in-cell Leads/FTD data bars.
+  const metricBarMax = useMemo(() => {
+    let leads = 1;
+    let ftd = 1;
+    for (const row of rows) {
+      if (row?.__rowKind === "total") {
+        continue;
+      }
+      leads = Math.max(leads, Number(row.leads) || 0);
+      ftd = Math.max(ftd, Number(row.ftd) || 0);
+    }
+    return { leads, ftd };
+  }, [rows]);
 
   const isColumnPivot =
     Boolean(builder?.columnDimension) &&
@@ -3277,6 +3290,11 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                             : isMissingFtd
                               ? formatMissingFtdValue(value)
                               : formatBuilderCell(value, column.type);
+                          const isDataBar =
+                            !isTotalRow &&
+                            !isHistoricalBeforeStartMonth &&
+                            (column.key === "leads" || column.key === "ftd") &&
+                            Number.isFinite(Number(value));
                           return (
                             <td
                               key={`${index}-${column.key}`}
@@ -3284,6 +3302,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                               onContextMenu={(event) => openDetailsContext(event, column.key, value)}
                               className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                               style={widthStyle(column.key, {
+                                position: isDataBar ? "relative" : undefined,
                                 color: isHistoricalBeforeStartMonth
                                   ? "#94a3b8"
                                   : missingFtdStyle
@@ -3314,7 +3333,18 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                     : undefined,
                               })}
                             >
-                              {displayValue}
+                              {isDataBar ? (
+                                <>
+                                  <DataBar
+                                    value={Number(value) || 0}
+                                    max={metricBarMax[column.key]}
+                                    color={column.key === "leads" ? "#bfdbfe" : "#bbf7d0"}
+                                  />
+                                  <span style={{ position: "relative", zIndex: 1 }}>{displayValue}</span>
+                                </>
+                              ) : (
+                                displayValue
+                              )}
                             </td>
                           );
                         })}

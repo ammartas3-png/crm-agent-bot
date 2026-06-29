@@ -1097,10 +1097,10 @@ function reachCellStyle(value) {
   const numeric = Number(value || 0);
   const fill = Math.max(0, Math.min(100, numeric));
   const isGood = numeric >= 100;
-  const fillColor = isGood ? "#bbf7d0" : "#fecaca";
+  const fillColor = isGood ? "#86efac" : "#fca5a5";
   const color = isGood ? "#166534" : "#b91c1c";
   return {
-    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #e5e7eb ${fill}%)`,
     color,
     fontWeight: 700,
   };
