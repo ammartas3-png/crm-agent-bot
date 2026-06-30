@@ -3308,6 +3308,7 @@ const DEFAULT_BUILDER_METRICS = [
   { key: "crTargetReach", label: "CR Target Reach", type: "percent" },
   { key: "selfs", label: "Selfs", type: "number" },
   { key: "lateFtd", label: "Late FTD", type: "number" },
+  { key: "lateFtdRate", label: "Late FTD / FTD", type: "percent" },
   { key: "ftdTargetByCr", label: "FTD Target by CR", type: "number" },
   { key: "missingFtd", label: "Missing FTD", type: "number" },
 ];
@@ -3363,7 +3364,7 @@ const EMPTY_FILTERS = {
   totalDimensions: [],
 };
 
-const QUICK_PRESET_MONTHLY_METRICS = ["leads", "kycFtd", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_MONTHLY_METRICS = ["leads", "kycFtd", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach", "lateFtd", "lateFtdRate"];
 const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
 const QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS = ["desk", "country", "campaign", "subCampaign", "placement"];
