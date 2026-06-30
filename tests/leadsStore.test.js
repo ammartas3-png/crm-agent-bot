@@ -8,6 +8,7 @@ import {
   leadsSourceMode,
   listSources,
   loadAllRows,
+  loadRowsForSourceMeta,
   saveSource,
 } from "../lib/leadsStore.js";
 
@@ -58,5 +59,43 @@ test("isDatasetActive honors mode and presence of data", async () => {
 
   saveSource("a:2026-05:leads", { office: "A" }, [{ ID: "1" }]);
   assert.equal(await isDatasetActive({}), true);
+  clearLeadsStore();
+});
+
+test("loadRowsForSourceMeta resolves rows by spreadsheet, office, and category", async () => {
+  clearLeadsStore();
+  saveSource("turkiye-office:2026-03:leads", {
+    office: "Turkiye Office",
+    period: "2026-03",
+    spreadsheetId: "sheet-abc",
+    category: "leads",
+  }, [{ ID: "1" }]);
+  saveSource("turkiye-office:2026-03:ftd", {
+    office: "Turkiye Office",
+    period: "2026-03",
+    spreadsheetId: "sheet-abc",
+    category: "ftd",
+  }, [{ "Customer ID": "99" }]);
+
+  const bySheet = await loadRowsForSourceMeta({
+    spreadsheetId: "sheet-abc",
+    category: "leads",
+  });
+  assert.deepEqual(bySheet.map((row) => row.ID), ["1"]);
+
+  const byOffice = await loadRowsForSourceMeta({
+    office: "Turkiye Office",
+    period: "2026-03",
+    category: "ftd",
+  });
+  assert.deepEqual(byOffice.map((row) => row["Customer ID"]), ["99"]);
+
+  assert.equal(
+    await loadRowsForSourceMeta({
+      spreadsheetId: "missing",
+      category: "leads",
+    }),
+    null,
+  );
   clearLeadsStore();
 });

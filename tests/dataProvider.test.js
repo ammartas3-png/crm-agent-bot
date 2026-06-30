@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadLeadRows } from "../lib/dataProvider.js";
+import { loadLeadRows, readDashboardSheetRows } from "../lib/dataProvider.js";
 import { clearLeadsStore, saveSource } from "../lib/leadsStore.js";
 
 test("loadLeadRows falls back to Google Sheets when no dataset is ingested", async () => {
@@ -45,5 +45,33 @@ test("loadLeadRows serves ingested rows across all sources when present", async 
     rows.map((row) => row.ID).sort(),
     ["1", "2", "3"],
   );
+  clearLeadsStore();
+});
+
+test("readDashboardSheetRows serves ingested rows for a spreadsheet when present", async () => {
+  clearLeadsStore();
+  saveSource(
+    "istanbul:2026-05:leads",
+    { office: "Istanbul", period: "2026-05", spreadsheetId: "sheet-1", category: "leads" },
+    [{ ID: "7" }],
+  );
+
+  const rows = await readDashboardSheetRows("leads", {
+    spreadsheetId: "sheet-1",
+    office: "Istanbul",
+    period: "2026-05",
+    tabConfig: { name: "Leads", columns: ["ID"] },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => {
+            throw new Error("should not read Google Sheets when ingested rows exist");
+          },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(rows.map((row) => row.ID), ["7"]);
   clearLeadsStore();
 });

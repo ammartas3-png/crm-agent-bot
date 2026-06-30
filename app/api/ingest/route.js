@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getTabConfig } from "../../../config/sheetsConfig.js";
 import { rowsToObjects } from "../../../lib/googleSheets.js";
-import { saveSource } from "../../../lib/leadsStore.js";
+import { saveSource, listSources, loadAllRows, isDatasetActive } from "../../../lib/leadsStore.js";
 import { prepareRowsForStore, derivePeriod } from "../../../lib/sheetRowMapper.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
@@ -21,12 +21,41 @@ function providedSecret(request) {
   return auth.startsWith("Bearer ") ? auth.slice(7) : "";
 }
 
-export function GET() {
-  return NextResponse.json({
+export async function GET(request) {
+  const base = {
     ok: true,
     service: "crm-ingest",
     ingestSecretConfigured: Boolean(ingestSecret()),
     persistentStoreConfigured: isPersistenceEnabled(),
+    persistenceMode: isPersistenceEnabled()
+      ? process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
+        ? "kv-rest"
+        : "redis-url"
+      : "memory",
+  };
+
+  const secret = ingestSecret();
+  const provided = providedSecret(request);
+  if (!secret || provided !== secret) {
+    return NextResponse.json(base);
+  }
+
+  const sources = await listSources();
+  const leadsSources = sources.filter((item) => !item.category || item.category === "leads");
+  const totalLeadRows = leadsSources.reduce((sum, item) => sum + Number(item.rowCount || 0), 0);
+
+  return NextResponse.json({
+    ...base,
+    datasetActive: await isDatasetActive(),
+    dashboardCanUseIngest: totalLeadRows > 0,
+    sourceCount: sources.length,
+    leadsSourceCount: leadsSources.length,
+    totalLeadRows,
+    sources: sources.slice(0, 50),
+    hint:
+      totalLeadRows > 0
+        ? "Redis has ingested rows. Ensure PR #16 is deployed and DASHBOARD_SOURCE=auto on Vercel."
+        : "No ingested lead rows in Redis. Deploy PR #16 and re-run the n8n sync, or only the old report summary cache was saved.",
   });
 }
 

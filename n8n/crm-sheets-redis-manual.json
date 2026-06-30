@@ -1,0 +1,178 @@
+{
+  "name": "CRM Sheets Redis Manual Sync",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Istanbul"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b2000001-0001-4001-8001-000000000001",
+      "name": "Schedule 12:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-720, -120]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b2000002-0002-4002-8002-000000000002",
+      "name": "Schedule 18:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-720, 120]
+    },
+    {
+      "parameters": {
+        "jsExecMode": "once",
+        "language": "javaScript",
+        "jsCode": "// ─── EDIT ONLY THESE TWO LINES (no n8n env variables needed) ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// ─────────────────────────────────────────────────────────────────\n\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n  },\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000000",
+      "name": "App Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "jsExecMode": "once",
+        "language": "javaScript",
+        "jsCode": "// Paste every Google Sheet you want in Redis. One row per office/month file.\nconst sources = [\n  {\n    office: 'Turkiye Office',\n    period: '2026-03',\n    spreadsheetId: 'PASTE_SPREADSHEET_ID',\n    sheetName: 'Leads',\n    range: 'A:Y',\n  },\n];\n\nfunction slug(office) {\n  return String(office || '')\n    .trim()\n    .toLowerCase()\n    .replace(/\\s+/g, '-')\n    .replace(/[^a-z0-9-]/g, '');\n}\n\nreturn sources.map((source) => ({\n  json: {\n    office: source.office,\n    period: source.period,\n    category: 'leads',\n    spreadsheetId: source.spreadsheetId,\n    sheetName: source.sheetName || 'Leads',\n    range: source.range || 'A:Y',\n    sourceKey: `${slug(source.office)}:${source.period}:leads`,\n  },\n}));"
+      },
+      "id": "b2000003-0003-4003-8003-000000000003",
+      "name": "Define Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "b2000004-0004-4004-8004-000000000004",
+      "name": "Loop Over Sources",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [-40, 0]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Loop Over Sources').item.json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Loop Over Sources').item.json.sheetName }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "b2000005-0005-4005-8005-000000000005",
+      "name": "Read Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [200, 0],
+      "credentials": {
+        "googleApi": {
+          "id": "REPLACE_WITH_GOOGLE_CREDENTIAL_ID",
+          "name": "Google Service Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "",
+              "renameField": true,
+              "outputFieldName": "rows"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2000006-0006-4006-8006-000000000006",
+      "name": "Aggregate Rows",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [420, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/ingest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-ingest-secret",
+              "value": "={{ $('App Config').item.json.ingestSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sourceKey: $('Loop Over Sources').item.json.sourceKey, office: $('Loop Over Sources').item.json.office, period: $('Loop Over Sources').item.json.period, category: $('Loop Over Sources').item.json.category, spreadsheetId: $('Loop Over Sources').item.json.spreadsheetId, sheetRange: $('Loop Over Sources').item.json.range, rows: $json.rows }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b2000007-0007-4007-8007-000000000007",
+      "name": "Push to Redis via /api/ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 0]
+    }
+  ],
+  "connections": {
+    "Schedule 12:00": {
+      "main": [[{ "node": "App Config", "type": "main", "index": 0 }]]
+    },
+    "Schedule 18:00": {
+      "main": [[{ "node": "App Config", "type": "main", "index": 0 }]]
+    },
+    "App Config": {
+      "main": [[{ "node": "Define Sources", "type": "main", "index": 0 }]]
+    },
+    "Define Sources": {
+      "main": [[{ "node": "Loop Over Sources", "type": "main", "index": 0 }]]
+    },
+    "Loop Over Sources": {
+      "main": [
+        [],
+        [{ "node": "Read Google Sheet", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Google Sheet": {
+      "main": [[{ "node": "Aggregate Rows", "type": "main", "index": 0 }]]
+    },
+    "Aggregate Rows": {
+      "main": [[{ "node": "Push to Redis via /api/ingest", "type": "main", "index": 0 }]]
+    },
+    "Push to Redis via /api/ingest": {
+      "main": [[{ "node": "Loop Over Sources", "type": "main", "index": 0 }]]
+    }
+  }
+}

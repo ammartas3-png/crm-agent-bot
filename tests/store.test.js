@@ -16,6 +16,7 @@ test("isPersistenceEnabled reflects KV configuration", () => {
     isPersistenceEnabled({ KV_REST_API_URL: "https://x", KV_REST_API_TOKEN: "t" }),
     true,
   );
+  assert.equal(isPersistenceEnabled({ REDIS_URL: "redis://localhost:6379" }), true);
   assert.equal(
     isPersistenceEnabled({
       UPSTASH_REDIS_REST_URL: "https://x",
