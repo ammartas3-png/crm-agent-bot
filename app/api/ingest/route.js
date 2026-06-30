@@ -58,36 +58,36 @@ export async function GET(request) {
     String(url.searchParams.get("verify") || "").trim().toLowerCase(),
   );
 
-  // verify=1 reads actual hydrated rows from Redis (slower); default uses meta.
-  const described = await describeSources();
+  // verify=1 actually loads each source's rows from Redis (slower but accurate);
+  // default uses meta only (fast) and does not load row data.
+  const described = await describeSources({ loadRows: verify });
   const leadsSources = described.filter((item) => (item.category || "leads") === "leads");
   const totalMetaLeadRows = leadsSources.reduce((sum, item) => sum + item.metaRowCount, 0);
-  const totalHydratedLeadRows = leadsSources.reduce((sum, item) => sum + item.hydratedRowCount, 0);
-  const incomplete = described.filter((item) => !item.complete);
-  const usableLeadRows = verify ? totalHydratedLeadRows : totalMetaLeadRows;
+  const totalHydratedLeadRows = verify
+    ? leadsSources.reduce((sum, item) => sum + Number(item.hydratedRowCount || 0), 0)
+    : null;
+  const incomplete = verify ? described.filter((item) => item.complete === false) : [];
 
   return NextResponse.json({
     ...base,
     datasetActive: await isDatasetActive(),
-    dashboardCanUseIngest: totalHydratedLeadRows > 0,
+    dashboardCanUseIngest: verify ? totalHydratedLeadRows > 0 : totalMetaLeadRows > 0,
     sourceCount: described.length,
     leadsSourceCount: leadsSources.length,
-    totalLeadRows: usableLeadRows,
     totalMetaLeadRows,
     totalHydratedLeadRows,
-    incompleteSourceCount: incomplete.length,
+    incompleteSourceCount: verify ? incomplete.length : null,
     incompleteSources: incomplete.slice(0, 20).map((item) => ({
       sourceKey: item.sourceKey,
       metaRowCount: item.metaRowCount,
       hydratedRowCount: item.hydratedRowCount,
     })),
     sources: described.slice(0, 50),
-    hint:
-      totalHydratedLeadRows > 0
-        ? "Redis has ingested rows. Ensure DASHBOARD_SOURCE=auto on Vercel and pick a synced office/month."
-        : incomplete.length > 0
-          ? "Sources exist but rows did not hydrate from Redis. Re-run the n8n sync after deploying chunked storage."
-          : "No ingested lead rows. Re-run the n8n sync; confirm Bot Authority + INGEST_SECRET.",
+    hint: verify
+      ? totalHydratedLeadRows > 0 && incomplete.length === 0
+        ? "Redis rows load correctly. Ensure DASHBOARD_SOURCE=auto and pick a synced office/month."
+        : "Some sources do not load. Re-run the n8n sync so chunks are written with the latest code."
+      : "Add &verify=1 to load and confirm actual row data (slower).",
   });
 }
 
