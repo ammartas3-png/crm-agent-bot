@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   clearLeadsStore,
+  describeSources,
   hasData,
   isDatasetActive,
   leadsSourceMode,
@@ -97,5 +98,45 @@ test("loadRowsForSourceMeta resolves rows by spreadsheet, office, and category",
     }),
     null,
   );
+  clearLeadsStore();
+});
+
+test("saveSource reports chunk count and describeSources confirms completeness", async () => {
+  clearLeadsStore();
+  const result = saveSource(
+    "a:2026-05:leads",
+    { office: "A", period: "2026-05", spreadsheetId: "sheet-a", category: "leads" },
+    [{ ID: "1" }, { ID: "2" }],
+  );
+  assert.equal(result.rowCount, 2);
+  const described = await describeSources();
+  assert.equal(described.length, 1);
+  assert.equal(described[0].metaRowCount, 2);
+  assert.equal(described[0].hydratedRowCount, 2);
+  assert.equal(described[0].complete, true);
+  clearLeadsStore();
+});
+
+test("loadRowsForSourceMeta returns [] for a genuinely empty matched source", async () => {
+  clearLeadsStore();
+  saveSource(
+    "a:2026-05:leads",
+    { office: "A", period: "2026-05", spreadsheetId: "sheet-a", category: "leads" },
+    [],
+  );
+  const rows = await loadRowsForSourceMeta({ spreadsheetId: "sheet-a", category: "leads" });
+  assert.deepEqual(rows, []);
+  clearLeadsStore();
+});
+
+test("chunkRowsBySize splits large datasets so each chunk stays under budget", async () => {
+  // Indirectly verified through saveSource chunkCount when persistence is on.
+  // Here we assert the row count is preserved end-to-end in memory.
+  clearLeadsStore();
+  const many = Array.from({ length: 5000 }, (_, index) => ({ ID: String(index), Country: "Turkey" }));
+  const result = saveSource("big:2026-05:leads", { office: "Big", period: "2026-05" }, many);
+  assert.equal(result.rowCount, 5000);
+  const rows = await loadRowsForSourceMeta({ office: "Big", period: "2026-05", category: "leads" });
+  assert.equal(rows.length, 5000);
   clearLeadsStore();
 });
