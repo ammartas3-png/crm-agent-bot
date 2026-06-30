@@ -78,7 +78,8 @@ import {
   processDatabaseCheckWorkbook,
   rootStartKeyboard,
 } from "../../../lib/databaseCheck.js";
-import { getSession, setSession } from "../../../lib/session.js";
+import { getSession, hydrateSession, setSession } from "../../../lib/session.js";
+import { flushPersistence } from "../../../lib/store.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
 export const runtime = "nodejs";
@@ -817,6 +818,14 @@ function debugTotalsMonthKeyboard() {
 }
 
 export async function POST(request) {
+  const response = await handleTelegramUpdate(request);
+  // Ensure fire-and-forget KV writes (sessions, approvals, AI mode) complete
+  // before the serverless function freezes, so state survives across instances.
+  await flushPersistence().catch(() => {});
+  return response;
+}
+
+async function handleTelegramUpdate(request) {
   let update;
   try {
     update = await request.json();
@@ -838,6 +847,9 @@ export async function POST(request) {
   const now = new Date();
 
   try {
+    // Load any persisted session from KV so multi-step flows (e.g. AI mode)
+    // survive across serverless instances/cold starts.
+    await hydrateSession(userId).catch(() => {});
     registerAdminChat(telegramUser, chatId);
     const authorityScope = await resolveAuthorityScopeForUser(telegramUser);
     const scopedReadRows = buildScopedReadRows(authorityScope, now);
