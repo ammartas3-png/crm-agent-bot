@@ -27,6 +27,11 @@ export function GET() {
     service: "crm-ingest",
     ingestSecretConfigured: Boolean(ingestSecret()),
     persistentStoreConfigured: isPersistenceEnabled(),
+    persistenceMode: isPersistenceEnabled()
+      ? process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
+        ? "kv-rest"
+        : "redis-url"
+      : "memory",
   });
 }
 

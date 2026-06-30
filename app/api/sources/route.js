@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getAuthorityConfig, getTabConfig } from "../../../config/sheetsConfig.js";
-import { readSheetRows } from "../../../lib/googleSheets.js";
 import { readAuthorizedUsers, readOfficeSources } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
-import { saveReport } from "../../../lib/reportCache.js";
-import { buildDashboard } from "../../../lib/reports.js";
-import { prepareRowsForStore } from "../../../lib/sheetRowMapper.js";
-import { resolveDataTabs } from "../../../lib/tabResolver.js";
+import { syncOfficeSourceToStore } from "../../../lib/registrySync.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
@@ -83,6 +79,8 @@ export async function POST(request) {
   const onlySourceKey = url.searchParams.get("sourceKey");
   const onlyPeriod = url.searchParams.get("period");
   const leadsConfig = getTabConfig("leads");
+  const ftdConfig = getTabConfig("ftd");
+  const infoAgentsConfig = getTabConfig("infoAgents");
   const authorityCfg = getAuthorityConfig();
 
   try {
@@ -96,42 +94,13 @@ export async function POST(request) {
     const results = [];
     for (const source of sources) {
       try {
-        // Each office file may name its data tab differently; detect the right
-        // tab(s) by matching the CRM column headers.
-        const tabs = await resolveDataTabs(source.spreadsheetId, leadsConfig, {
-          fallbackTab: authorityCfg.dataTab,
+        const result = await syncOfficeSourceToStore(source, {
+          leadsConfig,
+          ftdConfig,
+          infoAgentsConfig,
+          authorityConfig: authorityCfg,
         });
-        const combinedRows = [];
-        for (const tab of tabs) {
-          const rows = await readSheetRows("leads", {
-            tabConfig: { ...leadsConfig, range: tab.range },
-            spreadsheetId: source.spreadsheetId,
-            cache: false,
-          });
-          for (const row of rows) {
-            combinedRows.push(row);
-          }
-        }
-        const prepared = prepareRowsForStore(combinedRows, leadsConfig, {
-          office: source.office,
-          period: source.period,
-        });
-        // Precompute the compact dashboard for this source and cache it (small,
-        // KV-friendly, durable). Raw rows are not stored.
-        const dashboard = buildDashboard(prepared, leadsConfig, {}, new Date(), { limit: 10 });
-        saveReport(
-          source.sourceKey,
-          { office: source.office, period: source.period },
-          dashboard,
-        );
-        results.push({
-          sourceKey: source.sourceKey,
-          tabs: tabs.map((tab) => tab.title),
-          stored: prepared.length,
-          totalLeads: dashboard.summary.totalLeads,
-          totalFtd: dashboard.summary.totalFtd,
-          cr: dashboard.summary.cr,
-        });
+        results.push(result);
       } catch (error) {
         results.push({
           sourceKey: source.sourceKey,

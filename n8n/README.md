@@ -1,8 +1,47 @@
 # n8n ingestion (SQL-less)
 
 This folder contains ready-to-import n8n workflows that read the CRM Google
-Sheets and store them in the bot's SQL-less dataset (Redis/KV + in-memory). The
-Telegram bot — and n8n itself, via the report API — then read from that dataset.
+Sheets and store them in Redis (via the app's `/api/ingest` or `/api/sources`
+endpoints). The **web dashboard**, Telegram bot, and AI agent then read from
+that dataset when `DASHBOARD_SOURCE=auto` / `LEADS_SOURCE=auto`.
+
+## Redis daily sync (recommended for the dashboard)
+
+Import **`crm-redis-daily-sync.json`**. It runs **every day at 12:00 and 18:00**
+(workflow timezone, default `Europe/Istanbul`) and calls:
+
+```
+POST {PUBLIC_APP_URL}/api/sources
+header x-ingest-secret: {INGEST_SECRET}
+```
+
+The app reads every office/month spreadsheet from your **Bot Authority** registry,
+stores **Leads + FTD + Info Agents** in Redis, and the dashboard serves reports
+from Redis instead of reading Google Sheets live.
+
+### Required configuration
+
+**Vercel (app):**
+
+- `REDIS_URL=redis://default:PASSWORD@HOST:PORT` — your Redis Cloud link, **or**
+  `KV_REST_API_URL` + `KV_REST_API_TOKEN` for Upstash REST.
+- `INGEST_SECRET` — shared secret for sync endpoints.
+- `DASHBOARD_SOURCE=auto` — dashboard uses Redis when data is synced (default).
+- `GOOGLE_AUTHORITY_SPREADSHEET_ID` — Bot Authority registry with the Offices tab.
+
+**n8n:**
+
+- `PUBLIC_APP_URL` — e.g. `https://your-app.vercel.app`
+- `INGEST_SECRET` — same value as Vercel.
+
+No Google Sheets node is required in n8n when you use Bot Authority sync.
+
+### Manual sheet list (alternative)
+
+If you prefer to paste spreadsheet IDs directly in n8n, import
+**`crm-sheets-redis-manual.json`**, edit **Define Sources**, attach a Google
+service-account credential, and activate. It uses the same 12:00 / 18:00 schedule
+and pushes rows to `POST /api/ingest`.
 
 ## Working map
 

@@ -1,0 +1,96 @@
+{
+  "name": "CRM Redis Daily Sync",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Istanbul"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1000001-0001-4001-8001-000000000001",
+      "name": "Schedule 12:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-420, -120],
+      "notes": "Runs every day at 12:00 (noon) in the workflow timezone. Set timezone in workflow settings (default Europe/Istanbul)."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "a1000002-0002-4002-8002-000000000002",
+      "name": "Schedule 18:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-420, 120],
+      "notes": "Runs every day at 18:00 (6 PM) in the workflow timezone."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PUBLIC_APP_URL }}/api/sources",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-ingest-secret",
+              "value": "={{ $env.INGEST_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "a1000003-0003-4003-8003-000000000003",
+      "name": "Sync All Sheets to Redis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 0],
+      "notes": "Reads every office/month spreadsheet listed in your Bot Authority registry, stores Leads + FTD + Info Agents in Redis via POST /api/sources, and refreshes authorized users. No Google node is required in n8n when using Bot Authority."
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $json || {};\nconst results = Array.isArray(body.results) ? body.results : [];\nconst synced = results.filter((item) => !item.error);\nconst failed = results.filter((item) => item.error);\nconst totalRows = synced.reduce((sum, item) => sum + Number(item.stored || 0), 0);\nreturn [{\n  json: {\n    ok: Boolean(body.ok),\n    persisted: Boolean(body.persisted),\n    syncedCount: synced.length,\n    failedCount: failed.length,\n    totalLeadRows: totalRows,\n    authorizedUsers: body.authorizedUsers ?? null,\n    failures: failed.map((item) => ({ sourceKey: item.sourceKey, error: item.error })),\n    sample: synced.slice(0, 5).map((item) => ({\n      sourceKey: item.sourceKey,\n      stored: item.stored,\n      ftdStored: item.ftdStored,\n      infoStored: item.infoStored,\n      totalLeads: item.totalLeads,\n      totalFtd: item.totalFtd,\n    })),\n  },\n}];"
+      },
+      "id": "a1000004-0004-4004-8004-000000000004",
+      "name": "Build Sync Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [180, 0]
+    }
+  ],
+  "connections": {
+    "Schedule 12:00": {
+      "main": [[{ "node": "Sync All Sheets to Redis", "type": "main", "index": 0 }]]
+    },
+    "Schedule 18:00": {
+      "main": [[{ "node": "Sync All Sheets to Redis", "type": "main", "index": 0 }]]
+    },
+    "Sync All Sheets to Redis": {
+      "main": [[{ "node": "Build Sync Summary", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
