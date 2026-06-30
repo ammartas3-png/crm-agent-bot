@@ -12,8 +12,25 @@ Import **`crm-redis-daily-sync.json`**. It runs **every day at 12:00 and 18:00**
 request** (avoids Vercel/n8n timeouts):
 
 ```
-App Config → GET /api/sources → loop → POST /api/sources?sourceKey=...
+App Config → GET /api/sources?recentMonths=N → loop → POST /api/sources?sourceKey=...
 ```
+
+### Recent-months window (bounded storage)
+
+In **App Config**, `RECENT_MONTHS` controls how many of the most recent months
+are cached in Redis:
+
+```javascript
+const RECENT_MONTHS = 4;   // cache the latest 4 months; 0 = all months
+```
+
+Only the latest N months are stored, so Redis usage stays **constant** as
+history grows (12, 24+ months) and the sync always finishes within the n8n/Vercel
+time limits. Older months are read **live from Google Sheets on demand** (the
+dashboard falls back automatically), and long-term benchmarks are precomputed by
+the daily `/api/dashboard/benchmark-cache` cron. Set `RECENT_MONTHS = 0` to cache
+everything (only if your Redis plan has room). `ONLY_PERIOD` still overrides the
+window for a one-off single-month sync.
 
 The app reads every office/month spreadsheet from your **Bot Authority** registry,
 stores **Leads + FTD + Info Agents** in Redis, and the dashboard serves reports
