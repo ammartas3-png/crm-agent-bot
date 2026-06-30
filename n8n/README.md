@@ -194,3 +194,98 @@ Notes:
   `LATE FTD +30 Day`, etc.) so the KPI calculations stay correct.
 - Set `LEADS_SOURCE=ingest` to force the bot to use ingested data, or leave it on
   `auto` to use ingested data when present and fall back to Google Sheets.
+
+## AI agent (admin-only Q&A) — built into the same bot
+
+An optional natural-language layer **for admins only**, inside the **same report
+bot** (no second bot): an admin asks about a desk, team leader, agent, country or
+campaign and gets a grounded answer built from the same KPIs the dashboard uses.
+
+### Same bot, no clutter
+
+The bot doesn't show two crowded menus. Instead:
+
+- The Start menu has a single **🤖 AI Assistant** entry (admins only), and
+- the first time an admin just types a free-text question, the bot **asks once**:
+  *"🤖 AI ile sor"* or *"📊 Hazır raporlar"*, then remembers the choice.
+
+Commands: `/ai` enters AI chat mode; `/menu` (or the "Hazır Raporlara Dön"
+button) leaves it.
+
+> Why no Telegram-trigger workflow? Telegram allows only one receiver per bot and
+> the report bot already owns the `/api/telegram` webhook. So the AI lives in the
+> bot itself; n8n is only an **optional OpenAI relay** (below).
+
+### How it is token-efficient
+
+The LLM never sees raw rows:
+
+```mermaid
+flowchart LR
+  TG["Telegram (admin)"] --> BOT["/api/telegram (same bot)"]
+  BOT --> AGG["aiAgent.js: resolve entity + aggregate<br/>(leads/FTD/CR/status, breakdowns)"]
+  AGG --> RES{"outOfScope?"}
+  RES -- "yes" --> REF["Canned refusal in the user's language<br/>(no LLM, 0 tokens)"]
+  RES -- "no" --> SMALL["compact facts JSON + messages"]
+  SMALL --> LLM["OpenAI (direct) OR n8n relay<br/>— only rephrases"]
+  LLM --> REPLY["Telegram reply (draftAnswer fallback)"]
+```
+
+- The bot resolves the question to an **entity** (agent / team leader / desk /
+  country / campaign / brand / placement) or an **overview**, then aggregates a
+  small, rounded `facts` object (totals, per-country/campaign/agent breakdowns,
+  status shares such as no-answer / call-again). Only that compact JSON — never
+  the rows — is sent to the LLM.
+- **Out-of-scope** questions are answered with a canned refusal **in the user's
+  language**, with no LLM call.
+- A deterministic `draftAnswer` is the fallback when no LLM is configured or the
+  call fails, so the bot always answers.
+
+### Setup
+
+1. Set the admins (`ADMIN_USERS`) correctly — AI is admin-only.
+2. Choose how the LLM is called:
+   - **Direct OpenAI:** set `OPENAI_API_KEY` (and optionally `OPENAI_MODEL`,
+     default `gpt-4o-mini`) on the app. Nothing else needed.
+   - **Via n8n (keep the key in n8n):** import `crm-ai-openai-relay.json` as a
+     **new, separate workflow** — do NOT modify your existing dashboard/report
+     bridge. It uses its own webhook path (`/webhook/crm-ai`), so it won't
+     collide. Activate it and set `AI_N8N_WEBHOOK_URL` on the app to that
+     webhook's URL. The bot POSTs `{ messages, question }`; n8n runs OpenAI and
+     responds `{ text }`. (If OpenAI errors, the node continues and the bot uses
+     its deterministic fallback.)
+   - **Neither:** the bot replies with the deterministic draft answer.
+
+### `/api/ai` (optional external callers)
+
+The same context is also exposed as an admin-only endpoint for external tools.
+`POST {PUBLIC_APP_URL}/api/ai` with header `x-ai-secret: <AI_AGENT_SECRET>`
+(falls back to `INGEST_SECRET`):
+
+```json
+{ "question": "Ali ajanı hangi ülkede iyi?", "telegramUserId": 12345678 }
+```
+
+Returns either `{ "outOfScope": true, "refusal": "...", "language": "tr" }` or
+`{ "outOfScope": false, "intent": {...}, "facts": {...}, "draftAnswer": "...", "messages": [...] }`.
+
+### What it can answer (question taxonomy)
+
+The agent maps a question to whatever metrics/rows are relevant. Examples:
+
+- **Desk** → which team leaders/teams work in it and how each performs
+  (leads, FTD, CR, target reach), strongest/weakest countries & campaigns.
+  - "Istanbul masasında hangi takımlar var, performansları nasıl?"
+- **Team leader** → their agents ranked, best vs weakest agent, team totals.
+  - "Lider 2'nin ajanları nasıl, en zayıf kim?"
+- **Agent** → where they are strong vs weak by country/campaign, status
+  problems (high no-answer, high call-again with low FTD), CR vs target.
+  - "Ahmet hangi ülke/kampanyada iyi, nerede kötü? No-answer'ı yüksek mi?"
+- **Country** → top desks/campaigns/agents in that country, totals, CR.
+  - "Almanya'da en iyi masa ve kampanya hangisi?"
+- **Campaign / brand / placement** → countries/desks/agents driving it.
+- **Overview / metric + date** → "Bu ay kaç FTD?", "Dünkü en iyi 5 ajan?".
+
+Other useful patterns it supports: "Which agents have many call-agains but no
+FTD?", "Compare Germany vs Turkey CR target reach", "Worst desks by target
+reach this month", "Top campaigns by FTD in Spain".

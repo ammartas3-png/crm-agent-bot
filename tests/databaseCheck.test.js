@@ -11,7 +11,7 @@ import {
 test("rootStartKeyboard exposes admin sections", () => {
   const keyboard = rootStartKeyboard({ username: "antoniotsd" });
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
-  assert.deepEqual(labels, ["Results from Months Table", "Access Requests", "Database Check"]);
+  assert.deepEqual(labels, ["Results from Months Table", "🤖 AI Assistant", "Access Requests", "Database Check"]);
 });
 
 test("rootStartKeyboard hides database check for non-admin", () => {
