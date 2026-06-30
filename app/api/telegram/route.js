@@ -627,10 +627,21 @@ async function authorityListResponse(page = 0) {
 
 const AI_MODE_PROMPT =
   "🤖 AI Assistant is on. Ask a CRM reporting question (agent, desk, country, campaign, FTD, CR…).\n" +
+  "Tip: you can also ask in one line, e.g. /ask how many FTD in Dubai this month.\n" +
   "Type /menu to exit.";
 
 function isAiEnterCommand(text = "") {
-  return /^\/?(ai|asistan|assistant)\b/i.test(String(text || "").trim());
+  return /^\/?(ai|ask|asistan|assistant)\b/i.test(String(text || "").trim());
+}
+
+// Returns the question after "/ai", "/ask", etc. when the user asks in a single
+// message (e.g. "/ask how many FTD in Dubai"). Empty string means no inline
+// question, so we just enter AI mode.
+function aiInlineQuestion(text = "") {
+  const match = String(text || "")
+    .trim()
+    .match(/^\/?(?:ai|ask|asistan|assistant)\b[\s,:-]*([\s\S]+)$/i);
+  return match ? match[1].trim() : "";
 }
 
 function isAiExitCommand(text = "") {
@@ -866,6 +877,13 @@ async function handleTelegramUpdate(request) {
     if (!callbackQuery && isAiEnterCommand(text)) {
       if (!isAdminTelegramUser(telegramUser)) {
         return sendMessageWebhookResponse(chatId, "Only admins can use the AI Assistant.");
+      }
+      const inlineQuestion = aiInlineQuestion(text);
+      if (inlineQuestion) {
+        // Stateless one-shot: "/ask <question>" answers immediately without
+        // relying on session state surviving across serverless instances.
+        const reply = await answerWithAiAgent(inlineQuestion, { authorityScope, now });
+        return sendMessageWebhookResponse(chatId, reply);
       }
       setSession(userId, { aiMode: true });
       return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT);
