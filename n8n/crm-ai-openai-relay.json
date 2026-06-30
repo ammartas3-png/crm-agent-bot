@@ -1,0 +1,64 @@
+{
+  "name": "CRM AI OpenAI Relay (optional)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-ai",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1b1b1b1-b1b1-b1b1-b1b1-b1b1b1b1b1b1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-320, 0],
+      "webhookId": "crm-ai-relay",
+      "notes": "Set AI_N8N_WEBHOOK_URL in the app to this webhook's URL. The bot POSTs { messages, question }; nothing else is sent (no raw rows)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.OPENAI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": $env.OPENAI_MODEL || \"gpt-4o-mini\", \"messages\": $json.body.messages, \"max_tokens\": 220, \"temperature\": 0.2 } }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2",
+      "name": "OpenAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-100, 0],
+      "onError": "continueRegularOutput",
+      "notes": "Token-efficient: the model only rephrases the compact facts JSON the app prepared. On error it continues so Respond still returns (empty) and the bot falls back fast. Swap for the native OpenAI node + credential if preferred."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"text\": $json.choices && $json.choices[0] && $json.choices[0].message ? $json.choices[0].message.content : \"\" } }}",
+        "options": {}
+      },
+      "id": "b3b3b3b3-b3b3-b3b3-b3b3-b3b3b3b3b3b3",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [120, 0],
+      "notes": "Returns { text } to the bot. If empty, the bot falls back to its deterministic draftAnswer."
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "OpenAI", "type": "main", "index": 0 }]] },
+    "OpenAI": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  }
+}

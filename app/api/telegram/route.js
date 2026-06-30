@@ -54,7 +54,9 @@ import {
   permissionFilterDebug,
 } from "../../../lib/calculations.js";
 import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
-import { readDashboardSheetRows } from "../../../lib/dataProvider.js";
+import { loadLeadRows, readDashboardSheetRows } from "../../../lib/dataProvider.js";
+import { buildAnswerContext } from "../../../lib/aiAgent.js";
+import { aiConfigured, generateAiReply } from "../../../lib/aiResponder.js";
 import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { getOfficeMonthMap } from "../../../lib/officeMappings.js";
@@ -622,6 +624,34 @@ async function authorityListResponse(page = 0) {
   return { text, replyMarkup: authorityListKeyboard(rows, safePage) };
 }
 
+const AI_MODE_PROMPT =
+  "🤖 AI Asistan açık. CRM raporlarıyla ilgili sorunu yaz (ajan, masa, ülke, kampanya, FTD, CR…).\n" +
+  "Çıkmak için /menu yaz.";
+
+function isAiEnterCommand(text = "") {
+  return /^\/?(ai|asistan|assistant)\b/i.test(String(text || "").trim());
+}
+
+function isAiExitCommand(text = "") {
+  return /^\/?(menu|exit|cikis|çıkış|quit|raporlar|reports)\b/i.test(String(text || "").trim());
+}
+
+// Builds a grounded AI answer from the ingested (Redis) dataset and relays it to
+// the n8n OpenAI workflow (AI_N8N_WEBHOOK_URL) or direct OpenAI, falling back to
+// a deterministic summary. The LLM only ever sees compact aggregated facts.
+async function answerWithAiAgent(question, { authorityScope, now }) {
+  const tabConfig = getTabConfig("leads");
+  const rows = await loadLeadRows("leads", { tabConfig });
+  const context = buildAnswerContext({
+    question,
+    rows,
+    tabConfig,
+    now,
+    scopeFilters: scopeFiltersFromAuthority(authorityScope),
+  });
+  return generateAiReply(context);
+}
+
 function buildScopedReadRows(authorityScope = {}, now = new Date()) {
   // Read from the ingested Redis dataset when available (synced by n8n), with a
   // transparent fallback to live Google Sheets. Keeps the bot's free-text query
@@ -819,6 +849,14 @@ export async function POST(request) {
     if (!callbackQuery && isDebugAccessCommand(text)) {
       const debugText = await buildDebugAccessReport({ telegramUser, authorityScope, userId, now });
       return sendMessageWebhookResponse(chatId, debugText);
+    }
+
+    if (!callbackQuery && isAiEnterCommand(text)) {
+      if (!isAdminTelegramUser(telegramUser)) {
+        return sendMessageWebhookResponse(chatId, "Only admins can use the AI Assistant.");
+      }
+      setSession(userId, { aiMode: true });
+      return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT);
     }
 
     const allowCommand = !callbackQuery ? parseAllowCommand(text) : null;
@@ -1285,7 +1323,15 @@ export async function POST(request) {
       }
 
       if (callbackQuery.data === "root:start") {
+        setSession(userId, { aiMode: false });
         return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+      }
+      if (callbackQuery.data === "root:ai") {
+        if (!isAdminTelegramUser(telegramUser)) {
+          return sendMessageWebhookResponse(chatId, "Only admins can use the AI Assistant.");
+        }
+        setSession(userId, { aiMode: true });
+        return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT);
       }
       if (callbackQuery.data === "root:results") {
         const response = await startMenu(userId, { telegramUser, authorityScope });
@@ -1388,6 +1434,16 @@ export async function POST(request) {
         formatDatabaseCheckSummary(review.summary, review.flaggedRowsCount),
         databaseCheckMenuKeyboard(isAdminTelegramUser(telegramUser)),
       );
+    }
+
+    const aiSession = getSession(userId);
+    if (!callbackQuery && aiSession.aiMode && isAdminTelegramUser(telegramUser)) {
+      if (isAiExitCommand(text) || isGreeting(text)) {
+        setSession(userId, { aiMode: false });
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+      }
+      const reply = await answerWithAiAgent(text, { authorityScope, now });
+      return sendMessageWebhookResponse(chatId, reply);
     }
 
     const dbTextResponse = await handleDatabaseCheckText(userId, text, {
