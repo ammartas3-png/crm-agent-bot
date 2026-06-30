@@ -23,7 +23,15 @@ function providedSecret(request) {
     return header;
   }
   const auth = request.headers.get("authorization") || "";
-  return auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (auth.startsWith("Bearer ")) {
+    return auth.slice(7);
+  }
+  // Allow the diagnostic GET to be checked from a browser via ?secret=...
+  try {
+    return new URL(request.url).searchParams.get("secret") || "";
+  } catch {
+    return "";
+  }
 }
 
 export async function GET(request) {
