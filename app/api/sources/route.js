@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthorityConfig, getTabConfig } from "../../../config/sheetsConfig.js";
 import { readAuthorizedUsers, readOfficeSources } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
-import { syncOfficeSourceToStore } from "../../../lib/registrySync.js";
+import { syncDeskLanguageToStore, syncOfficeSourceToStore } from "../../../lib/registrySync.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
@@ -110,6 +110,15 @@ export async function POST(request) {
       }
     }
 
+    // Mirror the shared desk-language tab into Redis once per run so the
+    // dashboard stops reading the fixed roster spreadsheet live.
+    let deskLanguageStored = null;
+    try {
+      deskLanguageStored = await syncDeskLanguageToStore();
+    } catch (error) {
+      console.error("Desk language sync failed", error);
+    }
+
     // Refresh authorized users from the registry's users tab alongside the data.
     let authorizedUsers = null;
     try {
@@ -124,6 +133,7 @@ export async function POST(request) {
       synced: results.filter((result) => !result.error).length,
       failed: results.filter((result) => result.error).length,
       authorizedUsers,
+      deskLanguageStored,
       persisted: isPersistenceEnabled(),
       results,
     });

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { getTabConfig } from "../../../config/sheetsConfig.js";
 import { rowsToObjects } from "../../../lib/googleSheets.js";
-import { saveSource, listSources, loadAllRows, isDatasetActive } from "../../../lib/leadsStore.js";
+import {
+  describeSources,
+  isDatasetActive,
+  listSources,
+  saveSource,
+} from "../../../lib/leadsStore.js";
 import { prepareRowsForStore, derivePeriod } from "../../../lib/sheetRowMapper.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
@@ -40,22 +45,41 @@ export async function GET(request) {
     return NextResponse.json(base);
   }
 
-  const sources = await listSources();
-  const leadsSources = sources.filter((item) => !item.category || item.category === "leads");
-  const totalLeadRows = leadsSources.reduce((sum, item) => sum + Number(item.rowCount || 0), 0);
+  const url = new URL(request.url);
+  const verify = ["1", "true", "yes"].includes(
+    String(url.searchParams.get("verify") || "").trim().toLowerCase(),
+  );
+
+  // verify=1 reads actual hydrated rows from Redis (slower); default uses meta.
+  const described = await describeSources();
+  const leadsSources = described.filter((item) => (item.category || "leads") === "leads");
+  const totalMetaLeadRows = leadsSources.reduce((sum, item) => sum + item.metaRowCount, 0);
+  const totalHydratedLeadRows = leadsSources.reduce((sum, item) => sum + item.hydratedRowCount, 0);
+  const incomplete = described.filter((item) => !item.complete);
+  const usableLeadRows = verify ? totalHydratedLeadRows : totalMetaLeadRows;
 
   return NextResponse.json({
     ...base,
     datasetActive: await isDatasetActive(),
-    dashboardCanUseIngest: totalLeadRows > 0,
-    sourceCount: sources.length,
+    dashboardCanUseIngest: totalHydratedLeadRows > 0,
+    sourceCount: described.length,
     leadsSourceCount: leadsSources.length,
-    totalLeadRows,
-    sources: sources.slice(0, 50),
+    totalLeadRows: usableLeadRows,
+    totalMetaLeadRows,
+    totalHydratedLeadRows,
+    incompleteSourceCount: incomplete.length,
+    incompleteSources: incomplete.slice(0, 20).map((item) => ({
+      sourceKey: item.sourceKey,
+      metaRowCount: item.metaRowCount,
+      hydratedRowCount: item.hydratedRowCount,
+    })),
+    sources: described.slice(0, 50),
     hint:
-      totalLeadRows > 0
-        ? "Redis has ingested rows. Ensure PR #16 is deployed and DASHBOARD_SOURCE=auto on Vercel."
-        : "No ingested lead rows in Redis. Deploy PR #16 and re-run the n8n sync, or only the old report summary cache was saved.",
+      totalHydratedLeadRows > 0
+        ? "Redis has ingested rows. Ensure DASHBOARD_SOURCE=auto on Vercel and pick a synced office/month."
+        : incomplete.length > 0
+          ? "Sources exist but rows did not hydrate from Redis. Re-run the n8n sync after deploying chunked storage."
+          : "No ingested lead rows. Re-run the n8n sync; confirm Bot Authority + INGEST_SECRET.",
   });
 }
 
