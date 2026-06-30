@@ -54,6 +54,7 @@ import {
   permissionFilterDebug,
 } from "../../../lib/calculations.js";
 import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleSheets.js";
+import { readDashboardSheetRows } from "../../../lib/dataProvider.js";
 import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { getOfficeMonthMap } from "../../../lib/officeMappings.js";
@@ -376,9 +377,11 @@ async function loadScopeRowsForDraft() {
   const monthRows = await Promise.all(
     [...uniqueMonthsBySheetId.values()].map(async (month) => {
       try {
-        const rows = await readSheetRows("leads", {
+        const rows = await readDashboardSheetRows("leads", {
           tabConfig,
           spreadsheetId: month?.sheet_id,
+          office: month?.office_name || "",
+          period: month?.key || month?.period || "",
         });
         const scopeOfficeName = String(month?.office_name || "").trim();
         if (!scopeOfficeName) {
@@ -620,8 +623,11 @@ async function authorityListResponse(page = 0) {
 }
 
 function buildScopedReadRows(authorityScope = {}, now = new Date()) {
+  // Read from the ingested Redis dataset when available (synced by n8n), with a
+  // transparent fallback to live Google Sheets. Keeps the bot's free-text query
+  // reports as fast as the web dashboard.
   return async (tabKey, options = {}) => {
-    return readSheetRows(tabKey, options);
+    return readDashboardSheetRows(tabKey, options);
   };
 }
 
