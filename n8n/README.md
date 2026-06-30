@@ -8,11 +8,11 @@ that dataset when `DASHBOARD_SOURCE=auto` / `LEADS_SOURCE=auto`.
 ## Redis daily sync (recommended for the dashboard)
 
 Import **`crm-redis-daily-sync.json`**. It runs **every day at 12:00 and 18:00**
-(workflow timezone, default `Europe/Istanbul`) and calls:
+(workflow timezone, default `Europe/Istanbul`) and syncs **one office/month per
+request** (avoids Vercel/n8n timeouts):
 
 ```
-POST {PUBLIC_APP_URL}/api/sources
-header x-ingest-secret: {INGEST_SECRET}
+App Config → GET /api/sources → loop → POST /api/sources?sourceKey=...
 ```
 
 The app reads every office/month spreadsheet from your **Bot Authority** registry,

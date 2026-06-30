@@ -7,6 +7,7 @@ import { syncOfficeSourceToStore } from "../../../lib/registrySync.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 function ingestSecret(env = process.env) {
   return String(env.INGEST_SECRET || "").trim();

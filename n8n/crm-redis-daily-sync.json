@@ -21,8 +21,7 @@
       "name": "Schedule 12:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-620, -120],
-      "notes": "Runs every day at 12:00 (noon). Change timezone in workflow settings if needed."
+      "position": [-900, -120]
     },
     {
       "parameters": {
@@ -39,26 +38,68 @@
       "name": "Schedule 18:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-620, 120],
-      "notes": "Runs every day at 18:00 (6 PM)."
+      "position": [-900, 120]
     },
     {
       "parameters": {
         "jsExecMode": "once",
         "language": "javaScript",
-        "jsCode": "// ─── EDIT ONLY THESE TWO LINES (no n8n env variables needed) ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Use the production URL only — not the long preview deployment URL.\n// INGEST_SECRET must match the INGEST_SECRET value in Vercel exactly.\n// ─────────────────────────────────────────────────────────────────\n\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n  },\n}];"
+        "jsCode": "// ─── EDIT ONLY THESE TWO LINES ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Optional: sync only one month to test faster, e.g. '2026-06', or leave '' for all.\nconst ONLY_PERIOD = '';\n// ─────────────────────────────────\n\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n    onlyPeriod: String(ONLY_PERIOD || '').trim(),\n  },\n}];"
       },
       "id": "a1000000-0000-4000-8000-000000000000",
       "name": "App Config",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-360, 0],
-      "notes": "Open this node and edit PUBLIC_APP_URL + INGEST_SECRET at the top of the code. No n8n environment access required."
+      "position": [-660, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-ingest-secret",
+              "value": "={{ $('App Config').item.json.ingestSecret }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a1000005-0005-4005-8005-000000000005",
+      "name": "List Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-420, 0],
+      "notes": "Fast GET call. Reads the Bot Authority registry and returns every office/month spreadsheet to sync."
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const config = $('App Config').item.json;\nconst sources = Array.isArray($json.sources) ? $json.sources : [];\nconst onlyPeriod = String(config.onlyPeriod || '').trim();\nconst filtered = onlyPeriod\n  ? sources.filter((source) => String(source.period || '') === onlyPeriod)\n  : sources;\n\nif (!filtered.length) {\n  throw new Error(\n    onlyPeriod\n      ? `No sources found for period ${onlyPeriod}. Check Bot Authority.`\n      : 'No sources returned from /api/sources. Check GOOGLE_AUTHORITY_SPREADSHEET_ID on Vercel.'\n  );\n}\n\nreturn filtered.map((source) => ({ json: source }));"
+      },
+      "id": "a1000006-0006-4006-8006-000000000006",
+      "name": "Prepare Source List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-180, 0]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a1000007-0007-4007-8007-000000000007",
+      "name": "Loop Each Source",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [60, 0]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources",
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources?sourceKey={{ encodeURIComponent($('Loop Each Source').item.json.sourceKey) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -73,22 +114,33 @@
         }
       },
       "id": "a1000003-0003-4003-8003-000000000003",
-      "name": "Sync All Sheets to Redis",
+      "name": "Sync One Sheet to Redis",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-80, 0],
-      "notes": "Calls your app. The app reads Bot Authority + Google Sheets and writes Redis. Do not edit the URL here — edit App Config instead."
+      "position": [320, 0],
+      "notes": "Syncs ONE office/month per request to avoid Vercel/n8n timeouts. Much more reliable than syncing everything in a single call."
     },
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "const body = $json || {};\nconst results = Array.isArray(body.results) ? body.results : [];\nconst synced = results.filter((item) => !item.error);\nconst failed = results.filter((item) => item.error);\nconst totalRows = synced.reduce((sum, item) => sum + Number(item.stored || 0), 0);\nreturn [{\n  json: {\n    ok: Boolean(body.ok),\n    error: body.error || null,\n    persisted: Boolean(body.persisted),\n    syncedCount: synced.length,\n    failedCount: failed.length,\n    totalLeadRows: totalRows,\n    authorizedUsers: body.authorizedUsers ?? null,\n    failures: failed.map((item) => ({ sourceKey: item.sourceKey, error: item.error })),\n    sample: synced.slice(0, 5).map((item) => ({\n      sourceKey: item.sourceKey,\n      stored: item.stored,\n      ftdStored: item.ftdStored,\n      infoStored: item.infoStored,\n      totalLeads: item.totalLeads,\n      totalFtd: item.totalFtd,\n    })),\n  },\n}];"
+        "jsCode": "const body = $json || {};\nconst source = $('Loop Each Source').item.json || {};\nconst result = Array.isArray(body.results) ? body.results[0] : null;\nreturn [{\n  json: {\n    sourceKey: source.sourceKey || result?.sourceKey || null,\n    office: source.office || null,\n    period: source.period || null,\n    ok: Boolean(body.ok) && !result?.error,\n    error: result?.error || body.error || null,\n    stored: Number(result?.stored || 0),\n    ftdStored: Number(result?.ftdStored || 0),\n    infoStored: Number(result?.infoStored || 0),\n    persisted: Boolean(body.persisted),\n  },\n}];"
+      },
+      "id": "a1000008-0008-4008-8008-000000000008",
+      "name": "Normalize Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 0]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const items = $input.all().map((item) => item.json || {});\nconst synced = items.filter((item) => item.ok);\nconst failed = items.filter((item) => !item.ok);\nconst totalRows = synced.reduce((sum, item) => sum + Number(item.stored || 0), 0);\nreturn [{\n  json: {\n    ok: failed.length === 0 && synced.length > 0,\n    syncedCount: synced.length,\n    failedCount: failed.length,\n    totalLeadRows: totalRows,\n    persisted: synced.some((item) => item.persisted),\n    failures: failed.map((item) => ({ sourceKey: item.sourceKey, error: item.error })),\n    sample: synced.slice(0, 8).map((item) => ({\n      sourceKey: item.sourceKey,\n      stored: item.stored,\n      ftdStored: item.ftdStored,\n      infoStored: item.infoStored,\n    })),\n  },\n}];"
       },
       "id": "a1000004-0004-4004-8004-000000000004",
       "name": "Build Sync Summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [180, 0]
+      "position": [320, 220]
     }
   ],
   "connections": {
@@ -99,10 +151,25 @@
       "main": [[{ "node": "App Config", "type": "main", "index": 0 }]]
     },
     "App Config": {
-      "main": [[{ "node": "Sync All Sheets to Redis", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "List Sources", "type": "main", "index": 0 }]]
     },
-    "Sync All Sheets to Redis": {
-      "main": [[{ "node": "Build Sync Summary", "type": "main", "index": 0 }]]
+    "List Sources": {
+      "main": [[{ "node": "Prepare Source List", "type": "main", "index": 0 }]]
+    },
+    "Prepare Source List": {
+      "main": [[{ "node": "Loop Each Source", "type": "main", "index": 0 }]]
+    },
+    "Loop Each Source": {
+      "main": [
+        [{ "node": "Build Sync Summary", "type": "main", "index": 0 }],
+        [{ "node": "Sync One Sheet to Redis", "type": "main", "index": 0 }]
+      ]
+    },
+    "Sync One Sheet to Redis": {
+      "main": [[{ "node": "Normalize Result", "type": "main", "index": 0 }]]
+    },
+    "Normalize Result": {
+      "main": [[{ "node": "Loop Each Source", "type": "main", "index": 0 }]]
     }
   },
   "pinData": {},
