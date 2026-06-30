@@ -626,8 +626,8 @@ async function authorityListResponse(page = 0) {
 }
 
 const AI_MODE_PROMPT =
-  "🤖 AI Asistan açık. CRM raporlarıyla ilgili sorunu yaz (ajan, masa, ülke, kampanya, FTD, CR…).\n" +
-  "Çıkmak için /menu yaz.";
+  "🤖 AI Assistant is on. Ask a CRM reporting question (agent, desk, country, campaign, FTD, CR…).\n" +
+  "Type /menu to exit.";
 
 function isAiEnterCommand(text = "") {
   return /^\/?(ai|asistan|assistant)\b/i.test(String(text || "").trim());
@@ -1501,7 +1501,7 @@ async function handleTelegramUpdate(request) {
         });
         return sendMessageWebhookResponse(
           chatId,
-          "Hangi scope ile bakayım? Country / Office (Desk) / Team Leader / Agent yazabilirsin. `all` yazarsan toplam sonucu veririm.",
+          "Which scope should I use? You can type Country / Office (Desk) / Team Leader / Agent. Type `all` for the overall total.",
         );
       }
       return sendMessageWebhookResponse(chatId, resolved.text);
