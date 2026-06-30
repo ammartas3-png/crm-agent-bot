@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  filterSourcesToRecentMonths,
   officeSlug,
   parseMonthLabel,
   parseOfficeSourcesFromValues,
@@ -12,6 +13,24 @@ import {
 test("officeSlug builds a stable kebab-case slug", () => {
   assert.equal(officeSlug("Turkiye Office"), "turkiye-office");
   assert.equal(officeSlug("  Dubai  Office "), "dubai-office");
+});
+
+test("filterSourcesToRecentMonths keeps only the most recent N months", () => {
+  const sources = [
+    { sourceKey: "a:2026-01:leads", period: "2026-01" },
+    { sourceKey: "a:2026-02:leads", period: "2026-02" },
+    { sourceKey: "a:2026-03:leads", period: "2026-03" },
+    { sourceKey: "b:2026-03:ftd", period: "2026-03" },
+    { sourceKey: "a:2026-04:leads", period: "2026-04" },
+  ];
+  const recent2 = filterSourcesToRecentMonths(sources, 2);
+  assert.deepEqual(
+    recent2.map((s) => s.sourceKey).sort(),
+    ["a:2026-03:leads", "a:2026-04:leads", "b:2026-03:ftd"].sort(),
+  );
+  // 0 or invalid limit returns everything unchanged.
+  assert.equal(filterSourcesToRecentMonths(sources, 0).length, 5);
+  assert.equal(filterSourcesToRecentMonths(sources, -1).length, 5);
 });
 
 test("parseMonthLabel handles two- and four-digit years", () => {

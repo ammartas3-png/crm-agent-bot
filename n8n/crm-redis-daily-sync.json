@@ -44,7 +44,7 @@
       "parameters": {
         "jsExecMode": "once",
         "language": "javaScript",
-        "jsCode": "// ─── EDIT ONLY THESE TWO LINES ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Optional: sync only one month to test faster, e.g. '2026-06', or leave '' for all.\nconst ONLY_PERIOD = '';\n// ─────────────────────────────────\n\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n    onlyPeriod: String(ONLY_PERIOD || '').trim(),\n  },\n}];"
+        "jsCode": "// ─── EDIT THESE LINES ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Only cache the most recent N months in Redis (keeps storage bounded so the\n// sync always finishes and never exceeds the KV size limit). Older months are\n// read live from Google Sheets on demand. Set 0 to sync ALL months.\nconst RECENT_MONTHS = 4;\n// Optional: sync only one month, e.g. '2026-06'. Leave '' to use RECENT_MONTHS.\nconst ONLY_PERIOD = '';\n// ────────────────────────\n\nconst onlyPeriod = String(ONLY_PERIOD || '').trim();\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n    recentMonths: onlyPeriod ? 0 : (Number(RECENT_MONTHS) || 0),\n    onlyPeriod,\n  },\n}];"
       },
       "id": "a1000000-0000-4000-8000-000000000000",
       "name": "App Config",
@@ -54,7 +54,7 @@
     },
     {
       "parameters": {
-        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources",
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources?recentMonths={{ $('App Config').item.json.recentMonths }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
