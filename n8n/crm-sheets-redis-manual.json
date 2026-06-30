@@ -21,7 +21,7 @@
       "name": "Schedule 12:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-520, -120]
+      "position": [-720, -120]
     },
     {
       "parameters": {
@@ -38,20 +38,31 @@
       "name": "Schedule 18:00",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-520, 120]
+      "position": [-720, 120]
     },
     {
       "parameters": {
         "jsExecMode": "once",
         "language": "javaScript",
-        "jsCode": "// Paste every Google Sheet you want in Redis. One row per office/month file.\n// sourceKey must stay stable so re-syncs replace (not duplicate) data.\nconst sources = [\n  {\n    office: 'Turkiye Office',\n    period: '2026-03',\n    spreadsheetId: 'PASTE_SPREADSHEET_ID',\n    sheetName: 'Leads',\n    range: 'A:Y',\n  },\n];\n\nfunction slug(office) {\n  return String(office || '')\n    .trim()\n    .toLowerCase()\n    .replace(/\\s+/g, '-')\n    .replace(/[^a-z0-9-]/g, '');\n}\n\nreturn sources.map((source) => ({\n  json: {\n    office: source.office,\n    period: source.period,\n    category: 'leads',\n    spreadsheetId: source.spreadsheetId,\n    sheetName: source.sheetName || 'Leads',\n    range: source.range || 'A:Y',\n    sourceKey: `${slug(source.office)}:${source.period}:leads`,\n  },\n}));"
+        "jsCode": "// ─── EDIT ONLY THESE TWO LINES (no n8n env variables needed) ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// ─────────────────────────────────────────────────────────────────\n\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n  },\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000000",
+      "name": "App Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-520, 0]
+    },
+    {
+      "parameters": {
+        "jsExecMode": "once",
+        "language": "javaScript",
+        "jsCode": "// Paste every Google Sheet you want in Redis. One row per office/month file.\nconst sources = [\n  {\n    office: 'Turkiye Office',\n    period: '2026-03',\n    spreadsheetId: 'PASTE_SPREADSHEET_ID',\n    sheetName: 'Leads',\n    range: 'A:Y',\n  },\n];\n\nfunction slug(office) {\n  return String(office || '')\n    .trim()\n    .toLowerCase()\n    .replace(/\\s+/g, '-')\n    .replace(/[^a-z0-9-]/g, '');\n}\n\nreturn sources.map((source) => ({\n  json: {\n    office: source.office,\n    period: source.period,\n    category: 'leads',\n    spreadsheetId: source.spreadsheetId,\n    sheetName: source.sheetName || 'Leads',\n    range: source.range || 'A:Y',\n    sourceKey: `${slug(source.office)}:${source.period}:leads`,\n  },\n}));"
       },
       "id": "b2000003-0003-4003-8003-000000000003",
       "name": "Define Sources",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-280, 0],
-      "notes": "Edit this list with the spreadsheet IDs you provide. Use Bot Authority sync workflow instead if you maintain sheets in the registry spreadsheet."
+      "position": [-280, 0]
     },
     {
       "parameters": {
@@ -111,13 +122,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PUBLIC_APP_URL }}/api/ingest",
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/ingest",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-ingest-secret",
-              "value": "={{ $env.INGEST_SECRET }}"
+              "value": "={{ $('App Config').item.json.ingestSecret }}"
             }
           ]
         },
@@ -137,9 +148,12 @@
   ],
   "connections": {
     "Schedule 12:00": {
-      "main": [[{ "node": "Define Sources", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "App Config", "type": "main", "index": 0 }]]
     },
     "Schedule 18:00": {
+      "main": [[{ "node": "App Config", "type": "main", "index": 0 }]]
+    },
+    "App Config": {
       "main": [[{ "node": "Define Sources", "type": "main", "index": 0 }]]
     },
     "Define Sources": {

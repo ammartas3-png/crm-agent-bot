@@ -29,12 +29,21 @@ from Redis instead of reading Google Sheets live.
 - `DASHBOARD_SOURCE=auto` — dashboard uses Redis when data is synced (default).
 - `GOOGLE_AUTHORITY_SPREADSHEET_ID` — Bot Authority registry with the Offices tab.
 
-**n8n:**
+**n8n (no environment variables required):**
 
-- `PUBLIC_APP_URL` — e.g. `https://your-app.vercel.app`
-- `INGEST_SECRET` — same value as Vercel.
+Import `crm-redis-daily-sync.json`, open the **App Config** node, and edit
+these two lines at the top of the code:
 
-No Google Sheets node is required in n8n when you use Bot Authority sync.
+```javascript
+const PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';
+const INGEST_SECRET = 'your-secret-from-vercel';
+```
+
+Use the **production** Vercel URL (not the long preview deployment URL).
+`INGEST_SECRET` must match Vercel exactly. Then activate the workflow.
+
+If your n8n plan supports environment variables, you may still use
+`PUBLIC_APP_URL` and `INGEST_SECRET` there instead — but it is optional.
 
 ### Manual sheet list (alternative)
 
