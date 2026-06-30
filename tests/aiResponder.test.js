@@ -68,6 +68,37 @@ test("falls back to draftAnswer when the LLM call fails", async () => {
   assert.equal(reply, baseContext.draftAnswer);
 });
 
+test("relay parses n8n AI Agent output shapes (array + output field)", async () => {
+  const fetchImpl = async (url) => {
+    if (url.includes("n8n.example")) {
+      // n8n AI Agent commonly returns [{ json: { output: "..." } }]
+      return { ok: true, json: async () => [{ json: { output: "Ajan analizi." } }] };
+    }
+    throw new Error("OpenAI should not be called when relay succeeds");
+  };
+  const reply = await generateAiReply(baseContext, {
+    env: { AI_N8N_WEBHOOK_URL: "https://n8n.example/webhook/ai" },
+    fetchImpl,
+  });
+  assert.equal(reply, "Ajan analizi.");
+});
+
+test("relay sends the prompt under common field names", async () => {
+  let sentBody = null;
+  const fetchImpl = async (url, init) => {
+    sentBody = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ text: "ok" }) };
+  };
+  await generateAiReply(
+    { ...baseContext, question: "Ali nasıl?" },
+    { env: { AI_N8N_WEBHOOK_URL: "https://n8n.example/webhook/ai" }, fetchImpl },
+  );
+  assert.equal(sentBody.chatInput, "Ali nasıl?\n\nFACTS: {}");
+  assert.equal(sentBody.message, sentBody.chatInput);
+  assert.equal(sentBody.question, "Ali nasıl?");
+  assert.ok(Array.isArray(sentBody.messages));
+});
+
 test("aiConfigured reflects env", () => {
   assert.equal(aiConfigured({}), false);
   assert.equal(aiConfigured({ OPENAI_API_KEY: "x" }), true);
