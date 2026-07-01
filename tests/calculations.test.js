@@ -328,6 +328,69 @@ test("permission office filter uses explicit Office or scoped office, not Desk f
   assert.deepEqual(rows.map((row) => row.ID), ["C-1"]);
 });
 
+test("permission office filter matches Turkiye and Turkey office aliases", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "T-1",
+      __scopeOfficeName: "Turkey Office",
+      Desk: "Turkey English",
+      "Team Leader": "Rafik B",
+      "AGENT NAMES": "Agent One",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    office: ["Turkiye Office"],
+    desk: ["Turkey English"],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["T-1"]);
+});
+
+test("permission team scope matches agent names listed in Team column", () => {
+  const permissiveTabConfig = {
+    fields: {
+      id: "ID",
+      office: "Office",
+      desk: "Desk",
+      teamLeader: "Team Leader",
+      agentNames: "AGENT NAMES",
+      country: "Country",
+    },
+  };
+  const dataset = [
+    {
+      ID: "A-1",
+      __scopeOfficeName: "Turkey Office",
+      Desk: "Turkey English",
+      "Team Leader": "Other Leader",
+      "AGENT NAMES": "Anas B",
+      Country: "Turkey",
+    },
+    {
+      ID: "A-2",
+      __scopeOfficeName: "Turkey Office",
+      Desk: "Turkey English",
+      "Team Leader": "Other Leader",
+      "AGENT NAMES": "Blocked Agent",
+      Country: "Turkey",
+    },
+  ];
+  const rows = filterRowsByPermission(dataset, permissiveTabConfig, {
+    teamLeader: ["Anas B"],
+  });
+  assert.deepEqual(rows.map((row) => row.ID), ["A-1"]);
+});
+
 test("permission debug identifies unmatched allowed values", () => {
   const permissiveTabConfig = {
     fields: {
