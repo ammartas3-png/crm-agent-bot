@@ -18,11 +18,13 @@ App Config → GET /api/sources?recentMonths=N → loop → POST /api/sources?so
 ### Recent-months window (bounded storage)
 
 In **App Config**, `RECENT_MONTHS` controls how many of the most recent months
-are cached in Redis:
+are cached in Redis/Upstash:
 
 ```javascript
-const RECENT_MONTHS = 4;   // cache the latest 4 months; 0 = all months
+const RECENT_MONTHS = 2;   // cache the latest 2 months; 0 = all months
 ```
+
+The app also defaults to **2 months** when `recentMonths` is omitted (`REDIS_RECENT_MONTHS=2` on Vercel).
 
 Only the latest N months are stored, so Redis usage stays **constant** as
 history grows (12, 24+ months) and the sync always finishes within the n8n/Vercel

@@ -5,6 +5,7 @@ import {
   filterSourcesToRecentMonths,
   readAuthorizedUsers,
   readOfficeSources,
+  resolveRecentMonthsLimit,
 } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
 import { syncDeskLanguageToStore, syncOfficeSourceToStore } from "../../../lib/registrySync.js";
@@ -53,15 +54,15 @@ export async function GET(request) {
 
   try {
     let sources = await readOfficeSources();
-    const recentMonths = Number(url.searchParams.get("recentMonths"));
-    if (Number.isFinite(recentMonths) && recentMonths > 0) {
+    const recentMonths = resolveRecentMonthsLimit(url.searchParams.get("recentMonths"));
+    if (recentMonths > 0) {
       sources = filterSourcesToRecentMonths(sources, recentMonths);
     }
     const payload = {
       ok: true,
       authoritySpreadsheetId: getAuthorityConfig().spreadsheetId,
       count: sources.length,
-      recentMonths: Number.isFinite(recentMonths) && recentMonths > 0 ? recentMonths : null,
+      recentMonths: recentMonths > 0 ? recentMonths : null,
       sources,
     };
     if (url.searchParams.get("includeUsers") === "1") {
@@ -88,7 +89,7 @@ export async function POST(request) {
 
   const onlySourceKey = url.searchParams.get("sourceKey");
   const onlyPeriod = url.searchParams.get("period");
-  const recentMonths = Number(url.searchParams.get("recentMonths"));
+  const recentMonths = resolveRecentMonthsLimit(url.searchParams.get("recentMonths"));
   const leadsConfig = getTabConfig("leads");
   const ftdConfig = getTabConfig("ftd");
   const infoAgentsConfig = getTabConfig("infoAgents");
@@ -100,7 +101,7 @@ export async function POST(request) {
       sources = sources.filter((source) => source.sourceKey === onlySourceKey);
     } else if (onlyPeriod) {
       sources = sources.filter((source) => source.period === onlyPeriod);
-    } else if (Number.isFinite(recentMonths) && recentMonths > 0) {
+    } else if (recentMonths > 0) {
       sources = filterSourcesToRecentMonths(sources, recentMonths);
     }
 
