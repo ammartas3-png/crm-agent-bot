@@ -22,11 +22,12 @@ import {
   notifyAdminsForAccessRequest,
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
-import { handleMenuCallback, handleMenuText, isGreeting, startMenu } from "../../../lib/menu.js";
+import { handleMenuCallback, handleMenuText, isGreeting, startMenu, beginSimpleExportGeneration, finishSimpleExportGeneration, isSimpleExportGenerationLocked, simpleExportPresetFromCallback, simpleExportWaitMessage } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
   buildWebhookEditMessage,
   buildWebhookSendMessage,
+  callTelegramApi,
   extractCallbackQuery,
   fetchTelegramFileBuffer,
   extractTelegramMessage,
@@ -1460,10 +1461,39 @@ async function handleTelegramUpdate(request) {
         }
       }
 
-      const response = await handleMenuCallback(userId, callbackQuery.data, {
-        telegramUser,
-        authorityScope,
-      });
+      const exportPreset = simpleExportPresetFromCallback(callbackQuery.data);
+      if (exportPreset) {
+        const sessionBeforeExport = getSession(userId);
+        if (isSimpleExportGenerationLocked(sessionBeforeExport)) {
+          await answerCallbackQuery(callbackQuery.id, { text: "Report is already generating. Please wait." }).catch(() => {});
+          return NextResponse.json({ ok: true, duplicateExport: true });
+        }
+        beginSimpleExportGeneration(userId, exportPreset);
+        await flushPersistence().catch(() => {});
+        if (hasTelegramBotToken() && callbackQuery.message?.message_id) {
+          await callTelegramApi("editMessageText", {
+            chat_id: chatId,
+            message_id: callbackQuery.message.message_id,
+            text: simpleExportWaitMessage(exportPreset),
+            reply_markup: { inline_keyboard: [] },
+          }).catch((error) => {
+            console.warn("Could not show export wait message", error);
+          });
+        }
+      }
+
+      let response;
+      try {
+        response = await handleMenuCallback(userId, callbackQuery.data, {
+          telegramUser,
+          authorityScope,
+        });
+      } finally {
+        if (exportPreset) {
+          finishSimpleExportGeneration(userId);
+          await flushPersistence().catch(() => {});
+        }
+      }
       if (response?.documentBuffer) {
         if (!hasTelegramBotToken()) {
           return sendMessageWebhookResponse(
