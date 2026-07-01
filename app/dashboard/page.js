@@ -8,6 +8,7 @@ import {
   COMPARISON_COLUMNS,
   COMPARISON_DEFAULT_SORT,
   COMPARISON_TABLE_DIMENSIONS,
+  buildComparisonTablesFromDetailRows,
 } from "../../lib/comparisonReport.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
@@ -3408,7 +3409,14 @@ function toMetricNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function ComparisonTablesPanel({ comparisonTables = null, rows = [], selections = {}, onToggleSelection, onClearSelections }) {
+function ComparisonTablesPanel({
+  comparisonDetailRows = null,
+  comparisonTables = null,
+  rows = [],
+  selections = {},
+  onToggleSelection,
+  onClearSelections,
+}) {
   const [tablesExpanded, setTablesExpanded] = useState(true);
   const [sortByTable, setSortByTable] = useState(() =>
     Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
@@ -3474,6 +3482,10 @@ function ComparisonTablesPanel({ comparisonTables = null, rows = [], selections 
         sort: sortState,
       };
     };
+
+    if (Array.isArray(comparisonDetailRows) && comparisonDetailRows.length) {
+      return buildComparisonTablesFromDetailRows(comparisonDetailRows, selections, sortByTable);
+    }
 
     if (Array.isArray(comparisonTables) && comparisonTables.length) {
       return comparisonTables.map((table) => applySort(table));
@@ -3550,7 +3562,7 @@ function ComparisonTablesPanel({ comparisonTables = null, rows = [], selections 
         rows: data,
       });
     });
-  }, [comparisonTables, cleanRows, selections, sortByTable]);
+  }, [comparisonDetailRows, comparisonTables, cleanRows, selections, sortByTable]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -3782,9 +3794,6 @@ export default function DashboardPage() {
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
       const query = buildReportQuery(appliedFilters);
-      if (quickPreset === "comparison-report" && Object.keys(comparisonSelections).length) {
-        query.set("comparisonSelections", JSON.stringify(comparisonSelections));
-      }
       query.set("monitor", "1");
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
@@ -3913,7 +3922,7 @@ export default function DashboardPage() {
         failedStep: prev.failedStep || prev.currentStep || "",
       }));
     }
-  }, [appliedFilters, comparisonSelections, quickPreset, sessionState.authorized]);
+  }, [appliedFilters, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -5093,6 +5102,7 @@ export default function DashboardPage() {
             <section className={styles.section} style={{ padding: 0 }}>
               {isComparisonReportView ? (
                 <ComparisonTablesPanel
+                  comparisonDetailRows={report.comparisonDetailRows}
                   comparisonTables={report.comparisonTables}
                   rows={report.table || []}
                   selections={comparisonSelections}
