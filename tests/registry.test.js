@@ -34,10 +34,10 @@ test("filterSourcesToRecentMonths keeps only the most recent N months", () => {
   assert.equal(filterSourcesToRecentMonths(sources, -1).length, 5);
 });
 
-test("resolveRecentMonthsLimit defaults to two months for Upstash sync", () => {
-  assert.equal(resolveRecentMonthsLimit(undefined, {}), 2);
-  assert.equal(resolveRecentMonthsLimit("", {}), 2);
-  assert.equal(resolveRecentMonthsLimit("4", {}), 4);
+test("resolveRecentMonthsLimit defaults to four months for Upstash sync", () => {
+  assert.equal(resolveRecentMonthsLimit(undefined, {}), 4);
+  assert.equal(resolveRecentMonthsLimit("", {}), 4);
+  assert.equal(resolveRecentMonthsLimit("2", {}), 2);
   assert.equal(resolveRecentMonthsLimit("0", {}), 0);
   assert.equal(resolveRecentMonthsLimit(undefined, { REDIS_RECENT_MONTHS: "3" }), 3);
 });
