@@ -28,6 +28,8 @@ function queryParams(searchParams) {
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
+    comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
+    comparisonSelections: String(searchParams.get("comparisonSelections") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),

@@ -362,3 +362,31 @@ test("excel export formats Missing FTD with report style", async () => {
   assert.equal(worksheet.getCell("B3").value, "- 9,10 FTD");
   assert.equal(String(worksheet.getCell("B3").fill?.fgColor?.argb || ""), "FF7F1D1D");
 });
+
+test("comparison export writes six server-side comparison sheets", async () => {
+  const report = {
+    tableType: "builder",
+    comparisonTables: [
+      {
+        key: "country",
+        label: "Country",
+        rows: [{ label: "India", leads: 100, ftd: 10, cr: 10, crTargetReach: 125 }],
+      },
+      {
+        key: "agent",
+        label: "Agent",
+        rows: [{ label: "Agent One", leads: 50, ftd: 5, cr: 10, crTargetReach: 100 }],
+      },
+    ],
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, { comparisonMode: "1" });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  assert.equal(workbook.getWorksheet("Country")?.name, "Country");
+  assert.equal(workbook.getWorksheet("Agent")?.name, "Agent");
+  assert.equal(Number(workbook.getWorksheet("Country")?.getCell("B2").value || 0), 100);
+  assert.equal(workbook.getWorksheet("Country")?.getCell("D1").value, "CR");
+  assert.equal(workbook.getWorksheet("Country")?.getCell("E1").value, "CR Reach");
+});
