@@ -362,3 +362,84 @@ test("excel export formats Missing FTD with report style", async () => {
   assert.equal(worksheet.getCell("B3").value, "- 9,10 FTD");
   assert.equal(String(worksheet.getCell("B3").fill?.fgColor?.argb || ""), "FF7F1D1D");
 });
+
+test("comparison export creates six dimension sheets with aggregated metrics", async () => {
+  const report = {
+    tableType: "builder",
+    builder: {
+      columns: [
+        { key: "country", label: "Country", type: "text", kind: "dimension" },
+        { key: "campaign", label: "Campaign", type: "text", kind: "dimension" },
+        { key: "leads", label: "Leads", type: "number", kind: "metric" },
+        { key: "ftd", label: "FTD", type: "number", kind: "metric" },
+        { key: "cr", label: "CR", type: "percent", kind: "metric" },
+        { key: "crTargetReach", label: "CR Reach", type: "percent", kind: "metric" },
+      ],
+    },
+    table: [
+      {
+        country: "India",
+        campaign: "Search",
+        placement: "Google",
+        subCampaign: "Brand",
+        teamLeader: "Alice",
+        agent: "Bob",
+        leads: 100,
+        ftd: 10,
+        crTarget: 8,
+        crTargetReach: 125,
+      },
+      {
+        country: "India",
+        campaign: "Search",
+        placement: "Google",
+        subCampaign: "Brand",
+        teamLeader: "Alice",
+        agent: "Carol",
+        leads: 50,
+        ftd: 4,
+        crTarget: 8,
+        crTargetReach: 100,
+      },
+      {
+        country: "Japan",
+        campaign: "Social",
+        placement: "Meta",
+        subCampaign: "Retarget",
+        teamLeader: "Dave",
+        agent: "Eve",
+        leads: 80,
+        ftd: 6,
+        crTarget: 5,
+        crTargetReach: 150,
+      },
+    ],
+    month: { label: "June 2026", office_name: "Turkiye Office", key: "2026-06" },
+    summary: {},
+    reportMode: "specific",
+    specificType: "builder",
+  };
+
+  const buffer = await dashboardReportWorkbookBuffer(report, { comparisonMode: "1" });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  assert.equal(workbook.worksheets.length, 7);
+  assert.equal(workbook.getWorksheet("Summary")?.name, "Summary");
+  assert.equal(workbook.getWorksheet("Country")?.name, "Country");
+  assert.equal(workbook.getWorksheet("Team Leader")?.name, "Team Leader");
+  assert.equal(workbook.getWorksheet("Agent")?.name, "Agent");
+  assert.equal(workbook.getWorksheet("Campaign")?.name, "Campaign");
+  assert.equal(workbook.getWorksheet("Placement")?.name, "Placement");
+  assert.equal(workbook.getWorksheet("Sub-Campaign")?.name, "Sub-Campaign");
+
+  const countrySheet = workbook.getWorksheet("Country");
+  assert.equal(countrySheet.getCell("A1").value, "Name");
+  assert.equal(countrySheet.getCell("B1").value, "Leads");
+  assert.equal(countrySheet.getCell("E1").value, "CR Reach");
+  assert.equal(countrySheet.getCell("A2").value, "India");
+  assert.equal(Number(countrySheet.getCell("B2").value || 0), 150);
+  assert.equal(Number(countrySheet.getCell("C2").value || 0), 14);
+  assert.ok(Math.abs(Number(countrySheet.getCell("D2").value || 0) - 0.09333333333333334) < 0.0001);
+  assert.equal(String(countrySheet.getCell("E2").fill?.fgColor?.argb || ""), "FFDCFCE7");
+});

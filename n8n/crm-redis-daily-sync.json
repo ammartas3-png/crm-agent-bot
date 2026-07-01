@@ -44,7 +44,7 @@
       "parameters": {
         "jsExecMode": "once",
         "language": "javaScript",
-        "jsCode": "// ─── EDIT THESE LINES ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Only cache the most recent N months in Redis (keeps storage bounded so the\n// sync always finishes and never exceeds the KV size limit). Older months are\n// read live from Google Sheets on demand. Set 0 to sync ALL months.\nconst RECENT_MONTHS = 4;\n// Optional: sync only one month, e.g. '2026-06'. Leave '' to use RECENT_MONTHS.\nconst ONLY_PERIOD = '';\n// ────────────────────────\n\nconst onlyPeriod = String(ONLY_PERIOD || '').trim();\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n    recentMonths: onlyPeriod ? 0 : (Number(RECENT_MONTHS) || 0),\n    onlyPeriod,\n  },\n}];"
+        "jsCode": "// ─── EDIT THESE LINES ───\nconst PUBLIC_APP_URL = 'https://crm-agent-bot-hj5k.vercel.app';\nconst INGEST_SECRET = 'PASTE_YOUR_INGEST_SECRET_FROM_VERCEL';\n// Only cache the most recent N months in Redis (keeps storage bounded so the\n// sync always finishes and never exceeds the KV size limit). Older months are\n// read live from Google Sheets on demand. Set 0 to sync ALL months.\nconst RECENT_MONTHS = 4;\n// Optional: sync only one month, e.g. '2026-06'. Leave '' to use RECENT_MONTHS.\n// Tip: if July data is not ready yet, set ONLY_PERIOD = '2026-06' temporarily.\nconst ONLY_PERIOD = '';\n// ────────────────────────\n\nconst onlyPeriod = String(ONLY_PERIOD || '').trim();\nreturn [{\n  json: {\n    publicAppUrl: String(PUBLIC_APP_URL || '').trim().replace(/\\/+$/, ''),\n    ingestSecret: String(INGEST_SECRET || '').trim(),\n    recentMonths: onlyPeriod ? 0 : (Number(RECENT_MONTHS) || 0),\n    onlyPeriod,\n  },\n}];"
       },
       "id": "a1000000-0000-4000-8000-000000000000",
       "name": "App Config",
@@ -141,6 +141,30 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [320, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('App Config').item.json.publicAppUrl }}/api/sources?finalize=1&recentMonths={{ $('App Config').item.json.recentMonths }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-ingest-secret",
+              "value": "={{ $('App Config').item.json.ingestSecret }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a1000009-0009-4009-8009-000000000009",
+      "name": "Finalize Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 220],
+      "notes": "Runs once after the loop: roster tabs, desk language, and authorized users. Keeps per-source requests fast."
     }
   ],
   "connections": {
@@ -170,6 +194,9 @@
     },
     "Normalize Result": {
       "main": [[{ "node": "Loop Each Source", "type": "main", "index": 0 }]]
+    },
+    "Build Sync Summary": {
+      "main": [[{ "node": "Finalize Sync", "type": "main", "index": 0 }]]
     }
   },
   "pinData": {},

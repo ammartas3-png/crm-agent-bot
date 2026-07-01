@@ -7,7 +7,7 @@ import {
   readOfficeSources,
 } from "../../../lib/registry.js";
 import { refreshRegistryUsers } from "../../../lib/registryUsers.js";
-import { syncDeskLanguageToStore, syncOfficeSourceToStore } from "../../../lib/registrySync.js";
+import { syncDeskLanguageToStore, syncOfficeSourceToStore, syncSharedAuxiliaryDataToStore } from "../../../lib/registrySync.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
@@ -89,6 +89,7 @@ export async function POST(request) {
   const onlySourceKey = url.searchParams.get("sourceKey");
   const onlyPeriod = url.searchParams.get("period");
   const recentMonths = Number(url.searchParams.get("recentMonths"));
+  const finalizeOnly = ["1", "true", "yes"].includes(String(url.searchParams.get("finalize") || "").trim().toLowerCase());
   const leadsConfig = getTabConfig("leads");
   const ftdConfig = getTabConfig("ftd");
   const infoAgentsConfig = getTabConfig("infoAgents");
@@ -104,6 +105,27 @@ export async function POST(request) {
       sources = filterSourcesToRecentMonths(sources, recentMonths);
     }
 
+    if (finalizeOnly) {
+      const auxiliary = await syncSharedAuxiliaryDataToStore(sources);
+      let authorizedUsers = null;
+      try {
+        const result = await refreshRegistryUsers({ force: true });
+        authorizedUsers = result.count;
+      } catch (error) {
+        console.error("Registry user refresh failed", error);
+      }
+      return NextResponse.json({
+        ok: true,
+        mode: "finalize",
+        sourceCount: sources.length,
+        authorizedUsers,
+        deskLanguageStored: auxiliary.deskLanguageStored,
+        rosterStored: auxiliary.rosterStored,
+        rosterResults: auxiliary.rosterResults,
+        persisted: isPersistenceEnabled(),
+      });
+    }
+
     const results = [];
     for (const source of sources) {
       try {
@@ -112,6 +134,7 @@ export async function POST(request) {
           ftdConfig,
           infoAgentsConfig,
           authorityConfig: authorityCfg,
+          skipRosterSync: Boolean(onlySourceKey),
         });
         results.push(result);
       } catch (error) {
@@ -122,22 +145,23 @@ export async function POST(request) {
       }
     }
 
-    // Mirror the shared desk-language tab into Redis once per run so the
-    // dashboard stops reading the fixed roster spreadsheet live.
+    // When n8n syncs one source per request, auxiliary data is handled by a
+    // separate POST /api/sources?finalize=1 call after the loop completes.
     let deskLanguageStored = null;
-    try {
-      deskLanguageStored = await syncDeskLanguageToStore();
-    } catch (error) {
-      console.error("Desk language sync failed", error);
-    }
-
-    // Refresh authorized users from the registry's users tab alongside the data.
     let authorizedUsers = null;
-    try {
-      const result = await refreshRegistryUsers({ force: true });
-      authorizedUsers = result.count;
-    } catch (error) {
-      console.error("Registry user refresh failed", error);
+    if (!onlySourceKey) {
+      try {
+        deskLanguageStored = await syncDeskLanguageToStore();
+      } catch (error) {
+        console.error("Desk language sync failed", error);
+      }
+
+      try {
+        const result = await refreshRegistryUsers({ force: true });
+        authorizedUsers = result.count;
+      } catch (error) {
+        console.error("Registry user refresh failed", error);
+      }
     }
 
     return NextResponse.json({
