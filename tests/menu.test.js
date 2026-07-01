@@ -143,7 +143,22 @@ test("a disallowed authority scope blocks bot reports", async () => {
   const blocked = await handleMenuCallback(107, "simple:report:list", {
     ...opts,
     telegramUser: { id: 5, username: "restricted" },
-    authorityScope: { allowed: false, unrestricted: false, filters: {} },
+    authorityScope: { allowed: false, canUseBot: false, unrestricted: false, filters: {} },
+  });
+  assert.match(blocked.text, /ALL authority/i);
+});
+
+test("manager authority scope blocks bot reports", async () => {
+  const blocked = await handleMenuCallback(108, "simple:report:list", {
+    ...opts,
+    telegramUser: { id: 5316268466, username: "jezzy_007" },
+    authorityScope: {
+      allowed: true,
+      canUseBot: false,
+      canUseDashboard: true,
+      unrestricted: false,
+      filters: { office: ["Turkiye Office"] },
+    },
   });
   assert.match(blocked.text, /ALL authority/i);
 });

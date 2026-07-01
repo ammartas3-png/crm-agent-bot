@@ -9,7 +9,7 @@ import {
 } from "../lib/databaseCheck.js";
 
 test("rootStartKeyboard exposes admin sections", () => {
-  const keyboard = rootStartKeyboard({ username: "antoniotsd" });
+  const keyboard = rootStartKeyboard({ username: "antoniotsd" }, { canUseBot: true });
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
   assert.deepEqual(labels, [
     "Results from Months Table",
@@ -19,10 +19,16 @@ test("rootStartKeyboard exposes admin sections", () => {
   ]);
 });
 
-test("rootStartKeyboard hides database check for non-admin", () => {
-  const keyboard = rootStartKeyboard({ username: "regular-user" });
+test("rootStartKeyboard shows reports only for ALL authority users", () => {
+  const keyboard = rootStartKeyboard({ username: "regular-user" }, { canUseBot: true });
   const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
   assert.deepEqual(labels, ["Results from Months Table"]);
+});
+
+test("rootStartKeyboard shows dashboard info for manager users", () => {
+  const keyboard = rootStartKeyboard({ username: "manager-user" }, { canUseDashboard: true, canUseBot: false });
+  const labels = keyboard.inline_keyboard.flat().map((button) => button.text);
+  assert.deepEqual(labels, ["Dashboard Info"]);
 });
 
 test("parseStatusKeywordInput parses status and keyword", () => {
