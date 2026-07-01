@@ -4,6 +4,12 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import { DataBar, RankBars } from "./viz.js";
+import {
+  COMPARISON_COLUMNS,
+  COMPARISON_DEFAULT_SORT,
+  COMPARISON_TABLE_DIMENSIONS,
+  buildComparisonTables,
+} from "../../lib/comparisonReport.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -3338,6 +3344,7 @@ const EMPTY_FILTERS = {
   columnDimension: "",
   includeColumnGrandTotal: false,
   agentProductivityPlanMode: false,
+  comparisonMode: false,
   last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
@@ -3392,42 +3399,15 @@ const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placemen
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
-const COMPARISON_TABLE_DIMENSIONS = [
-  { key: "country", label: "Country" },
-  { key: "teamLeader", label: "Team Leader" },
-  { key: "agent", label: "Agent" },
-  { key: "campaign", label: "Campaign" },
-  { key: "placement", label: "Placement" },
-  { key: "subCampaign", label: "Sub-Campaign" },
-];
-const COMPARISON_DEFAULT_SORT = { key: "leads", direction: "desc" };
-// Comparison tables show one name column + 3 metrics so they fit without a
-// horizontal scrollbar in the 3-up grid. (The report still computes all metrics;
-// this only limits the compact comparison display.)
-const COMPARISON_COLUMNS = [
-  { key: "label", label: "Name", type: "text" },
-  { key: "leads", label: "Leads", type: "number" },
-  { key: "ftd", label: "FTD", type: "number" },
-  { key: "crTargetReach", label: "CR Reach", type: "number" },
-];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
-}
-
-function toMetricNumber(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, onClearSelections }) {
   const [tablesExpanded, setTablesExpanded] = useState(true);
   const [sortByTable, setSortByTable] = useState(() =>
     Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
-  );
-  const cleanRows = useMemo(
-    () => (Array.isArray(rows) ? rows.filter((row) => row && row.__rowKind !== "total") : []),
-    [rows],
   );
   const hasAnySelection = useMemo(
     () =>
@@ -3458,80 +3438,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
     });
   }, []);
 
-  const tables = useMemo(() => {
-    return COMPARISON_TABLE_DIMENSIONS.map((dimension) => {
-      const filteredRows = cleanRows.filter((row) =>
-        COMPARISON_TABLE_DIMENSIONS.every((dimensionItem) => {
-          if (dimensionItem.key === dimension.key) {
-            return true;
-          }
-          const selectedValue = String(selections?.[dimensionItem.key] || "").trim();
-          if (!selectedValue) {
-            return true;
-          }
-          const rowValue = String(row?.[dimensionItem.key] || "").trim();
-          return rowValue === selectedValue;
-        }),
-      );
-
-      const grouped = new Map();
-      for (const row of filteredRows) {
-        const label = String(row?.[dimension.key] || "").trim();
-        if (!label || label === "-") {
-          continue;
-        }
-        if (!grouped.has(label)) {
-          grouped.set(label, { label, leads: 0, ftd: 0, targetBase: 0 });
-        }
-        const bucket = grouped.get(label);
-        const leads = toMetricNumber(row?.leads);
-        const ftd = toMetricNumber(row?.ftd);
-        const crTarget = toMetricNumber(row?.crTarget);
-        const crTargetReach = toMetricNumber(row?.crTargetReach);
-        bucket.leads += leads;
-        bucket.ftd += ftd;
-        if (crTarget > 0) {
-          bucket.targetBase += leads * (crTarget / 100);
-        } else if (crTargetReach > 0 && ftd > 0) {
-          bucket.targetBase += ftd / (crTargetReach / 100);
-        }
-      }
-
-      const data = [...grouped.values()]
-        .map((item) => ({
-          ...item,
-          cr: item.leads > 0 ? (item.ftd / item.leads) * 100 : 0,
-          crTargetReach: item.targetBase > 0 ? (item.ftd / item.targetBase) * 100 : 0,
-        }))
-        .sort((left, right) => {
-          const sortState = sortByTable?.[dimension.key] || COMPARISON_DEFAULT_SORT;
-          const sortKey = sortState.key || "leads";
-          const sortDirection = sortState.direction === "asc" ? "asc" : "desc";
-          let baseCompare = 0;
-          if (sortKey === "label") {
-            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
-              numeric: true,
-              sensitivity: "base",
-            });
-          } else {
-            baseCompare = toMetricNumber(left[sortKey]) - toMetricNumber(right[sortKey]);
-          }
-          if (baseCompare === 0) {
-            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
-              numeric: true,
-              sensitivity: "base",
-            });
-          }
-          return sortDirection === "asc" ? baseCompare : -baseCompare;
-        });
-
-      return {
-        ...dimension,
-        rows: data,
-        sort: sortByTable?.[dimension.key] || COMPARISON_DEFAULT_SORT,
-      };
-    });
-  }, [cleanRows, selections, sortByTable]);
+  const tables = useMemo(() => buildComparisonTables(rows, selections, sortByTable), [rows, selections, sortByTable]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -3619,6 +3526,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                             <DataBar value={row.ftd} max={maxFtd} color="#bbf7d0" />
                             <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
                           </td>
+                          <td>{formatPercent(row.cr)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
@@ -4123,6 +4031,9 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      if (appliedFilters?.comparisonMode && Object.keys(comparisonSelections).length) {
+        query.set("comparisonSelections", JSON.stringify(comparisonSelections));
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4144,7 +4055,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, comparisonSelections]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -4312,6 +4223,7 @@ export default function DashboardPage() {
             monthKey: defaultMonth,
             includeWorkTime: false,
             hideNotWorking: false,
+            comparisonMode: true,
             rowDimensions: QUICK_PRESET_COMPARISON_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COMPARISON_METRICS,

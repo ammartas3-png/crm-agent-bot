@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  currentMonthKey,
+  filterReportMonthRecords,
   getMonthFile,
   isPastMonthKey,
   listMonthFiles,
@@ -56,4 +58,36 @@ test("removeMonthFile deletes mapping completely", () => {
   assert.equal(removeMonthFile("2026-02"), true);
   assert.equal(getMonthFile("2026-02"), null);
   upsertMonthFile("February 2026", "1R303xCVpamBTSkbH2QyT0JHCBPctayeYV9rERML6R5s");
+});
+
+test("filterReportMonthRecords excludes future months and unmapped current month", () => {
+  const now = new Date("2026-07-01T12:00:00Z");
+  const records = [
+    { key: "2026-06", month_label: "June 2026", sheet_id: "sheet-june", active: true },
+    { key: "2026-07", month_label: "July 2026", sheet_id: "sheet-july-seed", active: true },
+    { key: "2026-08", month_label: "August 2026", sheet_id: "sheet-aug", active: true },
+  ];
+  const filtered = filterReportMonthRecords(records, now, {
+    explicitOfficeMonthKeys: new Set(["2026-06"]),
+  });
+  assert.deepEqual(
+    filtered.map((record) => record.key),
+    ["2026-06"],
+  );
+  assert.equal(currentMonthKey(now), "2026-07");
+});
+
+test("filterReportMonthRecords keeps current month when explicitly mapped in Offices tab", () => {
+  const now = new Date("2026-07-01T12:00:00Z");
+  const records = [
+    { key: "2026-06", month_label: "June 2026", sheet_id: "sheet-june", active: true },
+    { key: "2026-07", month_label: "July 2026", sheet_id: "sheet-july", active: true },
+  ];
+  const filtered = filterReportMonthRecords(records, now, {
+    explicitOfficeMonthKeys: new Set(["2026-06", "2026-07"]),
+  });
+  assert.deepEqual(
+    filtered.map((record) => record.key),
+    ["2026-07", "2026-06"],
+  );
 });

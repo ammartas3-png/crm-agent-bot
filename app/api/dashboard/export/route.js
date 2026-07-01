@@ -4,6 +4,19 @@ import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js"
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
 
+function parseComparisonSelections(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function queryParams(searchParams) {
   return {
     monthKey: String(searchParams.get("monthKey") || "").trim(),
@@ -28,6 +41,8 @@ function queryParams(searchParams) {
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
+    comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
+    comparisonSelections: parseComparisonSelections(searchParams.get("comparisonSelections")),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),

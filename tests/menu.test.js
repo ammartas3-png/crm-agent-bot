@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleMenuCallback, isGreeting, startMenu } from "../lib/menu.js";
+import {
+  beginSimpleExportGeneration,
+  handleMenuCallback,
+  isGreeting,
+  simpleExportPresetFromCallback,
+  simpleExportWaitMessage,
+  startMenu,
+} from "../lib/menu.js";
 import { upsertMonthFile } from "../lib/monthlyReports.js";
 
 // The Telegram bot uses the "simple" quick-report flow:
@@ -143,7 +150,43 @@ test("a disallowed authority scope blocks bot reports", async () => {
   const blocked = await handleMenuCallback(107, "simple:report:list", {
     ...opts,
     telegramUser: { id: 5, username: "restricted" },
-    authorityScope: { allowed: false, unrestricted: false, filters: {} },
+    authorityScope: { allowed: false, canUseBot: false, unrestricted: false, filters: {} },
   });
   assert.match(blocked.text, /ALL authority/i);
+});
+
+test("manager authority scope blocks bot reports", async () => {
+  const blocked = await handleMenuCallback(108, "simple:report:list", {
+    ...opts,
+    telegramUser: { id: 5316268466, username: "jezzy_007" },
+    authorityScope: {
+      allowed: true,
+      canUseBot: false,
+      canUseDashboard: true,
+      unrestricted: false,
+      filters: { office: ["Turkiye Office"] },
+    },
+  });
+  assert.match(blocked.text, /ALL authority/i);
+});
+
+test("simpleExportPresetFromCallback detects last4 and monthly presets", () => {
+  assert.equal(simpleExportPresetFromCallback("simple:report:last4")?.key, "last4");
+  assert.equal(simpleExportPresetFromCallback("simple:report:benchmark")?.key, "benchmark");
+  assert.equal(simpleExportPresetFromCallback("simple:report:monthly"), null);
+  assert.equal(simpleExportPresetFromCallback("simple:month:monthly:2026-05")?.key, "monthly");
+});
+
+test("startMenu stays on wait message while export generation is locked", async () => {
+  beginSimpleExportGeneration(109, { key: "last4", label: "Last 4 Months Quick" });
+  const waiting = await startMenu(109, opts);
+  assert.match(waiting.text, /Generating Last 4 Months Quick/i);
+  assert.match(simpleExportWaitMessage({ label: "Benchmark Report" }), /Do not tap other buttons/i);
+});
+
+test("handleMenuCallback blocks office navigation while export is generating", async () => {
+  beginSimpleExportGeneration(110, { key: "last4", label: "Last 4 Months Quick" });
+  const blocked = await handleMenuCallback(110, "simple:office:list", opts);
+  assert.match(blocked.text, /Generating Last 4 Months Quick/i);
+  assert.equal((blocked.replyMarkup?.inline_keyboard || []).length, 0);
 });

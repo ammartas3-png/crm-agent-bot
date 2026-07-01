@@ -22,11 +22,12 @@ import {
   notifyAdminsForAccessRequest,
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
-import { handleMenuCallback, handleMenuText, isGreeting, startMenu } from "../../../lib/menu.js";
+import { handleMenuCallback, handleMenuText, isGreeting, startMenu, beginSimpleExportGeneration, finishSimpleExportGeneration, isSimpleExportGenerationLocked, simpleExportPresetFromCallback, simpleExportWaitMessage } from "../../../lib/menu.js";
 import {
   answerCallbackQuery,
   buildWebhookEditMessage,
   buildWebhookSendMessage,
+  callTelegramApi,
   extractCallbackQuery,
   fetchTelegramFileBuffer,
   extractTelegramMessage,
@@ -57,7 +58,11 @@ import { getGoogleCredentialConfig, readSheetRows } from "../../../lib/googleShe
 import { loadLeadRows, readDashboardSheetRows } from "../../../lib/dataProvider.js";
 import { buildAnswerContext } from "../../../lib/aiAgent.js";
 import { aiConfigured, generateAiReply } from "../../../lib/aiResponder.js";
-import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
+import {
+  clearAuthorityScopeCache,
+  managerDashboardWelcomeText,
+  resolveAuthorityScopeForUser,
+} from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { getOfficeMonthMap } from "../../../lib/officeMappings.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
@@ -122,6 +127,50 @@ function isStartCommand(text) {
 function scopeFiltersFromAuthority(authorityScope = {}) {
   const filters = authorityScope?.filters || {};
   return Object.keys(filters).length ? filters : {};
+}
+
+function hasSystemAccess(telegramUser, authorityScope = {}) {
+  return (
+    isAdminTelegramUser(telegramUser) ||
+    isAllowedTelegramUser(telegramUser) ||
+    Boolean(authorityScope.canUseBot) ||
+    Boolean(authorityScope.canUseDashboard)
+  );
+}
+
+function canUseBotReports(telegramUser, authorityScope = {}) {
+  return isAdminTelegramUser(telegramUser) || Boolean(authorityScope.canUseBot);
+}
+
+function botReportsBlockedResponse() {
+  return {
+    text: [
+      "Bot Excel reports are only available to users with ALL authority.",
+      "Managers should use the CRM Dashboard instead.",
+      "",
+      managerDashboardWelcomeText(),
+    ].join("\n"),
+    replyMarkup: rootStartKeyboard(null, {}),
+  };
+}
+
+function rootWelcomeResponse(telegramUser, authorityScope = {}) {
+  if (isAdminTelegramUser(telegramUser) || authorityScope.canUseBot) {
+    return {
+      text: ROOT_START_TEXT,
+      replyMarkup: rootStartKeyboard(telegramUser, authorityScope),
+    };
+  }
+  if (authorityScope.canUseDashboard) {
+    return {
+      text: managerDashboardWelcomeText(),
+      replyMarkup: rootStartKeyboard(telegramUser, authorityScope),
+    };
+  }
+  return {
+    text: ROOT_START_TEXT,
+    replyMarkup: rootStartKeyboard(telegramUser, authorityScope),
+  };
 }
 
 function uniqueSorted(values = []) {
@@ -717,7 +766,7 @@ function formatValueList(values = [], limit = 10) {
 }
 
 async function buildDebugAccessReport({ telegramUser, authorityScope, userId, now = new Date() }) {
-  const isAdmin = isAdminTelegramUser(telegramUser) || Boolean(authorityScope?.unrestricted);
+  const isAdmin = isAdminTelegramUser(telegramUser);
   const authorityFilters = scopeFiltersFromAuthority(authorityScope);
   const permissionFilters = isAdmin ? {} : authorityFilters;
   const session = getSession(userId) || {};
@@ -1247,7 +1296,7 @@ async function handleTelegramUpdate(request) {
       return sendMessageWebhookResponse(chatId, responseText, responseMarkup);
     }
 
-    if (!isAllowedTelegramUser(telegramUser || userId) && !authorityScope.allowed) {
+    if (!isAllowedTelegramUser(telegramUser || userId) && !hasSystemAccess(telegramUser, authorityScope)) {
       const accessRequest = createAccessRequest(telegramUser, chatId, text);
       let notified = false;
       try {
@@ -1300,7 +1349,8 @@ async function handleTelegramUpdate(request) {
 
     if (!callbackQuery && isStartCommand(text)) {
       setSession(userId, { step: null, dbCheckStep: null, view: null, chatAssistant: null });
-      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+      const welcome = rootWelcomeResponse(telegramUser, authorityScope);
+      return sendMessageWebhookResponse(chatId, welcome.text, welcome.replyMarkup);
     }
 
     if (!callbackQuery && isHelpCommand(text)) {
@@ -1308,6 +1358,10 @@ async function handleTelegramUpdate(request) {
     }
 
     if (!callbackQuery && isHelloCommand(text)) {
+      if (!canUseBotReports(telegramUser, authorityScope)) {
+        const blocked = botReportsBlockedResponse();
+        return sendMessageWebhookResponse(chatId, blocked.text, rootStartKeyboard(telegramUser, authorityScope));
+      }
       setSession(userId, {
         step: null,
         dbCheckStep: null,
@@ -1354,7 +1408,11 @@ async function handleTelegramUpdate(request) {
 
       if (callbackQuery.data === "root:start") {
         setSession(userId, { aiMode: false });
-        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+        const welcome = rootWelcomeResponse(telegramUser, authorityScope);
+        return sendMessageWebhookResponse(chatId, welcome.text, welcome.replyMarkup);
+      }
+      if (callbackQuery.data === "root:dashboard") {
+        return sendMessageWebhookResponse(chatId, managerDashboardWelcomeText(), rootStartKeyboard(telegramUser, authorityScope));
       }
       if (callbackQuery.data === "root:ai") {
         if (!isAdminTelegramUser(telegramUser)) {
@@ -1364,6 +1422,10 @@ async function handleTelegramUpdate(request) {
         return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT);
       }
       if (callbackQuery.data === "root:results") {
+        if (!canUseBotReports(telegramUser, authorityScope)) {
+          const blocked = botReportsBlockedResponse();
+          return sendMessageWebhookResponse(chatId, blocked.text, rootStartKeyboard(telegramUser, authorityScope));
+        }
         const response = await startMenu(userId, { telegramUser, authorityScope });
         return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
       }
@@ -1399,10 +1461,39 @@ async function handleTelegramUpdate(request) {
         }
       }
 
-      const response = await handleMenuCallback(userId, callbackQuery.data, {
-        telegramUser,
-        authorityScope,
-      });
+      const exportPreset = simpleExportPresetFromCallback(callbackQuery.data);
+      if (exportPreset) {
+        const sessionBeforeExport = getSession(userId);
+        if (isSimpleExportGenerationLocked(sessionBeforeExport)) {
+          await answerCallbackQuery(callbackQuery.id, { text: "Report is already generating. Please wait." }).catch(() => {});
+          return NextResponse.json({ ok: true, duplicateExport: true });
+        }
+        beginSimpleExportGeneration(userId, exportPreset);
+        await flushPersistence().catch(() => {});
+        if (hasTelegramBotToken() && callbackQuery.message?.message_id) {
+          await callTelegramApi("editMessageText", {
+            chat_id: chatId,
+            message_id: callbackQuery.message.message_id,
+            text: simpleExportWaitMessage(exportPreset),
+            reply_markup: { inline_keyboard: [] },
+          }).catch((error) => {
+            console.warn("Could not show export wait message", error);
+          });
+        }
+      }
+
+      let response;
+      try {
+        response = await handleMenuCallback(userId, callbackQuery.data, {
+          telegramUser,
+          authorityScope,
+        });
+      } finally {
+        if (exportPreset) {
+          finishSimpleExportGeneration(userId);
+          await flushPersistence().catch(() => {});
+        }
+      }
       if (response?.documentBuffer) {
         if (!hasTelegramBotToken()) {
           return sendMessageWebhookResponse(
@@ -1470,7 +1561,7 @@ async function handleTelegramUpdate(request) {
     if (!callbackQuery && aiSession.aiMode && isAdminTelegramUser(telegramUser)) {
       if (isAiExitCommand(text) || isGreeting(text)) {
         setSession(userId, { aiMode: false });
-        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+        return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser, authorityScope));
       }
       const reply = await answerWithAiAgent(text, { authorityScope, now });
       return sendMessageWebhookResponse(chatId, reply);
@@ -1485,6 +1576,10 @@ async function handleTelegramUpdate(request) {
 
     const menuTextResponse = await handleMenuText(userId, text, { telegramUser, authorityScope });
     if (menuTextResponse) {
+      if (!canUseBotReports(telegramUser, authorityScope)) {
+        const blocked = botReportsBlockedResponse();
+        return sendMessageWebhookResponse(chatId, blocked.text, rootStartKeyboard(telegramUser, authorityScope));
+      }
       return sendMessageWebhookResponse(
         chatId,
         menuTextResponse.text,
@@ -1494,6 +1589,10 @@ async function handleTelegramUpdate(request) {
 
     const session = getSession(userId);
     if (!callbackQuery && session.chatAssistant?.active) {
+      if (!canUseBotReports(telegramUser, authorityScope)) {
+        const blocked = botReportsBlockedResponse();
+        return sendMessageWebhookResponse(chatId, blocked.text, rootStartKeyboard(telegramUser, authorityScope));
+      }
       const pendingQuery = session.chatAssistant.pendingQuery;
       if (pendingQuery) {
         const finalQuery = isAllScopeReply(text) ? pendingQuery : `${pendingQuery} ${text}`;
@@ -1526,7 +1625,13 @@ async function handleTelegramUpdate(request) {
     }
 
     if (isGreeting(text)) {
-      return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
+      const welcome = rootWelcomeResponse(telegramUser, authorityScope);
+      return sendMessageWebhookResponse(chatId, welcome.text, welcome.replyMarkup);
+    }
+
+    if (!canUseBotReports(telegramUser, authorityScope)) {
+      const blocked = botReportsBlockedResponse();
+      return sendMessageWebhookResponse(chatId, blocked.text, rootStartKeyboard(telegramUser, authorityScope));
     }
 
     const answer = await answerQuery(text, {
