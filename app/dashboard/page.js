@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
-import { DataBar, RankBars } from "./viz.js";
+import { DataBar, RankBars, TrendChart } from "./viz.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -75,10 +75,10 @@ function reachCellStyle(value) {
   const number = Number(value || 0);
   const fill = Math.max(0, Math.min(100, number));
   const isGood = number >= 100;
-  const fillColor = isGood ? "#bbf7d0" : "#fecaca";
+  const fillColor = isGood ? "#86efac" : "#fca5a5";
   const color = isGood ? "#166534" : "#b91c1c";
   return {
-    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #f1f5f9 ${fill}%)`,
+    background: `linear-gradient(90deg, ${fillColor} ${fill}%, #e5e7eb ${fill}%)`,
     color,
   };
 }
@@ -976,6 +976,26 @@ function OverviewBand({ report }) {
       byDimension.set(label, entry);
     }
     const entries = [...byDimension.entries()];
+    const dimensionLabel = dimensions[0].label || dimensionKey;
+    // For temporal dimensions show the activity over time rather than a ranking, so the
+    // main screen surfaces the daily/hourly trend (not only the drilldown page).
+    const isTemporal = ["date", "hour", "month"].includes(dimensionKey);
+    if (isTemporal) {
+      const ordered = entries
+        .filter(([label]) => label && label !== "-")
+        .sort((left, right) => String(left[0]).localeCompare(String(right[0])));
+      if (ordered.length >= 2) {
+        return {
+          mode: "trend",
+          dimensionLabel,
+          xLabels: ordered.map(([label]) => label),
+          series: [
+            { name: "Leads", color: "#2563eb", values: ordered.map(([, value]) => value.leads) },
+            { name: "FTD", color: "#16a34a", values: ordered.map(([, value]) => value.ftd) },
+          ],
+        };
+      }
+    }
     const topFtd = entries
       .map(([label, value]) => ({ label, value: value.ftd }))
       .sort((left, right) => right.value - left.value)
@@ -984,10 +1004,27 @@ function OverviewBand({ report }) {
       .map(([label, value]) => ({ label, value: value.leads }))
       .sort((left, right) => right.value - left.value)
       .slice(0, 8);
-    return { dimensionLabel: dimensions[0].label || dimensionKey, topFtd, topLeads };
+    return { mode: "rank", dimensionLabel, topFtd, topLeads };
   }, [report]);
 
-  if (!data || (!data.topFtd.some((item) => item.value) && !data.topLeads.some((item) => item.value))) {
+  if (!data) {
+    return null;
+  }
+  if (data.mode === "trend") {
+    return (
+      <section className={styles.panel} style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <h3 className={styles.sectionTitle} style={{ margin: 0 }}>{`Trend — Leads & FTD by ${data.dimensionLabel}`}</h3>
+          <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#64748b" }}>
+            <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#2563eb", marginRight: 5 }} />Leads</span>
+            <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "#16a34a", marginRight: 5 }} />FTD</span>
+          </div>
+        </div>
+        <TrendChart series={data.series} xLabels={data.xLabels} height={180} />
+      </section>
+    );
+  }
+  if (!data.topFtd.some((item) => item.value) && !data.topLeads.some((item) => item.value)) {
     return null;
   }
   return (
@@ -1007,22 +1044,43 @@ function OverviewBand({ report }) {
   );
 }
 
+// Thin progress gauge for KPI cards: shows how close a value is to its target
+// (capped at 100% width, colored by performance band).
+function MetricGauge({ value }) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+  const fill = Math.max(0, Math.min(100, number));
+  const color = number >= 100 ? "#16a34a" : number >= 60 ? "#f59e0b" : "#ef4444";
+  return (
+    <div
+      aria-hidden="true"
+      style={{ marginTop: 8, height: 6, borderRadius: 4, background: "#f1f5f9", overflow: "hidden" }}
+    >
+      <div style={{ width: `${fill}%`, height: "100%", background: color, borderRadius: 4 }} />
+    </div>
+  );
+}
+
 function SummaryCards({ summary }) {
   const items = [
     { label: "Total Leads", value: formatNumber(summary.totalLeads) },
-    { label: "Total FTD", value: formatNumber(summary.totalFtd) },
+    { label: "Total FTD", value: formatNumber(summary.totalFtd), gauge: summary.ftdTargetReach },
     { label: "FTD Target", value: formatNumber(summary.ftdTarget) },
     {
       label: "FTD Target Reach",
       value: formatPercent(summary.ftdTargetReach),
       color: reachColor(summary.ftdTargetReach),
+      gauge: summary.ftdTargetReach,
     },
-    { label: "CR", value: formatPercent(summary.cr) },
+    { label: "CR", value: formatPercent(summary.cr), gauge: summary.crTargetReach },
     { label: "CR Target", value: formatPercent(summary.crTarget) },
     {
       label: "CR Target Reach",
       value: formatPercent(summary.crTargetReach),
       color: reachColor(summary.crTargetReach),
+      gauge: summary.crTargetReach,
     },
   ];
   return (
@@ -1033,6 +1091,7 @@ function SummaryCards({ summary }) {
           <div className={styles.metricValue} style={{ color: item.color || "#0f172a" }}>
             {item.value}
           </div>
+          {item.gauge !== undefined ? <MetricGauge value={item.gauge} /> : null}
         </div>
       ))}
     </div>
@@ -1076,6 +1135,10 @@ function SimpleTable({ rows = [] }) {
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
+  const dataBarConfig = {
+    totalLeads: { color: "#bfdbfe", max: Math.max(1, ...rows.map((row) => Number(row.totalLeads) || 0)) },
+    totalFtd: { color: "#bbf7d0", max: Math.max(1, ...rows.map((row) => Number(row.totalFtd) || 0)) },
+  };
   return (
     <div className={`${styles.panel} ${styles.tableCard}`}>
       <div className={styles.tableActionBar}>
@@ -1125,6 +1188,7 @@ function SimpleTable({ rows = [] }) {
                             ? formatPercent(value)
                             : formatNumber(value);
                       const reachStyle = column.type === "percentReach" ? reachCellStyle(value) : null;
+                      const bar = dataBarConfig[column.key];
                       return (
                         <td
                           key={`${rowKey}-${column.key}`}
@@ -1132,9 +1196,13 @@ function SimpleTable({ rows = [] }) {
                           className={`${hoveredColumnKey === column.key ? styles.tableColumnGlow : ""} ${
                             column.key === "label" ? styles.tableStrong : ""
                           }`}
-                          style={widthStyle(column.key, reachStyle ? { ...reachStyle, fontWeight: 700 } : {})}
+                          style={widthStyle(
+                            column.key,
+                            reachStyle ? { ...reachStyle, fontWeight: 700 } : bar ? { position: "relative" } : {},
+                          )}
                         >
-                          {content}
+                          {bar ? <DataBar value={value} max={bar.max} color={bar.color} /> : null}
+                          {bar ? <span style={{ position: "relative", zIndex: 1 }}>{content}</span> : content}
                         </td>
                       );
                     })}
@@ -2561,6 +2629,19 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
   const { startResize, widthStyle } = useResizableColumns();
+  // Column maxima (detail rows only) for in-cell Leads/FTD data bars.
+  const metricBarMax = useMemo(() => {
+    let leads = 1;
+    let ftd = 1;
+    for (const row of rows) {
+      if (row?.__rowKind === "total") {
+        continue;
+      }
+      leads = Math.max(leads, Number(row.leads) || 0);
+      ftd = Math.max(ftd, Number(row.ftd) || 0);
+    }
+    return { leads, ftd };
+  }, [rows]);
 
   const isColumnPivot =
     Boolean(builder?.columnDimension) &&
@@ -3209,6 +3290,11 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                             : isMissingFtd
                               ? formatMissingFtdValue(value)
                               : formatBuilderCell(value, column.type);
+                          const isDataBar =
+                            !isTotalRow &&
+                            !isHistoricalBeforeStartMonth &&
+                            (column.key === "leads" || column.key === "ftd") &&
+                            Number.isFinite(Number(value));
                           return (
                             <td
                               key={`${index}-${column.key}`}
@@ -3216,6 +3302,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                               onContextMenu={(event) => openDetailsContext(event, column.key, value)}
                               className={hoveredColumnKey === column.key ? styles.tableColumnGlow : ""}
                               style={widthStyle(column.key, {
+                                position: isDataBar ? "relative" : undefined,
                                 color: isHistoricalBeforeStartMonth
                                   ? "#94a3b8"
                                   : missingFtdStyle
@@ -3246,7 +3333,18 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                     : undefined,
                               })}
                             >
-                              {displayValue}
+                              {isDataBar ? (
+                                <>
+                                  <DataBar
+                                    value={Number(value) || 0}
+                                    max={metricBarMax[column.key]}
+                                    color={column.key === "leads" ? "#bfdbfe" : "#bbf7d0"}
+                                  />
+                                  <span style={{ position: "relative", zIndex: 1 }}>{displayValue}</span>
+                                </>
+                              ) : (
+                                displayValue
+                              )}
                             </td>
                           );
                         })}
