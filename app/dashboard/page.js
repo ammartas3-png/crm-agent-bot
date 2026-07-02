@@ -57,6 +57,31 @@ function formatElapsedMs(value) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${millis}`;
 }
 
+function formatClockTime(value) {
+  const ms = Number(value || 0);
+  if (!ms) {
+    return "-";
+  }
+  return new Date(ms).toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function TimingFootnote({ timing, prefix = "Rapor" }) {
+  if (!timing?.startedAtMs || !timing?.finishedAtMs) {
+    return null;
+  }
+  const durationMs = Number(timing.durationMs ?? timing.finishedAtMs - timing.startedAtMs);
+  return (
+    <p className={styles.timingFootnote}>
+      {prefix}: başlangıç {formatClockTime(timing.startedAtMs)}, bitiş {formatClockTime(timing.finishedAtMs)}, süre{" "}
+      {formatElapsedMs(durationMs)}
+    </p>
+  );
+}
+
 function reachColor(value) {
   const number = Number(value || 0);
   if (number >= 100) {
@@ -3678,7 +3703,8 @@ export default function DashboardPage() {
     failedStep: "",
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
-  const [exportState, setExportState] = useState({ loading: false, error: "" });
+  const [exportState, setExportState] = useState({ loading: false, error: "", timing: null });
+  const [reportTiming, setReportTiming] = useState(null);
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
   const detailsContextMenuRef = useRef(null);
@@ -3760,6 +3786,7 @@ export default function DashboardPage() {
       failedStep: "",
     });
     setExportState((prev) => ({ ...prev, error: "" }));
+    setReportTiming(null);
     try {
       const query = buildReportQuery(appliedFilters);
       query.set("monitor", "1");
@@ -3854,6 +3881,12 @@ export default function DashboardPage() {
         report: reportPayload,
         error: "",
       });
+      const finishedAtMs = Date.now();
+      setReportTiming({
+        startedAtMs,
+        finishedAtMs,
+        durationMs: finishedAtMs - startedAtMs,
+      });
       setExecutionMonitor((prev) => ({
         ...prev,
         active: false,
@@ -3877,6 +3910,12 @@ export default function DashboardPage() {
         return prevKey === sanitizedKey ? prev : sanitized;
       });
     } catch (error) {
+      const finishedAtMs = Date.now();
+      setReportTiming({
+        startedAtMs,
+        finishedAtMs,
+        durationMs: finishedAtMs - startedAtMs,
+      });
       setReportState({
         loading: false,
         report: null,
@@ -4120,7 +4159,8 @@ export default function DashboardPage() {
   }, [closeDetailsContextMenu, detailsContextMenu.open]);
 
   const handleExportXlsx = useCallback(async () => {
-    setExportState({ loading: true, error: "" });
+    const exportStartedAtMs = Date.now();
+    setExportState({ loading: true, error: "", timing: null });
     try {
       const query = buildReportQuery(appliedFilters);
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
@@ -4140,9 +4180,27 @@ export default function DashboardPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      setExportState({ loading: false, error: "" });
+      const exportFinishedAtMs = Date.now();
+      setExportState({
+        loading: false,
+        error: "",
+        timing: {
+          startedAtMs: exportStartedAtMs,
+          finishedAtMs: exportFinishedAtMs,
+          durationMs: exportFinishedAtMs - exportStartedAtMs,
+        },
+      });
     } catch (error) {
-      setExportState({ loading: false, error: error?.message || "Could not export report." });
+      const exportFinishedAtMs = Date.now();
+      setExportState({
+        loading: false,
+        error: error?.message || "Could not export report.",
+        timing: {
+          startedAtMs: exportStartedAtMs,
+          finishedAtMs: exportFinishedAtMs,
+          durationMs: exportFinishedAtMs - exportStartedAtMs,
+        },
+      });
     }
   }, [appliedFilters]);
 
@@ -5034,19 +5092,22 @@ export default function DashboardPage() {
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
             </div>
-            <button
-              type="button"
-              onClick={handleExportXlsx}
-              disabled={exportState.loading || reportState.loading || hasPendingChanges}
-              className={`${styles.button} ${styles.buttonSecondary}`}
-            >
-              <span className={styles.exportButtonContent}>
-                <span className={styles.exportExcelLogo} aria-hidden="true">
-                  XLSX
+            <div className={styles.reportHeaderActions}>
+              <button
+                type="button"
+                onClick={handleExportXlsx}
+                disabled={exportState.loading || reportState.loading || hasPendingChanges}
+                className={`${styles.button} ${styles.buttonSecondary}`}
+              >
+                <span className={styles.exportButtonContent}>
+                  <span className={styles.exportExcelLogo} aria-hidden="true">
+                    XLSX
+                  </span>
+                  <span>{exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}</span>
                 </span>
-                <span>{exportState.loading ? "Preparing XLSX..." : hasPendingChanges ? "Load report to export" : "Export XLSX"}</span>
-              </span>
-            </button>
+              </button>
+              <TimingFootnote timing={exportState.timing} prefix="Export" />
+            </div>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
           {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
@@ -5098,8 +5159,10 @@ export default function DashboardPage() {
           {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
+          <TimingFootnote timing={reportTiming} prefix="Rapor" />
         </section>
       ) : null}
+      {!report && reportTiming ? <TimingFootnote timing={reportTiming} prefix="Rapor" /> : null}
       {detailsContextMenu.open ? (
         <div
           ref={detailsContextMenuRef}
