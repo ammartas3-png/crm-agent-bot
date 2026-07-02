@@ -652,10 +652,10 @@
   font-size: 12px;
 }
 
-/* Name column + 3 metric columns: 40% / 20% / 20% / 20% = 100% (no overflow). */
+/* Name column + 4 metric columns. */
 .comparisonTable th:first-child,
 .comparisonTable td:first-child {
-  width: 40%;
+  width: 34%;
 }
 
 .comparisonTable th:nth-child(2),
@@ -663,8 +663,10 @@
 .comparisonTable th:nth-child(3),
 .comparisonTable td:nth-child(3),
 .comparisonTable th:nth-child(4),
-.comparisonTable td:nth-child(4) {
-  width: 20%;
+.comparisonTable td:nth-child(4),
+.comparisonTable th:nth-child(5),
+.comparisonTable td:nth-child(5) {
+  width: 16.5%;
 }
 
 .comparisonTable th:not(:first-child),

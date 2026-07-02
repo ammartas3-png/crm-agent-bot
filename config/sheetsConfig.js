@@ -139,10 +139,15 @@ export const sheetsConfig = {
       range: process.env.GOOGLE_FTD_RANGE || sheetRange(ftdTabName),
       dateColumn: "Date",
       countryColumn: "Country",
-      agentColumn: "Agent",
+      agentColumn: "AGENTS",
       statusColumn: null,
       amountColumn: "Amount",
       columns: DEFAULT_FTD_COLUMNS,
+      fields: {
+        agent: "AGENTS",
+        customerId: "CID",
+        country: "LIST OF COUNTRYS",
+      },
     },
     transactions: {
       key: "transactions",
