@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
+import {
+  getCachedDashboardReport,
+  setCachedDashboardReport,
+} from "../../../../lib/dashboardReportCache.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { checkRateLimit, rateLimitKeyFromDashboardUser } from "../../../../lib/rateLimit.js";
 
 export const maxDuration = 300;
 
@@ -55,6 +60,39 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = queryParams(new URL(request.url).searchParams);
+    const rateLimit = await checkRateLimit(rateLimitKeyFromDashboardUser(resolved.telegramUser, resolved.access), {
+      prefix: "DASHBOARD_RATE_LIMIT",
+      max: Number(process.env.DASHBOARD_RATE_LIMIT_MAX) > 0 ? Number(process.env.DASHBOARD_RATE_LIMIT_MAX) : 40,
+      windowMs:
+        Number(process.env.DASHBOARD_RATE_LIMIT_WINDOW_MS) > 0 ? Number(process.env.DASHBOARD_RATE_LIMIT_WINDOW_MS) : 60_000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "rate_limited",
+          message: "Too many report requests. Please wait a moment and try again.",
+          retryAfterMs: rateLimit.retryAfterMs,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.max(1, Math.ceil(Number(rateLimit.retryAfterMs || 0) / 1000))),
+          },
+        },
+      );
+    }
+    const cachedReport = await getCachedDashboardReport(resolved.access, query);
+    if (cachedReport) {
+      return NextResponse.json(
+        { ok: true, report: cachedReport, cached: true },
+        {
+          headers: {
+            "Cache-Control": "private, max-age=60",
+          },
+        },
+      );
+    }
     if (asBool(query.monitor)) {
       const encoder = new TextEncoder();
       let latestProgress = {
@@ -112,7 +150,15 @@ export async function GET(request) {
       });
     }
     const report = await loadDashboardReport(resolved.access, query);
-    return NextResponse.json({ ok: true, report });
+    await setCachedDashboardReport(resolved.access, query, report);
+    return NextResponse.json(
+      { ok: true, report },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=60",
+        },
+      },
+    );
   } catch (error) {
     const errorCode = String(error?.code || "").trim();
     const isTooHeavy = errorCode === "report_too_heavy";

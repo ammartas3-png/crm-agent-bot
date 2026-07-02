@@ -3762,7 +3762,6 @@ export default function DashboardPage() {
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
       const query = buildReportQuery(appliedFilters);
-      query.set("monitor", "1");
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
       let reportPayload = null;
@@ -3865,12 +3864,6 @@ export default function DashboardPage() {
       }));
       const options = reportPayload?.options || {};
       setFilters((prev) => {
-        const sanitized = sanitizeFiltersWithOptions(prev, options);
-        const prevKey = buildReportQuery(prev).toString();
-        const sanitizedKey = buildReportQuery(sanitized).toString();
-        return prevKey === sanitizedKey ? prev : sanitized;
-      });
-      setAppliedFilters((prev) => {
         const sanitized = sanitizeFiltersWithOptions(prev, options);
         const prevKey = buildReportQuery(prev).toString();
         const sanitizedKey = buildReportQuery(sanitized).toString();
