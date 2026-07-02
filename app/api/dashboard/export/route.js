@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
+import { dashboardReportCacheKey } from "../../../../lib/dashboardReportCache.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
+import { getOrBuildExport } from "../../../../lib/exportCache.js";
+import { checkRateLimit, rateLimitKeyFromDashboardUser } from "../../../../lib/rateLimit.js";
 
 function queryParams(searchParams) {
   return {
@@ -28,6 +31,8 @@ function queryParams(searchParams) {
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
+    comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
+    comparisonSelections: String(searchParams.get("comparisonSelections") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
@@ -53,18 +58,43 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
     const query = queryParams(new URL(request.url).searchParams);
-    const report = await loadDashboardReport(resolved.access, query);
-    const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
-    const office = safeName(report?.month?.office_name || query.officeScope || "office");
-    const month = safeName(report?.month?.key || query.monthKey || "month");
-    const mode = safeName(report?.reportMode || "report");
-    const filename = `crm-${mode}-${office}-${month}.xlsx`;
-    return new NextResponse(workbookBuffer, {
+    const rateLimit = await checkRateLimit(rateLimitKeyFromDashboardUser(resolved.telegramUser, resolved.access), {
+      prefix: "DASHBOARD_EXPORT_RATE_LIMIT",
+      max: Number(process.env.DASHBOARD_EXPORT_RATE_LIMIT_MAX) > 0 ? Number(process.env.DASHBOARD_EXPORT_RATE_LIMIT_MAX) : 10,
+      windowMs:
+        Number(process.env.DASHBOARD_EXPORT_RATE_LIMIT_WINDOW_MS) > 0
+          ? Number(process.env.DASHBOARD_EXPORT_RATE_LIMIT_WINDOW_MS)
+          : 60_000,
+    });
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "rate_limited",
+          message: "Too many export requests. Please wait a moment and try again.",
+        },
+        { status: 429 },
+      );
+    }
+    const cacheKey = `dashboard-export|${dashboardReportCacheKey(resolved.access, query)}`;
+    const exportPayload = await getOrBuildExport(cacheKey, async () => {
+      const report = await loadDashboardReport(resolved.access, query);
+      const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
+      const office = safeName(report?.month?.office_name || query.officeScope || "office");
+      const month = safeName(report?.month?.key || query.monthKey || "month");
+      const mode = safeName(report?.reportMode || "report");
+      return {
+        workbookBuffer,
+        fileName: `crm-${mode}-${office}-${month}.xlsx`,
+      };
+    });
+    const filename = exportPayload?.fileName || "crm-report.xlsx";
+    return new NextResponse(exportPayload.workbookBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, max-age=60",
       },
     });
   } catch (error) {
@@ -78,4 +108,3 @@ export async function GET(request) {
     );
   }
 }
-

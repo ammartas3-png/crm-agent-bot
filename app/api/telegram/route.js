@@ -9,6 +9,8 @@ import {
   normalizePrincipal,
   parseAllowedUsers,
   parseAdminUsers,
+  hydrateApprovedUsers,
+  hydrateRegistryAllowedUsers,
   telegramUserPrincipals,
   UNAUTHORIZED_MESSAGE,
 } from "../../../lib/permissions.js";
@@ -79,6 +81,7 @@ import {
   rootStartKeyboard,
 } from "../../../lib/databaseCheck.js";
 import { getSession, hydrateSession, setSession } from "../../../lib/session.js";
+import { checkRateLimit, rateLimitKeyFromTelegramUser } from "../../../lib/rateLimit.js";
 import { flushPersistence } from "../../../lib/store.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
@@ -673,6 +676,22 @@ function buildScopedReadRows(authorityScope = {}, now = new Date()) {
   };
 }
 
+async function botRateLimitMessage(telegramUser) {
+  if (isAdminTelegramUser(telegramUser)) {
+    return "";
+  }
+  const result = await checkRateLimit(rateLimitKeyFromTelegramUser(telegramUser), {
+    prefix: "BOT_RATE_LIMIT",
+    max: Number(process.env.BOT_RATE_LIMIT_MAX) > 0 ? Number(process.env.BOT_RATE_LIMIT_MAX) : 20,
+    windowMs: Number(process.env.BOT_RATE_LIMIT_WINDOW_MS) > 0 ? Number(process.env.BOT_RATE_LIMIT_WINDOW_MS) : 60_000,
+  });
+  if (result.allowed) {
+    return "";
+  }
+  const waitSeconds = Math.max(1, Math.ceil(Number(result.retryAfterMs || 0) / 1000));
+  return `Too many report requests. Please wait ${waitSeconds}s and try again.`;
+}
+
 function parseAllowCommand(text) {
   const match = String(text || "")
     .trim()
@@ -828,6 +847,8 @@ function debugTotalsMonthKeyboard() {
   };
 }
 
+export const maxDuration = 300;
+
 export async function POST(request) {
   const response = await handleTelegramUpdate(request);
   // Ensure fire-and-forget KV writes (sessions, approvals, AI mode) complete
@@ -860,10 +881,11 @@ async function handleTelegramUpdate(request) {
   try {
     // Load any persisted session from KV so multi-step flows (e.g. AI mode)
     // survive across serverless instances/cold starts.
-    await hydrateSession(userId).catch(() => {});
+    await Promise.all([hydrateSession(userId), hydrateApprovedUsers(), hydrateRegistryAllowedUsers()]).catch(() => {});
     registerAdminChat(telegramUser, chatId);
     const authorityScope = await resolveAuthorityScopeForUser(telegramUser);
     const scopedReadRows = buildScopedReadRows(authorityScope, now);
+    const menuOptions = { telegramUser, authorityScope, readRows: scopedReadRows, now };
 
     if (!callbackQuery && isWhoAmICommand(text)) {
       return sendMessageWebhookResponse(chatId, formatUserIdentity(telegramUser));
@@ -1364,7 +1386,7 @@ async function handleTelegramUpdate(request) {
         return sendMessageWebhookResponse(chatId, AI_MODE_PROMPT);
       }
       if (callbackQuery.data === "root:results") {
-        const response = await startMenu(userId, { telegramUser, authorityScope });
+        const response = await startMenu(userId, menuOptions);
         return sendMessageWebhookResponse(chatId, response.text, response.replyMarkup);
       }
       if (callbackQuery.data === "root:access_requests") {
@@ -1399,10 +1421,12 @@ async function handleTelegramUpdate(request) {
         }
       }
 
-      const response = await handleMenuCallback(userId, callbackQuery.data, {
-        telegramUser,
-        authorityScope,
-      });
+      const rateLimitMessage = await botRateLimitMessage(telegramUser);
+      if (rateLimitMessage) {
+        return sendMessageWebhookResponse(chatId, rateLimitMessage);
+      }
+
+      const response = await handleMenuCallback(userId, callbackQuery.data, menuOptions);
       if (response?.documentBuffer) {
         if (!hasTelegramBotToken()) {
           return sendMessageWebhookResponse(
@@ -1483,7 +1507,12 @@ async function handleTelegramUpdate(request) {
       return sendMessageWebhookResponse(chatId, dbTextResponse.text, dbTextResponse.replyMarkup);
     }
 
-    const menuTextResponse = await handleMenuText(userId, text, { telegramUser, authorityScope });
+    const rateLimitMessage = await botRateLimitMessage(telegramUser);
+    if (rateLimitMessage) {
+      return sendMessageWebhookResponse(chatId, rateLimitMessage);
+    }
+
+    const menuTextResponse = await handleMenuText(userId, text, menuOptions);
     if (menuTextResponse) {
       return sendMessageWebhookResponse(
         chatId,
