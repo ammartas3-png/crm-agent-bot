@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildWorkingAgentZeroRows } from "../lib/dashboardService.js";
+import { buildWorkingAgentZeroRows, uniqueValuesIncludingSyntheticAgents } from "../lib/dashboardService.js";
 import { getTabConfig } from "../config/sheetsConfig.js";
 import { normalizeAgentName } from "../lib/targets.js";
 
@@ -128,6 +128,41 @@ test("injects per-month for last4 (agent working across months)", () => {
   });
   const monthKeys = rows.map((row) => row.__sourceMonthKey).sort();
   assert.deepEqual(monthKeys, ["2026-06", "2026-07"]);
+});
+
+test("agent/desk/team-leader counts include synthetic zero-activity rows", () => {
+  // Two real lead rows (agents with an id) + two synthetic working-agent rows
+  // that carry no id. The summary cards must count all four agents so the
+  // "Total Agent" card matches the rows shown in the results table.
+  const rows = [
+    { ID: "1", "AGENT NAMES": "Alda Ga", Desk: "Turkey ENG / MY / IND", "Team Leader": "Tanty Ar" },
+    { ID: "2", "AGENT NAMES": "Anna Ak", Desk: "Turkey ENG / MY / IND", "Team Leader": "Tanty Ar" },
+    {
+      "AGENT NAMES": "Deden Ma",
+      Desk: "Turkey ENG / MY / IND",
+      "Team Leader": "Tanty Ar",
+      Leads: 0,
+      __syntheticWorkingAgent: true,
+    },
+    {
+      "AGENT NAMES": "Rissa Za",
+      Desk: "Turkey ENG / MY / IND",
+      "Team Leader": "Tanty Ar",
+      Leads: 0,
+      __syntheticWorkingAgent: true,
+    },
+  ];
+  assert.equal(uniqueValuesIncludingSyntheticAgents(rows, tabConfig, "agentNames"), 4);
+  assert.equal(uniqueValuesIncludingSyntheticAgents(rows, tabConfig, "teamLeader"), 1);
+  assert.equal(uniqueValuesIncludingSyntheticAgents(rows, tabConfig, "office"), 1);
+});
+
+test("count still ignores rows that have neither an id nor the synthetic flag", () => {
+  const rows = [
+    { ID: "1", "AGENT NAMES": "Alda Ga" },
+    { "AGENT NAMES": "Ghost Row" },
+  ];
+  assert.equal(uniqueValuesIncludingSyntheticAgents(rows, tabConfig, "agentNames"), 1);
 });
 
 test("treats Argentina 'active' status as working via records", () => {
