@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   isLegacyOffice,
   legacyMonthKeys,
+  legacyMonthKeysInWindow,
   legacyMonthRecordsForOffice,
   legacyOfficeNameFor,
+  officeMonthRecordsWithLegacy,
+  resolveLast4MonthKeysForOffice,
 } from "../lib/legacyOfficeData.js";
 
 test("legacyOfficeNameFor maps AR/AE office variants", () => {
@@ -38,4 +41,42 @@ test("legacyMonthRecordsForOffice returns flagged synthetic records", () => {
   }
   assert.deepEqual(records.map((r) => r.key), ["2026-01", "2026-02", "2026-03"]);
   assert.deepEqual(legacyMonthRecordsForOffice("Turkiye Office"), []);
+});
+
+test("resolveLast4MonthKeysForOffice merges Dubai live months with legacy Jan-Mar", () => {
+  assert.deepEqual(resolveLast4MonthKeysForOffice("Dubai Office", ["2026-06", "2026-05", "2026-04"]), [
+    "2026-06",
+    "2026-05",
+    "2026-04",
+    "2026-03",
+  ]);
+});
+
+test("resolveLast4MonthKeysForOffice ignores legacy months for non-legacy offices", () => {
+  assert.deepEqual(resolveLast4MonthKeysForOffice("Turkiye Office", ["2026-06", "2026-05", "2026-04", "2026-03"]), [
+    "2026-06",
+    "2026-05",
+    "2026-04",
+    "2026-03",
+  ]);
+});
+
+test("officeMonthRecordsWithLegacy appends synthetic legacy months for Dubai", () => {
+  const live = [
+    {
+      key: "2026-06",
+      month_label: "June 2026",
+      sheet_id: "sheet-june",
+      active: true,
+    },
+  ];
+  const records = officeMonthRecordsWithLegacy("Dubai Office", live);
+  assert.equal(records.length, 4);
+  assert.equal(records[0].key, "2026-06");
+  assert.equal(records[1].key, "2026-03");
+  assert.equal(records[1].legacy, true);
+});
+
+test("legacyMonthKeysInWindow returns only legacy keys from a last4 window", () => {
+  assert.deepEqual(legacyMonthKeysInWindow(["2026-06", "2026-05", "2026-04", "2026-03"]), ["2026-03"]);
 });
