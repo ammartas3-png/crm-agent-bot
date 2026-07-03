@@ -57,6 +57,51 @@
   font-size: 9px;
 }
 
+.topBarCredit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #b91c1c;
+}
+
+.topBarCredit strong {
+  font-weight: 700;
+}
+
+.credit {
+  display: flex;
+  justify-content: center;
+  padding: 10px 8px 16px;
+}
+
+.creditBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #e11d2a 0%, #b91c1c 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 14px rgba(225, 29, 42, 0.28);
+}
+
+.creditFlag {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.creditText strong {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
 .button {
   border: 1px solid #c8d2de;
   border-radius: 8px;
@@ -514,6 +559,19 @@
   margin: 0;
   color: #64748b;
   font-size: 13px;
+}
+
+.dataNotice {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  max-width: 720px;
 }
 
 .detailsHint {

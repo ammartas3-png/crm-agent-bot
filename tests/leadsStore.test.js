@@ -7,6 +7,7 @@ import {
   hasData,
   isDatasetActive,
   leadsSourceMode,
+  listIngestPeriodsForOffice,
   listSources,
   loadAllRows,
   loadRowsForSourceMeta,
@@ -138,5 +139,15 @@ test("chunkRowsBySize splits large datasets so each chunk stays under budget", a
   assert.equal(result.rowCount, 5000);
   const rows = await loadRowsForSourceMeta({ office: "Big", period: "2026-05", category: "leads" });
   assert.equal(rows.length, 5000);
+  clearLeadsStore();
+});
+
+test("listIngestPeriodsForOffice returns sorted periods for a synced office", async () => {
+  clearLeadsStore();
+  saveSource("dubai-office:2026-04:leads", { office: "Dubai Office", period: "2026-04" }, [{ ID: "1" }]);
+  saveSource("dubai-office:2026-06:leads", { office: "Dubai Office", period: "2026-06" }, [{ ID: "2" }]);
+  saveSource("turkiye-office:2026-06:leads", { office: "Turkiye Office", period: "2026-06" }, [{ ID: "3" }]);
+  const periods = await listIngestPeriodsForOffice("Dubai Office");
+  assert.deepEqual(periods, ["2026-06", "2026-04"]);
   clearLeadsStore();
 });

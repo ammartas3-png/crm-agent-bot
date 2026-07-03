@@ -151,6 +151,13 @@ function officeThemeForName(officeName = "") {
       color: "#7f1d1d",
     };
   }
+  if (normalized.includes("tunisia") || normalized.includes("tunisian") || normalized.includes("tunis")) {
+    return {
+      background: "linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%)",
+      borderColor: "#fdba74",
+      color: "#9a3412",
+    };
+  }
   return {
     background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
     borderColor: "#c9d5e4",
@@ -4158,24 +4165,37 @@ export default function DashboardPage() {
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
   const monthOptions = useMemo(() => {
     const source = options.months || sessionState.bootstrap.months || [];
-    return source.map((item) => ({
-      value: item.key,
-      label: (() => {
+    const selectedOffice = Array.isArray(filters.officeScope) ? String(filters.officeScope[0] || "").trim() : "";
+    return source
+      .filter((item) => {
+        if (!selectedOffice) {
+          return true;
+        }
         const officeNames = Array.isArray(item.office_names)
           ? item.office_names.filter(Boolean)
           : item.office_name
             ? [item.office_name]
             : [];
-        if (officeNames.length > 1) {
-          return `${item.month_label} — ${officeNames.length} Offices`;
-        }
-        if (officeNames.length === 1) {
-          return `${item.month_label} — ${officeNames[0]}`;
-        }
-        return item.month_label;
-      })(),
-    }));
-  }, [options.months, sessionState.bootstrap.months]);
+        return !officeNames.length || officeNames.includes(selectedOffice);
+      })
+      .map((item) => ({
+        value: item.key,
+        label: (() => {
+          const officeNames = Array.isArray(item.office_names)
+            ? item.office_names.filter(Boolean)
+            : item.office_name
+              ? [item.office_name]
+              : [];
+          if (officeNames.length > 1) {
+            return `${item.month_label} — ${officeNames.length} Offices`;
+          }
+          if (officeNames.length === 1) {
+            return `${item.month_label} — ${officeNames[0]}`;
+          }
+          return item.month_label;
+        })(),
+      }));
+  }, [options.months, sessionState.bootstrap.months, filters.officeScope]);
   const availableMonthKeys = useMemo(() => monthOptions.map((item) => item.value).filter(Boolean), [monthOptions]);
   const applyQuickPreset = useCallback(
     (preset) => {
@@ -4541,6 +4561,9 @@ export default function DashboardPage() {
           <p className={`${styles.subtitle} ${styles.topBarSubtitle}`}>
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
+          <span className={styles.topBarCredit}>
+            <span aria-hidden="true">🇹🇷</span> Created by <strong>Türkiye CRM Team</strong>
+          </span>
         </div>
         <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
           Log out
@@ -5033,6 +5056,7 @@ export default function DashboardPage() {
                   (Array.isArray(appliedFilters.officeScope) ? appliedFilters.officeScope.join(", ") : appliedFilters.officeScope)}
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
+              {report.dataNotice ? <p className={styles.dataNotice}>{report.dataNotice}</p> : null}
             </div>
             <button
               type="button"
@@ -5114,6 +5138,14 @@ export default function DashboardPage() {
           </button>
         </div>
       ) : null}
+      <footer className={styles.credit}>
+        <span className={styles.creditBadge}>
+          <span className={styles.creditFlag} aria-hidden="true">🇹🇷</span>
+          <span className={styles.creditText}>
+            Created by <strong>Türkiye CRM Team</strong>
+          </span>
+        </span>
+      </footer>
     </main>
   );
 }

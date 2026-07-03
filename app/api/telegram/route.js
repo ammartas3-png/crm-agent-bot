@@ -130,12 +130,13 @@ function uniqueSorted(values = []) {
   );
 }
 
-const PREFERRED_OFFICE_COUNTRIES = ["Turkey", "Pakistan", "Argentina", "United Arab Emirates"];
+const PREFERRED_OFFICE_COUNTRIES = ["Turkey", "Pakistan", "Argentina", "United Arab Emirates", "Tunisia"];
 const OFFICE_COUNTRY_MATCHERS = [
   { label: "Turkey", patterns: ["turkey", "turkiye", "türkiye"] },
   { label: "Pakistan", patterns: ["pakistan"] },
   { label: "Argentina", patterns: ["argentina", "aragantin"] },
   { label: "United Arab Emirates", patterns: ["united arab emirates", "uae", "emirates"] },
+  { label: "Tunisia", patterns: ["tunisia", "tunisian", "tunis"] },
 ];
 
 function officeCountryFromOfficeName(office = "") {
