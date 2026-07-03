@@ -151,6 +151,13 @@ function officeThemeForName(officeName = "") {
       color: "#7f1d1d",
     };
   }
+  if (normalized.includes("tunisia") || normalized.includes("tunisian") || normalized.includes("tunis")) {
+    return {
+      background: "linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%)",
+      borderColor: "#fdba74",
+      color: "#9a3412",
+    };
+  }
   return {
     background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
     borderColor: "#c9d5e4",
