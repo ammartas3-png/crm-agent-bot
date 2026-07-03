@@ -5049,6 +5049,7 @@ export default function DashboardPage() {
                   (Array.isArray(appliedFilters.officeScope) ? appliedFilters.officeScope.join(", ") : appliedFilters.officeScope)}
               </h2>
               <p className={styles.reportHeaderSubtitle}>{report.tableTitle || "Report table"}</p>
+              {report.dataNotice ? <p className={styles.dataNotice}>{report.dataNotice}</p> : null}
             </div>
             <button
               type="button"
