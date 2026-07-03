@@ -4554,6 +4554,9 @@ export default function DashboardPage() {
           <p className={`${styles.subtitle} ${styles.topBarSubtitle}`}>
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
+          <span className={styles.topBarCredit}>
+            <span aria-hidden="true">🇹🇷</span> Created by <strong>Türkiye CRM Team</strong>
+          </span>
         </div>
         <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
           Log out
@@ -5127,6 +5130,14 @@ export default function DashboardPage() {
           </button>
         </div>
       ) : null}
+      <footer className={styles.credit}>
+        <span className={styles.creditBadge}>
+          <span className={styles.creditFlag} aria-hidden="true">🇹🇷</span>
+          <span className={styles.creditText}>
+            Created by <strong>Türkiye CRM Team</strong>
+          </span>
+        </span>
+      </footer>
     </main>
   );
 }
