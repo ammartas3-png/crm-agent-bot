@@ -14,6 +14,7 @@ import {
 test("legacyOfficeNameFor maps AR/AE office variants", () => {
   assert.equal(legacyOfficeNameFor("Argentina Office"), "Argentina Office");
   assert.equal(legacyOfficeNameFor("argentina"), "Argentina Office");
+  assert.equal(legacyOfficeNameFor("aragantin"), "Argentina Office");
   assert.equal(legacyOfficeNameFor("Dubai Office"), "Dubai Office");
   assert.equal(legacyOfficeNameFor("United Arab Emirates"), "Dubai Office");
   assert.equal(legacyOfficeNameFor("Turkiye Office"), "");
@@ -52,6 +53,21 @@ test("resolveLast4MonthKeysForOffice merges Dubai live months with legacy Jan-Ma
   ]);
 });
 
+test("resolveLast4MonthKeysForOffice merges Argentina live months with legacy Jan-Mar", () => {
+  assert.deepEqual(resolveLast4MonthKeysForOffice("Argentina Office", ["2026-06", "2026-05", "2026-04"]), [
+    "2026-06",
+    "2026-05",
+    "2026-04",
+    "2026-03",
+  ]);
+  assert.deepEqual(resolveLast4MonthKeysForOffice("Argentina", ["2026-05", "2026-04"]), [
+    "2026-05",
+    "2026-04",
+    "2026-03",
+    "2026-02",
+  ]);
+});
+
 test("resolveLast4MonthKeysForOffice ignores legacy months for non-legacy offices", () => {
   assert.deepEqual(resolveLast4MonthKeysForOffice("Turkiye Office", ["2026-06", "2026-05", "2026-04", "2026-03"]), [
     "2026-06",
@@ -75,6 +91,24 @@ test("officeMonthRecordsWithLegacy appends synthetic legacy months for Dubai", (
   assert.equal(records[0].key, "2026-06");
   assert.equal(records[1].key, "2026-03");
   assert.equal(records[1].legacy, true);
+});
+
+test("officeMonthRecordsWithLegacy appends synthetic legacy months for Argentina", () => {
+  const live = [
+    {
+      key: "2026-05",
+      month_label: "May 2026",
+      sheet_id: "sheet-may",
+      active: true,
+    },
+  ];
+  const records = officeMonthRecordsWithLegacy("Argentina Office", live);
+  assert.equal(records.length, 4);
+  assert.equal(records[0].key, "2026-05");
+  assert.equal(records[1].key, "2026-03");
+  assert.equal(records[1].legacy, true);
+  assert.equal(records[3].key, "2026-01");
+  assert.equal(records[3].legacy, true);
 });
 
 test("legacyMonthKeysInWindow returns only legacy keys from a last4 window", () => {
