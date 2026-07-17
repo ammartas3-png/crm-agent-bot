@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { dashboardAccessFromRequest } from "../../../../../lib/dashboardRequest.js";
-import { loadApprovedDepositsReport } from "../../../../../lib/approvedDepositsService.js";
+import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
+import { loadApprovedDepositsReport } from "../../../../lib/approvedDepositsService.js";
 
 export const maxDuration = 300;
 
