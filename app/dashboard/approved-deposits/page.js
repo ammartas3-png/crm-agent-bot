@@ -11,16 +11,16 @@ const CATEGORY_COLORS = {
   Other: "#f59e0b",
 };
 const EMPTY_FILTERS = {
-  language: "All",
-  country: "All",
-  month: "All",
-  status: "All",
-  brand: "All",
-  campaign: "All",
-  method: "All",
-  cashier: "All",
-  department: "All",
-  ftd: "All",
+  language: [],
+  country: [],
+  month: [],
+  status: [],
+  brand: [],
+  campaign: [],
+  method: [],
+  cashier: [],
+  department: [],
+  ftd: [],
 };
 
 function formatUsd(value) {
@@ -130,13 +130,29 @@ function CountryBars({ title, countries = [], monthKey = "" }) {
   );
 }
 
-function SelectField({ label, value, options = [], onChange }) {
+function MultiSelectField({ label, value = [], options = [], onChange }) {
+  const selectedValues = Array.isArray(value) ? value : [];
+  const normalizedOptions = options.map((option) => (typeof option === "string" ? { key: option, label: option } : option));
+  const visibleOptions = normalizedOptions.filter((option) => (option.key || option.value) !== "All");
+  const displayLabel = selectedValues.length ? `${selectedValues.length} selected` : "All";
   return (
     <label style={{ display: "grid", gap: 4 }}>
-      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>{label}</span>
-      <select className={styles.input} value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => {
-          const normalized = typeof option === "string" ? { key: option, label: option } : option;
+      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
+        {label} <span style={{ fontWeight: 500, textTransform: "none" }}>({displayLabel})</span>
+      </span>
+      <select
+        className={styles.input}
+        multiple
+        size={Math.min(6, Math.max(3, visibleOptions.length || 3))}
+        value={selectedValues}
+        onChange={(event) => {
+          const nextValues = Array.from(event.target.selectedOptions).map((option) => option.value);
+          onChange(nextValues);
+        }}
+        style={{ minHeight: 86 }}
+      >
+        {visibleOptions.map((option) => {
+          const normalized = option;
           return (
             <option key={normalized.key || normalized.value} value={normalized.key || normalized.value}>
               {normalized.label || normalized.key || normalized.value}
@@ -155,7 +171,9 @@ export default function ApprovedDepositsPage() {
 
   const loadReport = useCallback(async () => {
     setReportState((previous) => ({ ...previous, loading: true, error: "" }));
-    const params = new URLSearchParams(filters);
+    const params = new URLSearchParams(
+      Object.entries(filters).map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : String(value || "")]),
+    );
     const response = await fetch(`/api/dashboard/approved-deposits?${params.toString()}`, { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.ok) {
@@ -223,61 +241,61 @@ export default function ApprovedDepositsPage() {
       <section className={`${styles.panel} ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Filters</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(160px, 1fr))", gap: 12, alignItems: "end" }}>
-          <SelectField
+          <MultiSelectField
             label="Language"
             value={filters.language}
             options={report?.options?.languages || ["All", ...CATEGORIES]}
             onChange={(language) => setFilters((previous) => ({ ...previous, language }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Country"
             value={filters.country}
             options={report?.options?.countries || ["All"]}
             onChange={(country) => setFilters((previous) => ({ ...previous, country }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Approved Month"
             value={filters.month}
             options={report?.options?.months || [{ key: "All", label: "All" }]}
             onChange={(month) => setFilters((previous) => ({ ...previous, month }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Status"
             value={filters.status}
             options={report?.options?.statuses || ["All"]}
             onChange={(status) => setFilters((previous) => ({ ...previous, status }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Brand"
             value={filters.brand}
             options={report?.options?.brands || ["All"]}
             onChange={(brand) => setFilters((previous) => ({ ...previous, brand }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Campaign"
             value={filters.campaign}
             options={report?.options?.campaigns || ["All"]}
             onChange={(campaign) => setFilters((previous) => ({ ...previous, campaign }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Method"
             value={filters.method}
             options={report?.options?.methods || ["All"]}
             onChange={(method) => setFilters((previous) => ({ ...previous, method }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Cashier"
             value={filters.cashier}
             options={report?.options?.cashiers || ["All"]}
             onChange={(cashier) => setFilters((previous) => ({ ...previous, cashier }))}
           />
-          <SelectField
+          <MultiSelectField
             label="Original Department"
             value={filters.department}
             options={report?.options?.departments || ["All"]}
             onChange={(department) => setFilters((previous) => ({ ...previous, department }))}
           />
-          <SelectField
+          <MultiSelectField
             label="FTD"
             value={filters.ftd}
             options={report?.options?.ftdValues || ["All"]}

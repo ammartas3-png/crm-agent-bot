@@ -67,6 +67,7 @@ test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by 
         ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
         [423460, "HQ / TR1 / ENAF-IB / Opening / Team", "Approved", 200, "Fintech360", "APM", "apay Airtel Uga", "7/17/2026 17:34", "Yes", "Vietnam", "Audi", "7/17/2026 17:34", "Fintana"],
         [423216, "HQ / TR1 / ENAF-IB / Opening / Team", "Approved", "202.4", "Fintech360", "APM", "CryptoPayx", "7/17/2026 17:06", "Yes", "Vietnam", "Bentley", "7/17/2026 17:26", "Fintana"],
+        [423333, "HQ / TR1 / ENAF-IB / Opening / Team", "Pending", 50, "Fintech360", "Credit Card", "CryptoPayx", "7/17/2026 17:06", "No", "Vietnam", "BMaster", "7/17/2026 17:26", "OtherBrand"],
       ],
     ],
   ]);
@@ -84,11 +85,24 @@ test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by 
 
   assert.deepEqual(report.sourceTabs, ["ALL"]);
   assert.deepEqual(report.kycSourceTabs, ["JANUARY"]);
-  assert.equal(report.totalAmount, 402.4);
+  assert.equal(report.totalAmount, 452.4);
   assert.equal(report.totals.Native.amount, 200);
   assert.equal(report.totals.English.amount, 202.4);
-  assert.equal(report.totals.Other.amount, 0);
+  assert.equal(report.totals.Other.amount, 50);
   assert.equal(report.options.brands.includes("Fintana"), true);
   assert.equal(report.countries.find((row) => row.country === "Vietnam").total.Native.count, 1);
+
+  const filtered = await loadApprovedDepositsReport(
+    { status: "Approved,Pending", campaign: "Audi,BMaster", brand: "Fintana" },
+    {
+      kycSpreadsheetId: "kyc-sheet-id",
+      amountSpreadsheetId: "amount-sheet-id",
+      kycSheetTitles: ["Checker", "JANUARY", "JANUARY SELF"],
+      amountSheetTitles: ["ALL"],
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+  assert.equal(filtered.totalAmount, 200);
+  assert.equal(filtered.totalCount, 1);
 });
 
