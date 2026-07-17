@@ -10,6 +10,18 @@ const CATEGORY_COLORS = {
   English: "#10b981",
   Other: "#f59e0b",
 };
+const EMPTY_FILTERS = {
+  language: "All",
+  country: "All",
+  month: "All",
+  status: "All",
+  brand: "All",
+  campaign: "All",
+  method: "All",
+  cashier: "All",
+  department: "All",
+  ftd: "All",
+};
 
 function formatUsd(value) {
   return `$${Number(value || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -138,7 +150,7 @@ function SelectField({ label, value, options = [], onChange }) {
 
 export default function ApprovedDepositsPage() {
   const router = useRouter();
-  const [filters, setFilters] = useState({ language: "All", country: "All", month: "All" });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [reportState, setReportState] = useState({ loading: true, report: null, error: "" });
 
   const loadReport = useCallback(async () => {
@@ -182,7 +194,7 @@ export default function ApprovedDepositsPage() {
         <div>
           <h1 className={`${styles.title} ${styles.topBarTitle}`}>Approved Deposits - Native / English / Other</h1>
           <p className={`${styles.subtitle} ${styles.topBarSubtitle}`}>
-            Country x category x month from the KYC sheet. SELF tabs and non-month tabs are excluded.
+            USD amounts come from the FTD-AMOUNT sheet. KYC sheet is used only to match ACC ID language.
           </p>
         </div>
         <div className={styles.pillRow}>
@@ -210,7 +222,7 @@ export default function ApprovedDepositsPage() {
 
       <section className={`${styles.panel} ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Filters</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(180px, 1fr)) auto", gap: 12, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(160px, 1fr))", gap: 12, alignItems: "end" }}>
           <SelectField
             label="Language"
             value={filters.language}
@@ -229,10 +241,52 @@ export default function ApprovedDepositsPage() {
             options={report?.options?.months || [{ key: "All", label: "All" }]}
             onChange={(month) => setFilters((previous) => ({ ...previous, month }))}
           />
+          <SelectField
+            label="Status"
+            value={filters.status}
+            options={report?.options?.statuses || ["All"]}
+            onChange={(status) => setFilters((previous) => ({ ...previous, status }))}
+          />
+          <SelectField
+            label="Brand"
+            value={filters.brand}
+            options={report?.options?.brands || ["All"]}
+            onChange={(brand) => setFilters((previous) => ({ ...previous, brand }))}
+          />
+          <SelectField
+            label="Campaign"
+            value={filters.campaign}
+            options={report?.options?.campaigns || ["All"]}
+            onChange={(campaign) => setFilters((previous) => ({ ...previous, campaign }))}
+          />
+          <SelectField
+            label="Method"
+            value={filters.method}
+            options={report?.options?.methods || ["All"]}
+            onChange={(method) => setFilters((previous) => ({ ...previous, method }))}
+          />
+          <SelectField
+            label="Cashier"
+            value={filters.cashier}
+            options={report?.options?.cashiers || ["All"]}
+            onChange={(cashier) => setFilters((previous) => ({ ...previous, cashier }))}
+          />
+          <SelectField
+            label="Original Department"
+            value={filters.department}
+            options={report?.options?.departments || ["All"]}
+            onChange={(department) => setFilters((previous) => ({ ...previous, department }))}
+          />
+          <SelectField
+            label="FTD"
+            value={filters.ftd}
+            options={report?.options?.ftdValues || ["All"]}
+            onChange={(ftd) => setFilters((previous) => ({ ...previous, ftd }))}
+          />
           <button
             type="button"
             className={`${styles.button} ${styles.buttonSecondary}`}
-            onClick={() => setFilters({ language: "All", country: "All", month: "All" })}
+            onClick={() => setFilters(EMPTY_FILTERS)}
           >
             Reset filters
           </button>
@@ -303,7 +357,7 @@ export default function ApprovedDepositsPage() {
           </table>
         </div>
         <p className={styles.sectionHint}>
-          Amount is parsed from KYC text when present. Category share is calculated within each country/month bucket.
+          Total amounts are calculated from USD Amount in the FTD-AMOUNT sheet. Language category is joined from KYC by ACC ID.
         </p>
       </section>
 

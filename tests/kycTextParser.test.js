@@ -9,6 +9,7 @@ import {
 } from "../lib/kycTextParser.js";
 import {
   loadApprovedDepositsReport,
+  normalizeApprovedDepositAccId,
   validApprovedDepositTabTitles,
 } from "../lib/approvedDepositsService.js";
 
@@ -44,23 +45,28 @@ test("validApprovedDepositTabTitles only includes plain month tabs", () => {
   );
 });
 
-test("loadApprovedDepositsReport aggregates approved deposits by category and month", async () => {
+test("normalizeApprovedDepositAccId prefixes numeric IDs with ACC", () => {
+  assert.equal(normalizeApprovedDepositAccId("423460"), "ACC423460");
+  assert.equal(normalizeApprovedDepositAccId(" ACC423460 "), "ACC423460");
+});
+
+test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by ACC ID", async () => {
   const valuesByRange = new Map([
     [
       "'JANUARY'!A:L",
       [
         ["JUNE KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
-        ["01.01.2026", "CID1", "01.01.2026", "Turkey English", "Vietnam", "Agent A", "Brand", "Aff", "Language: Vietnamese\nAmount: $100"],
-        ["02.01.2026", "CID2", "02.01.2026", "Turkey English", "Vietnam", "Agent B", "Brand", "Aff", "Language: English\nAmount: $300"],
+        ["01.01.2026", "ACC423460", "01.01.2026", "Turkey English", "Vietnam", "Agent A", "Brand", "Aff", "Language: Vietnamese\nAmount: $999"],
+        ["02.01.2026", "ACC423216", "02.01.2026", "Turkey English", "Vietnam", "Agent B", "Brand", "Aff", "Language: English\nAmount: $999"],
       ],
     ],
     [
-      "'JULY'!A:L",
+      "'ALL'!A:Z",
       [
-        ["JULY KYC"],
-        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
-        ["01.07.2026", "CID3", "01.07.2026", "Turkey English", "Thailand", "Agent C", "Brand", "Aff", "Language: Chinese\nAmount: $50"],
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [423460, "HQ / TR1 / ENAF-IB / Opening / Team", "Approved", 200, "Fintech360", "APM", "apay Airtel Uga", "7/17/2026 17:34", "Yes", "Vietnam", "Audi", "7/17/2026 17:34", "Fintana"],
+        [423216, "HQ / TR1 / ENAF-IB / Opening / Team", "Approved", "202.4", "Fintech360", "APM", "CryptoPayx", "7/17/2026 17:06", "Yes", "Vietnam", "Bentley", "7/17/2026 17:26", "Fintana"],
       ],
     ],
   ]);
@@ -68,17 +74,21 @@ test("loadApprovedDepositsReport aggregates approved deposits by category and mo
   const report = await loadApprovedDepositsReport(
     {},
     {
-      spreadsheetId: "sheet-id",
-      sheetTitles: ["Checker", "JANUARY", "JANUARY SELF", "JULY"],
+      kycSpreadsheetId: "kyc-sheet-id",
+      amountSpreadsheetId: "amount-sheet-id",
+      kycSheetTitles: ["Checker", "JANUARY", "JANUARY SELF"],
+      amountSheetTitles: ["ALL"],
       readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
     },
   );
 
-  assert.deepEqual(report.sourceTabs, ["JANUARY", "JULY"]);
-  assert.equal(report.totalAmount, 450);
-  assert.equal(report.totals.Native.amount, 100);
-  assert.equal(report.totals.English.amount, 300);
-  assert.equal(report.totals.Other.amount, 50);
+  assert.deepEqual(report.sourceTabs, ["ALL"]);
+  assert.deepEqual(report.kycSourceTabs, ["JANUARY"]);
+  assert.equal(report.totalAmount, 402.4);
+  assert.equal(report.totals.Native.amount, 200);
+  assert.equal(report.totals.English.amount, 202.4);
+  assert.equal(report.totals.Other.amount, 0);
+  assert.equal(report.options.brands.includes("Fintana"), true);
   assert.equal(report.countries.find((row) => row.country === "Vietnam").total.Native.count, 1);
 });
 
