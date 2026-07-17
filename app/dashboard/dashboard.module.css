@@ -95,6 +95,16 @@
   background: #fff;
 }
 
+.input {
+  width: 100%;
+  border: 1px solid #c8d2de;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #fff;
+}
+
 .exportButtonContent {
   display: inline-flex;
   align-items: center;
