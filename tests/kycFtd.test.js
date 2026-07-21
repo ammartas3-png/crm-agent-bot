@@ -120,6 +120,43 @@ test("KYC FTD counts every Agents column match like COUNTIF on FTD sheet column 
   );
 });
 
+test("KYC FTD counts FTD sheet rows for month file when FTD date is missing", () => {
+  const kycRows = buildKycFtdRowsFromFtdSheet(
+    [
+      {
+        CID: "ACC500",
+        Agents: "Abdulrahim Fe",
+      },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+    {
+      monthKey: "2026-07",
+      leadsProfileMap: new Map([
+        [
+          "abdulrahim fe",
+          {
+            agentName: "Abdulrahim Fe",
+            desk: "Turkey Africa",
+            teamLeader: "Epere Aw",
+          },
+        ],
+      ]),
+    },
+  );
+  assert.equal(kycRows.length, 1);
+  assert.equal(kycRows[0].__sourceMonthKey, "2026-07");
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: kycRows,
+      dateFilter: { type: "month", month: 6, year: 2026 },
+      scope: { agent: ["Abdulrahim Fe"] },
+    }),
+    1,
+  );
+});
+
 test("KYC FTD can exceed FTD when FTD sheet has extra pending rows", () => {
   const rosterProfileMap = new Map([
     [
