@@ -39,7 +39,7 @@ const DEFAULT_FTD_COLUMNS = [
   "TEAM",
   "BRAND",
   "Cheker",
-  "FTD Date",
+  "FTD Date Duplicate",
 ];
 
 const DEFAULT_TRANSACTION_COLUMNS = [
