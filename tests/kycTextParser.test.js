@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   categorizeKycLanguage,
+  categorizeKycLanguages,
   parseKycAmount,
   parseKycLanguage,
+  parseKycLanguageParts,
   parseKycText,
 } from "../lib/kycTextParser.js";
 import {
@@ -64,10 +66,20 @@ test("resolveApprovedDepositsKycSources defaults to all office KYC sheets", () =
   assert.equal(sources.some((source) => source.office === "Dubai"), true);
 });
 
+test("parseKycLanguageParts supports bilingual values as English & Native", () => {
+  assert.deepEqual(parseKycLanguageParts("7.Language: English & Malay"), ["English", "Malay"]);
+  assert.equal(parseKycLanguage("9. Language: EN"), "English");
+  assert.equal(
+    categorizeKycLanguages({ country: "Malaysia", languages: ["English", "Malay"] }),
+    "English & Native",
+  );
+  assert.equal(categorizeKycLanguage({ country: "Malaysia", language: "English & Malay" }), "English & Native");
+});
+
 test("lookupKycLanguageRecord matches ACC ID together with LIST OF COUNTRYS", () => {
   const index = createKycLanguageIndex();
-  addKycLanguageRecord(index, { cid: "ACC123456", country: "Vietnam", language: "Vietnamese" });
-  addKycLanguageRecord(index, { cid: "ACC123456", country: "Japan", language: "Japanese" });
+  addKycLanguageRecord(index, { office: "Turkiye", cid: "ACC123456", country: "Vietnam", language: "Vietnamese" });
+  addKycLanguageRecord(index, { office: "Turkiye", cid: "ACC123456", country: "Japan", language: "Japanese" });
 
   assert.equal(lookupKycLanguageRecord(index, { accId: "123456", country: "Japan" })?.language, "Japanese");
   assert.equal(lookupKycLanguageRecord(index, { accId: "ACC123456", country: "Vietnam" })?.language, "Vietnamese");
@@ -236,3 +248,71 @@ test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by 
   assert.equal(filtered.totalCount, 1);
 });
 
+test("loadApprovedDepositsReport keeps CID matches scoped to selected KYC office", async () => {
+  const valuesByRange = new Map([
+    [
+      "'JULY'!A:L",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["17.07.2026", "ACC555001", "17.07.2026", "Turkey English", "Malaysia", "Agent A", "Brand", "Aff", "Language: English & Malay"],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [555001, "HQ / AE / MY / Opening / Team", "Approved", 200, "Fintech360", "APM", "Pay", "7/17/2026 8:46", "Yes", "Malaysia", "Fiat-MY", "7/17/2026 8:46", "Spova"],
+      ],
+    ],
+  ]);
+
+  const turkiyeReport = await loadApprovedDepositsReport(
+    { office: "Turkiye" },
+    {
+      kycSources: [
+        { office: "Turkiye", spreadsheetId: "kyc-turkiye" },
+        { office: "Dubai", spreadsheetId: "kyc-dubai" },
+      ],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => {
+        if (spreadsheetId === "kyc-turkiye") {
+          return ["JULY"];
+        }
+        if (spreadsheetId === "kyc-dubai") {
+          return [];
+        }
+        return ["ALL"];
+      },
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  const dubaiReport = await loadApprovedDepositsReport(
+    { office: "Dubai" },
+    {
+      kycSources: [
+        { office: "Turkiye", spreadsheetId: "kyc-turkiye" },
+        { office: "Dubai", spreadsheetId: "kyc-dubai" },
+      ],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => {
+        if (spreadsheetId === "kyc-turkiye") {
+          return ["JULY"];
+        }
+        if (spreadsheetId === "kyc-dubai") {
+          return [];
+        }
+        return ["ALL"];
+      },
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(turkiyeReport.totalCount, 1);
+  assert.equal(turkiyeReport.rows[0].kycOffice, "Turkiye");
+  assert.equal(turkiyeReport.rows[0].languageCategory, "English & Native");
+  assert.equal(dubaiReport.totalCount, 0);
+});

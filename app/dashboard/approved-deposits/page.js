@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "../dashboard.module.css";
 
-const CATEGORIES = ["Native", "English", "Other"];
+const CATEGORIES = ["Native", "English", "English & Native", "Other"];
 const CATEGORY_COLORS = {
   Native: "#2563eb",
   English: "#10b981",
+  "English & Native": "#8b5cf6",
   Other: "#f59e0b",
 };
 const EMPTY_FILTERS = {
@@ -21,6 +22,7 @@ const EMPTY_FILTERS = {
   cashier: [],
   department: [],
   ftd: [],
+  office: [],
 };
 
 function formatUsd(value) {
@@ -294,6 +296,12 @@ export default function ApprovedDepositsPage() {
             value={filters.department}
             options={report?.options?.departments || ["All"]}
             onChange={(department) => setFilters((previous) => ({ ...previous, department }))}
+          />
+          <MultiSelectField
+            label="KYC Office"
+            value={filters.office}
+            options={report?.options?.offices || ["All"]}
+            onChange={(office) => setFilters((previous) => ({ ...previous, office }))}
           />
           <MultiSelectField
             label="FTD"
