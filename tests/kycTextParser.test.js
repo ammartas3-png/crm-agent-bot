@@ -15,6 +15,7 @@ import {
   normalizeApprovedDepositAccId,
   createKycLanguageIndex,
   addKycLanguageRecord,
+  parseApprovedDepositMonthTab,
   resolveApprovedDepositsKycSources,
   validApprovedDepositTabTitles,
 } from "../lib/approvedDepositsService.js";
@@ -44,11 +45,64 @@ test("parseKycLanguage reads labelled language values", () => {
   assert.equal(parseKycLanguage("Customer Language: Tagalog\nAmount: 500"), "Filipino");
 });
 
-test("validApprovedDepositTabTitles only includes plain month tabs", () => {
+test("validApprovedDepositTabTitles includes plain and year-suffixed month tabs", () => {
   assert.deepEqual(
     validApprovedDepositTabTitles(["Checker", "JANUARY", "JUNE SELF", "JULY", "MAY SELF", "MARCH"]),
     ["JANUARY", "MARCH", "JULY"],
   );
+  assert.deepEqual(
+    validApprovedDepositTabTitles(["Checker", "JULY26", "JUNE26", "January26", "Self July26", "JULY", "AUGUST26"]),
+    ["January26", "JUNE26", "JULY26", "JULY", "AUGUST26"],
+  );
+});
+
+test("parseApprovedDepositMonthTab recognizes office KYC tab naming styles", () => {
+  assert.equal(parseApprovedDepositMonthTab("JULY26")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("JUNE26")?.key, "june");
+  assert.equal(parseApprovedDepositMonthTab("January26")?.key, "january");
+  assert.equal(parseApprovedDepositMonthTab("July 26")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("AUGUST26")?.key, "august");
+  assert.equal(parseApprovedDepositMonthTab("DECEMBER26")?.key, "december");
+  assert.equal(parseApprovedDepositMonthTab("JULY")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("Self July26"), null);
+  assert.equal(parseApprovedDepositMonthTab("Checker"), null);
+});
+
+test("loadApprovedDepositsReport reads language from year-suffixed KYC tabs", async () => {
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:L",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["01.07.2026", "ACC390721", "24.06.2026", "AR2-Portuguese", "Brazil", "Agent A", "Fintana", "Toptech", "8) Language: Portuguese"],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [390721, "HQ / AR / Opening / Team", "Approved", 4205, "Fintech360", "APM", "Pay", "7/1/2026 8:46", "Yes", "Brazil", "Camp", "7/1/2026 8:46", "Fintana"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [{ office: "Argentina", spreadsheetId: "kyc-argentina" }],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => (spreadsheetId === "kyc-argentina" ? ["Checker", "JULY26"] : ["ALL"]),
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.deepEqual(report.kycSourceTabs, ["Argentina:JULY26"]);
+  assert.equal(report.totalAmount, 4205);
+  assert.equal(report.totals.Native.amount, 4205);
+  assert.equal(report.rows[0].language, "Portuguese");
+  assert.equal(report.rows[0].kycOffice, "Argentina");
 });
 
 test("normalizeApprovedDepositAccId prefixes numeric IDs with ACC", () => {
