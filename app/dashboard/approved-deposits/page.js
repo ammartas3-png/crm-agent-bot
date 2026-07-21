@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "../dashboard.module.css";
 
@@ -130,37 +130,151 @@ function CountryBars({ title, countries = [], monthKey = "" }) {
   );
 }
 
-function MultiSelectField({ label, value = [], options = [], onChange }) {
-  const selectedValues = Array.isArray(value) ? value : [];
-  const normalizedOptions = options.map((option) => (typeof option === "string" ? { key: option, label: option } : option));
-  const visibleOptions = normalizedOptions.filter((option) => (option.key || option.value) !== "All");
-  const displayLabel = selectedValues.length ? `${selectedValues.length} selected` : "All";
+function asFilterOptions(values = []) {
+  return (Array.isArray(values) ? values : [])
+    .filter((item) => item && item !== "All")
+    .map((item) => {
+      if (typeof item === "string") {
+        return { value: item, label: item };
+      }
+      const value = String(item.key || item.value || "").trim();
+      const label = String(item.label || item.key || item.value || "").trim();
+      return value ? { value, label: label || value } : null;
+    })
+    .filter(Boolean);
+}
+
+function MultiSelectFilter({
+  label,
+  values,
+  options,
+  onChange,
+  placeholder = "All",
+  disabled = false,
+  loading = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const rootRef = useRef(null);
+  const selectedValues = Array.isArray(values) ? values : [];
+  const selectedSet = new Set(selectedValues.map((item) => String(item)));
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    const handleClickOutside = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled && open) {
+      setOpen(false);
+    }
+  }, [disabled, open]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearchText("");
+    }
+  }, [open]);
+
+  const selectedLabel = useMemo(() => {
+    if (!selectedValues.length) {
+      return placeholder;
+    }
+    if (selectedValues.length === 1) {
+      const matched = options.find((option) => option.value === selectedValues[0]);
+      return matched?.label || selectedValues[0];
+    }
+    return `${selectedValues.length} selected`;
+  }, [options, placeholder, selectedValues]);
+
+  const orderedOptionValues = useMemo(() => options.map((option) => option.value), [options]);
+  const filteredOptions = useMemo(() => {
+    const needle = String(searchText || "").trim().toLocaleLowerCase("en-US");
+    if (!needle) {
+      return options;
+    }
+    return options.filter((option) => {
+      const labelMatch = String(option.label || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+      if (labelMatch) {
+        return true;
+      }
+      return String(option.value || "")
+        .toLocaleLowerCase("en-US")
+        .includes(needle);
+    });
+  }, [options, searchText]);
+
+  const toggleValue = useCallback(
+    (nextValue) => {
+      const valueKey = String(nextValue);
+      const mutable = new Set(selectedSet);
+      if (mutable.has(valueKey)) {
+        mutable.delete(valueKey);
+      } else {
+        mutable.add(valueKey);
+      }
+      const ordered = orderedOptionValues.filter((value) => mutable.has(String(value)));
+      onChange(ordered);
+    },
+    [onChange, orderedOptionValues, selectedSet],
+  );
+
   return (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase" }}>
-        {label} <span style={{ fontWeight: 500, textTransform: "none" }}>({displayLabel})</span>
+    <div className={styles.selectWrap} ref={rootRef}>
+      <span className={styles.selectLabelRow}>
+        <span className={styles.selectLabel}>{label}</span>
+        {loading ? <span className={styles.selectSpinner} aria-hidden="true" /> : null}
       </span>
-      <select
-        className={styles.input}
-        multiple
-        size={Math.min(6, Math.max(3, visibleOptions.length || 3))}
-        value={selectedValues}
-        onChange={(event) => {
-          const nextValues = Array.from(event.target.selectedOptions).map((option) => option.value);
-          onChange(nextValues);
-        }}
-        style={{ minHeight: 86 }}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        className={`${styles.selectInput} ${styles.multiSelectButton}`}
       >
-        {visibleOptions.map((option) => {
-          const normalized = option;
-          return (
-            <option key={normalized.key || normalized.value} value={normalized.key || normalized.value}>
-              {normalized.label || normalized.key || normalized.value}
-            </option>
-          );
-        })}
-      </select>
-    </label>
+        <span className={styles.multiSelectText}>{selectedLabel}</span>
+        <span className={styles.multiSelectCaret} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div className={styles.multiSelectMenu}>
+          <button type="button" className={styles.multiSelectClear} onClick={() => onChange([])}>
+            Clear
+          </button>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder={`Search ${label.toLowerCase()}...`}
+            className={styles.multiSelectSearch}
+          />
+          <div className={styles.multiSelectOptions}>
+            {filteredOptions.map((option) => {
+              const checked = selectedSet.has(String(option.value));
+              return (
+                <label key={`${label}-${option.value}`} className={styles.multiSelectOption}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleValue(option.value)} />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+            {!filteredOptions.length ? (
+              <p className={styles.multiSelectEmpty}>{searchText ? "No matching options" : "No options"}</p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -240,66 +354,76 @@ export default function ApprovedDepositsPage() {
 
       <section className={`${styles.panel} ${styles.section}`}>
         <h2 className={styles.sectionTitle}>Filters</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(160px, 1fr))", gap: 12, alignItems: "end" }}>
-          <MultiSelectField
+        <div className={styles.filterRows}>
+          <MultiSelectFilter
             label="Language"
-            value={filters.language}
-            options={report?.options?.languages || ["All", ...CATEGORIES]}
+            values={filters.language}
+            options={asFilterOptions(report?.options?.languages || CATEGORIES)}
             onChange={(language) => setFilters((previous) => ({ ...previous, language }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Country"
-            value={filters.country}
-            options={report?.options?.countries || ["All"]}
+            values={filters.country}
+            options={asFilterOptions(report?.options?.countries || [])}
             onChange={(country) => setFilters((previous) => ({ ...previous, country }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Approved Month"
-            value={filters.month}
-            options={report?.options?.months || [{ key: "All", label: "All" }]}
+            values={filters.month}
+            options={asFilterOptions(report?.options?.months || [])}
             onChange={(month) => setFilters((previous) => ({ ...previous, month }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Status"
-            value={filters.status}
-            options={report?.options?.statuses || ["All"]}
+            values={filters.status}
+            options={asFilterOptions(report?.options?.statuses || [])}
             onChange={(status) => setFilters((previous) => ({ ...previous, status }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Brand"
-            value={filters.brand}
-            options={report?.options?.brands || ["All"]}
+            values={filters.brand}
+            options={asFilterOptions(report?.options?.brands || [])}
             onChange={(brand) => setFilters((previous) => ({ ...previous, brand }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Campaign"
-            value={filters.campaign}
-            options={report?.options?.campaigns || ["All"]}
+            values={filters.campaign}
+            options={asFilterOptions(report?.options?.campaigns || [])}
             onChange={(campaign) => setFilters((previous) => ({ ...previous, campaign }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Method"
-            value={filters.method}
-            options={report?.options?.methods || ["All"]}
+            values={filters.method}
+            options={asFilterOptions(report?.options?.methods || [])}
             onChange={(method) => setFilters((previous) => ({ ...previous, method }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Cashier"
-            value={filters.cashier}
-            options={report?.options?.cashiers || ["All"]}
+            values={filters.cashier}
+            options={asFilterOptions(report?.options?.cashiers || [])}
             onChange={(cashier) => setFilters((previous) => ({ ...previous, cashier }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="Original Department"
-            value={filters.department}
-            options={report?.options?.departments || ["All"]}
+            values={filters.department}
+            options={asFilterOptions(report?.options?.departments || [])}
             onChange={(department) => setFilters((previous) => ({ ...previous, department }))}
+            loading={reportState.loading}
           />
-          <MultiSelectField
+          <MultiSelectFilter
             label="FTD"
-            value={filters.ftd}
-            options={report?.options?.ftdValues || ["All"]}
+            values={filters.ftd}
+            options={asFilterOptions(report?.options?.ftdValues || [])}
             onChange={(ftd) => setFilters((previous) => ({ ...previous, ftd }))}
+            loading={reportState.loading}
           />
           <button
             type="button"
