@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadApprovedDepositsReport } from "../../../../lib/approvedDepositsService.js";
+import { logDashboardActivity } from "../../../../lib/activityLogService.js";
+import { dashboardActivityFromQuery } from "../../../../lib/dashboardActivity.js";
 
 export const maxDuration = 300;
 
@@ -29,7 +31,15 @@ export async function GET(request) {
     if (!resolved.access?.authorized) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    const report = await loadApprovedDepositsReport(queryParams(new URL(request.url).searchParams));
+    const query = queryParams(new URL(request.url).searchParams);
+    const report = await loadApprovedDepositsReport(query);
+    const activity = dashboardActivityFromQuery(query, { action: "approved_deposits", page: "Approved Deposits" });
+    logDashboardActivity(resolved.telegramUser, activity.action, {
+      ...activity.details,
+      page: "Approved Deposits",
+      officeScope: activity.office,
+      monthKey: activity.month,
+    });
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     return NextResponse.json(

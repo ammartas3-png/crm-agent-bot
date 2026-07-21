@@ -5,6 +5,7 @@ import {
   DEFAULT_GOOGLE_SERVICE_ACCOUNT_EMAIL,
   DEFAULT_GOOGLE_SPREADSHEET_ID,
   DEFAULT_LEADS_TAB,
+  getAuthorityConfig,
   quoteSheetName,
   sheetRange,
   sheetsConfig,
@@ -28,4 +29,12 @@ test("sheetRange trims and quotes tab names", () => {
 
 test("quoteSheetName escapes apostrophes for Google A1 notation", () => {
   assert.equal(quoteSheetName("May's Leads"), "'May''s Leads'");
+});
+
+test("getAuthorityConfig includes worked activity tab", () => {
+  const config = getAuthorityConfig({
+    GOOGLE_AUTHORITY_WORKED_TAB: "worked",
+  });
+  assert.equal(config.workedTab, "worked");
+  assert.equal(config.workedRange, "'worked'!A:K");
 });

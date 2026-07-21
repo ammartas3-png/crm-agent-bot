@@ -23,6 +23,7 @@ import {
   registerAdminChat,
 } from "../../../lib/accessRequests.js";
 import { handleMenuCallback, handleMenuText, isGreeting, startMenu } from "../../../lib/menu.js";
+import { logBotActivity } from "../../../lib/activityLogService.js";
 import {
   answerCallbackQuery,
   buildWebhookEditMessage,
@@ -1300,6 +1301,7 @@ async function handleTelegramUpdate(request) {
 
     if (!callbackQuery && isStartCommand(text)) {
       setSession(userId, { step: null, dbCheckStep: null, view: null, chatAssistant: null });
+      logBotActivity(telegramUser, "start", { source: "command" });
       return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
     }
 
@@ -1354,6 +1356,7 @@ async function handleTelegramUpdate(request) {
 
       if (callbackQuery.data === "root:start") {
         setSession(userId, { aiMode: false });
+        logBotActivity(telegramUser, "start", { source: "menu" });
         return sendMessageWebhookResponse(chatId, ROOT_START_TEXT, rootStartKeyboard(telegramUser));
       }
       if (callbackQuery.data === "root:ai") {

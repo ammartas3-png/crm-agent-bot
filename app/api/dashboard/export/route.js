@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
+import { logDashboardActivity } from "../../../../lib/activityLogService.js";
+import { dashboardActivityFromQuery } from "../../../../lib/dashboardActivity.js";
 
 function queryParams(searchParams) {
   return {
@@ -31,6 +33,7 @@ function queryParams(searchParams) {
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
+    activityQuickPreset: String(searchParams.get("activityQuickPreset") || searchParams.get("quickPreset") || "").trim(),
   };
 }
 
@@ -54,6 +57,15 @@ export async function GET(request) {
     }
     const query = queryParams(new URL(request.url).searchParams);
     const report = await loadDashboardReport(resolved.access, query);
+    const activity = dashboardActivityFromQuery(query, { action: "export" });
+    logDashboardActivity(resolved.telegramUser, "export", {
+      ...activity.details,
+      activityQuickPreset: activity.activityQuickPreset,
+      officeScope: activity.office,
+      monthKey: activity.month,
+      metricFields: activity.metrics,
+      page: activity.quickReport,
+    });
     const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
     const office = safeName(report?.month?.office_name || query.officeScope || "office");
     const month = safeName(report?.month?.key || query.monthKey || "month");

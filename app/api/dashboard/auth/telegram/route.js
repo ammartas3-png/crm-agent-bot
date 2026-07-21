@@ -7,6 +7,7 @@ import {
   verifyTelegramLoginPayload,
 } from "../../../../../lib/dashboardAuth.js";
 import { resolveDashboardAccess } from "../../../../../lib/dashboardService.js";
+import { logDashboardActivity } from "../../../../../lib/activityLogService.js";
 
 export async function POST(request) {
   let payload;
@@ -25,6 +26,10 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "unauthorized_user" }, { status: 403 });
   }
   const token = createDashboardSessionToken(telegramUser);
+  logDashboardActivity(telegramUser, "login", {
+    username: telegramUser.username || "",
+    officeScope: access?.defaultOfficeScope || "",
+  });
   const response = NextResponse.json({
     ok: true,
     user: telegramUser,
