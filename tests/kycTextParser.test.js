@@ -9,7 +9,10 @@ import {
 } from "../lib/kycTextParser.js";
 import {
   loadApprovedDepositsReport,
+  lookupKycLanguageRecord,
   normalizeApprovedDepositAccId,
+  createKycLanguageIndex,
+  addKycLanguageRecord,
   resolveApprovedDepositsKycSources,
   validApprovedDepositTabTitles,
 } from "../lib/approvedDepositsService.js";
@@ -59,6 +62,51 @@ test("resolveApprovedDepositsKycSources defaults to all office KYC sheets", () =
   assert.equal(sources.length, 5);
   assert.equal(sources.some((source) => source.office === "Turkiye"), true);
   assert.equal(sources.some((source) => source.office === "Dubai"), true);
+});
+
+test("lookupKycLanguageRecord matches ACC ID together with LIST OF COUNTRYS", () => {
+  const index = createKycLanguageIndex();
+  addKycLanguageRecord(index, { cid: "ACC123456", country: "Vietnam", language: "Vietnamese" });
+  addKycLanguageRecord(index, { cid: "ACC123456", country: "Japan", language: "Japanese" });
+
+  assert.equal(lookupKycLanguageRecord(index, { accId: "123456", country: "Japan" })?.language, "Japanese");
+  assert.equal(lookupKycLanguageRecord(index, { accId: "ACC123456", country: "Vietnam" })?.language, "Vietnamese");
+  assert.equal(lookupKycLanguageRecord(index, { accId: "ACC123456", country: "Thailand" }), null);
+});
+
+test("loadApprovedDepositsReport disambiguates similar ACC IDs by country", async () => {
+  const valuesByRange = new Map([
+    [
+      "'JULY'!A:L",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["17.07.2026", "ACC123456", "17.07.2026", "Turkey English", "Vietnam", "Agent A", "Brand", "Aff", "Language: Vietnamese"],
+        ["17.07.2026", "ACC123456", "17.07.2026", "Turkey Japanese", "Japan", "Agent B", "Brand", "Aff", "Language: Japanese"],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [123456, "HQ / AE / JP-TR / Opening / Team", "Approved", 250, "Fintech360", "Credit Card", "JCB", "7/17/2026 8:46", "Yes", "Japan", "Index", "7/17/2026 8:46", "Mirrox"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [{ office: "Turkiye", spreadsheetId: "kyc-turkiye" }],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => (spreadsheetId === "kyc-turkiye" ? ["JULY"] : ["ALL"]),
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(report.totals.Native.amount, 250);
+  assert.equal(report.rows[0].language, "Japanese");
 });
 
 test("loadApprovedDepositsReport joins language across multiple KYC office sheets", async () => {
