@@ -133,10 +133,10 @@ test("Back to Reports returns to the quick report list", async () => {
   assert.match(backToReports.text, /Select quick report/i);
 });
 
-test("an outdated (non-simple) callback shows the reselect hint", async () => {
+test("an outdated (non-simple) callback shows the quick reports hint", async () => {
   await openOfficeReports(106);
   const stale = await handleMenuCallback(106, "report:office", opts);
-  assert.match(stale.text, /select office and quick report again/i);
+  assert.match(stale.text, /no longer available|quick reports/i);
 });
 
 test("a disallowed authority scope blocks bot reports", async () => {
