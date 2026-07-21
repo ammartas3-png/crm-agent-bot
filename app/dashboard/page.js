@@ -4873,6 +4873,14 @@ export default function DashboardPage() {
               <span className={styles.reportModeTitle}>Agent Productivity vs Plan Report</span>
               <span className={styles.reportModeIcon}>📊</span>
             </button>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/approved-deposits")}
+              className={styles.reportModeCard}
+            >
+              <span className={styles.reportModeTitle}>Approved Deposits</span>
+              <span className={styles.reportModeIcon}>💵</span>
+            </button>
           </div>
         </section>
       ) : null}
