@@ -161,6 +161,61 @@ test("KYC FTD counts FTD sheet rows for month file when FTD date is missing", ()
   );
 });
 
+test("KYC FTD maps FTD tab columns A-J including LIST OF COUNTRYS and TEAM desk fallback", () => {
+  const ftdRows = [
+    {
+      "FTD Date": "01.07.2026",
+      CID: "ACC376216",
+      "LIST OF COUNTRYS": "Saint Lucia",
+      Agents: "Mehmet Ki",
+      AFF: "996-FR",
+      RegistrationDate: "30.06.2026",
+      TEAM: "Murat K",
+      BRAND: "Fintana",
+      Cheker: "1",
+    },
+    {
+      "FTD Date": "01.07.2026",
+      CID: "ACC382021",
+      "LIST OF COUNTRYS": "Singapore",
+      Agents: "Mehmet Ki",
+      AFF: "Bentley-SG",
+      RegistrationDate: "01.07.2026",
+      TEAM: "Murat K",
+      BRAND: "Spova",
+      Cheker: "1",
+    },
+  ];
+  const kycRows = buildKycFtdRowsFromFtdSheet(ftdRows, ftdTabConfig, tabConfig, new Map(), {
+    monthKey: "2026-07",
+    leadsProfileMap: new Map([
+      [
+        "mehmet ki",
+        {
+          agentName: "Mehmet Kılıç",
+          desk: "AE Indonesia",
+          teamLeader: "Murat K",
+        },
+      ],
+    ]),
+  });
+  assert.equal(kycRows.length, 2);
+  assert.equal(kycRows[0].Country, "Saint Lucia");
+  assert.equal(kycRows[0].Brand, "Fintana");
+  assert.equal(kycRows[0].Campaign, "996-FR");
+  assert.equal(kycRows[0]["Team Leader"], "Murat K");
+  assert.equal(kycRows[0].Desk, "AE Indonesia");
+  assert.equal(kycRows[0].ID, "ACC376216");
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: kycRows,
+      dateFilter: { type: "month", month: 6, year: 2026 },
+      scope: { agent: ["Mehmet Kılıç"] },
+    }),
+    2,
+  );
+});
+
 test("KYC FTD permission merge keeps every FTD-sheet row without CID", () => {
   const kycRows = buildKycFtdRowsFromFtdSheet(
     Array.from({ length: 13 }, () => ({
