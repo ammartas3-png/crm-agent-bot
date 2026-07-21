@@ -26,7 +26,7 @@ const DEFAULT_LEADS_COLUMNS = [
   "Lead Date",
 ];
 
-const DEFAULT_FTD_COLUMNS = ["Date", "Customer ID", "Agent", "Country", "Amount"];
+const DEFAULT_FTD_COLUMNS = ["FTD Date", "CID", "LIST OF COUNTRY'S", "Agents", "AFF", "RegistrationDate", "TEAM", "BRAND", "Cheker"];
 
 const DEFAULT_TRANSACTION_COLUMNS = [
   "Date",
@@ -137,12 +137,21 @@ export const sheetsConfig = {
       key: "ftd",
       name: ftdTabName,
       range: process.env.GOOGLE_FTD_RANGE || sheetRange(ftdTabName),
-      dateColumn: "Date",
-      countryColumn: "Country",
-      agentColumn: "Agent",
+      dateColumn: "FTD Date",
+      countryColumn: "LIST OF COUNTRY'S",
+      customerIdColumn: "CID",
+      agentColumn: "Agents",
+      teamColumn: "TEAM",
       statusColumn: null,
       amountColumn: "Amount",
       columns: DEFAULT_FTD_COLUMNS,
+      fields: {
+        date: "FTD Date",
+        customerId: "CID",
+        agent: "Agents",
+        country: "LIST OF COUNTRY'S",
+        team: "TEAM",
+      },
     },
     transactions: {
       key: "transactions",
