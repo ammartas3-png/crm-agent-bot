@@ -10,6 +10,7 @@ import {
 import {
   loadApprovedDepositsReport,
   normalizeApprovedDepositAccId,
+  parseApprovedDepositMonthTab,
   validApprovedDepositTabTitles,
 } from "../lib/approvedDepositsService.js";
 
@@ -38,11 +39,25 @@ test("parseKycLanguage reads labelled language values", () => {
   assert.equal(parseKycLanguage("Customer Language: Tagalog\nAmount: 500"), "Filipino");
 });
 
-test("validApprovedDepositTabTitles only includes plain month tabs", () => {
+test("validApprovedDepositTabTitles includes plain and year-suffixed month tabs", () => {
   assert.deepEqual(
     validApprovedDepositTabTitles(["Checker", "JANUARY", "JUNE SELF", "JULY", "MAY SELF", "MARCH"]),
     ["JANUARY", "MARCH", "JULY"],
   );
+  assert.deepEqual(
+    validApprovedDepositTabTitles(["Checker", "JULY26", "JUNE26", "January26", "Self July26", "JULY"]),
+    ["January26", "JUNE26", "JULY26", "JULY"],
+  );
+});
+
+test("parseApprovedDepositMonthTab recognizes office KYC tab naming styles", () => {
+  assert.equal(parseApprovedDepositMonthTab("JULY26")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("JUNE26")?.key, "june");
+  assert.equal(parseApprovedDepositMonthTab("January26")?.key, "january");
+  assert.equal(parseApprovedDepositMonthTab("July 26")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("JULY")?.key, "july");
+  assert.equal(parseApprovedDepositMonthTab("Self July26"), null);
+  assert.equal(parseApprovedDepositMonthTab("Checker"), null);
 });
 
 test("normalizeApprovedDepositAccId prefixes numeric IDs with ACC", () => {
