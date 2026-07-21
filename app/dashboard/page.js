@@ -3319,6 +3319,10 @@ const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
   { key: "hour", label: "Hour", type: "hour" },
 ];
 
+const QUICK_PRESET_MONTHLY_METRICS = ["leads", "kycFtd", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach", "lateFtd", "lateFtdRate"];
+const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
+
 const EMPTY_FILTERS = {
   officeScope: [],
   reportMode: "specific",
@@ -3339,34 +3343,15 @@ const EMPTY_FILTERS = {
   includeColumnGrandTotal: false,
   agentProductivityPlanMode: false,
   last4QuickMode: false,
-  includeWorkTime: false,
-  hideNotWorking: false,
+  includeWorkTime: true,
+  hideNotWorking: true,
   benchmarkMode: false,
   groupBy: "agent",
-  rowDimensions: ["date", "desk", "teamLeader", "agent"],
-  metricFields: [
-    "leads",
-    "kycFtd",
-    "leadShare",
-    "agentCount",
-    "avgLeadByAgent",
-    "avgLeadByAgentDaily",
-    "ftd",
-    "avgFtdByAgent",
-    "avgFtdByAgentDaily",
-    "agentAvgFtdPerWorkedMonth",
-    "ftdTarget",
-    "ftdTargetReach",
-    "cr",
-    "crTarget",
-    "crTargetReach",
-  ],
+  rowDimensions: [...QUICK_PRESET_ROW_DIMENSIONS],
+  metricFields: [...QUICK_PRESET_MONTHLY_METRICS],
   totalDimensions: [],
 };
 
-const QUICK_PRESET_MONTHLY_METRICS = ["leads", "kycFtd", "ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach", "lateFtd", "lateFtdRate"];
-const QUICK_PRESET_LAST4_METRICS = ["ftd", "ftdTarget", "ftdTargetReach", "cr", "crTarget", "crTargetReach"];
-const QUICK_PRESET_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
 const QUICK_PRESET_TRAFFIC_ROW_DIMENSIONS = ["desk", "country", "campaign", "subCampaign", "placement"];
 const QUICK_PRESET_TRAFFIC_METRICS = [
   "leads",
@@ -3679,7 +3664,7 @@ export default function DashboardPage() {
   });
   const [builderSort, setBuilderSort] = useState({ key: "", direction: "asc" });
   const [exportState, setExportState] = useState({ loading: false, error: "" });
-  const [quickPreset, setQuickPreset] = useState("");
+  const [quickPreset, setQuickPreset] = useState("monthly");
   const [comparisonSelections, setComparisonSelections] = useState({});
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
@@ -3963,6 +3948,7 @@ export default function DashboardPage() {
     await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
     setReportState({ loading: false, report: null, error: "" });
     setExportState({ loading: false, error: "" });
+    setQuickPreset("monthly");
     setFilters(EMPTY_FILTERS);
     setAppliedFilters(EMPTY_FILTERS);
     await fetchSession();
@@ -4619,7 +4605,7 @@ export default function DashboardPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setQuickPreset("")}
+                onClick={() => applyQuickPreset("monthly")}
                 className={`${styles.button} ${styles.buttonSecondary}`}
               >
                 Reset Quick Reports
