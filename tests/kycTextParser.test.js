@@ -66,6 +66,17 @@ test("resolveApprovedDepositsKycSources defaults to all office KYC sheets", () =
   assert.equal(sources.some((source) => source.office === "Dubai"), true);
 });
 
+test("Chile language values map to expected categories", () => {
+  assert.equal(categorizeKycLanguages({ country: "Chile", languages: ["Spanish"] }), "Native");
+  assert.equal(categorizeKycLanguages({ country: "Chile", languages: ["English"] }), "English");
+  assert.equal(
+    categorizeKycLanguages({ country: "Chile", languages: parseKycLanguageParts("Language: English & Spanish") }),
+    "English & Native",
+  );
+  assert.equal(parseKycLanguage("Language: ES"), "Spanish");
+  assert.equal(parseKycLanguage("Language: Espanol"), "Spanish");
+});
+
 test("parseKycLanguageParts supports bilingual values as English & Native", () => {
   assert.deepEqual(parseKycLanguageParts("7.Language: English & Malay"), ["English", "Malay"]);
   assert.equal(parseKycLanguage("9. Language: EN"), "English");
