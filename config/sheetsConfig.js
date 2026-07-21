@@ -205,13 +205,16 @@ export function getTabConfig(tabKey) {
 export function getAuthorityConfig(env = process.env) {
   const officesTab = (env.GOOGLE_AUTHORITY_OFFICES_TAB || "Offices").trim();
   const usersTab = (env.GOOGLE_AUTHORITY_USERS_TAB || "users").trim();
+  const workedTab = (env.GOOGLE_AUTHORITY_WORKED_TAB || "worked").trim();
   const dataTab = (env.GOOGLE_AUTHORITY_DATA_TAB || leadsTabName).trim();
   return {
     spreadsheetId: env.GOOGLE_AUTHORITY_SPREADSHEET_ID || DEFAULT_AUTHORITY_SPREADSHEET_ID,
     officesTab,
     usersTab,
+    workedTab,
     officesRange: sheetRange(officesTab, "A:Z"),
     usersRange: sheetRange(usersTab, "A:Z"),
+    workedRange: sheetRange(workedTab, "A:K"),
     // Tab/range to read inside each office's monthly spreadsheet.
     dataTab,
     dataRange: env.GOOGLE_AUTHORITY_DATA_RANGE || sheetRange(dataTab, "A:Y"),

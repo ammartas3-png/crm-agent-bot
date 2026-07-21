@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { logDashboardActivity } from "../../../../lib/activityLogService.js";
+import { dashboardActivityFromQuery } from "../../../../lib/dashboardActivity.js";
 
 export const maxDuration = 300;
 
@@ -36,6 +38,7 @@ function queryParams(searchParams) {
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
     page: String(searchParams.get("page") || "").trim(),
+    activityQuickPreset: String(searchParams.get("activityQuickPreset") || searchParams.get("quickPreset") || "").trim(),
     rowLimit: String(searchParams.get("rowLimit") || "").trim(),
     monitor: String(searchParams.get("monitor") || "").trim(),
   };
@@ -82,6 +85,15 @@ export async function GET(request) {
                 writeEvent({ type: "progress", ...latestProgress });
               },
             });
+            const activity = dashboardActivityFromQuery(query);
+            logDashboardActivity(resolved.telegramUser, activity.action, {
+              ...activity.details,
+              activityQuickPreset: activity.activityQuickPreset,
+              officeScope: activity.office,
+              monthKey: activity.month,
+              metricFields: activity.metrics,
+              page: activity.quickReport,
+            });
             writeEvent({ type: "result", report });
           } catch (error) {
             const errorCode = String(error?.code || "").trim();
@@ -112,6 +124,15 @@ export async function GET(request) {
       });
     }
     const report = await loadDashboardReport(resolved.access, query);
+    const activity = dashboardActivityFromQuery(query);
+    logDashboardActivity(resolved.telegramUser, activity.action, {
+      ...activity.details,
+      activityQuickPreset: activity.activityQuickPreset,
+      officeScope: activity.office,
+      monthKey: activity.month,
+      metricFields: activity.metrics,
+      page: activity.quickReport,
+    });
     return NextResponse.json({ ok: true, report });
   } catch (error) {
     const errorCode = String(error?.code || "").trim();

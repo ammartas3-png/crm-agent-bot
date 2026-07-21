@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appendSheetValues,
   clearSheetsCache,
   getGoogleCredentialConfig,
   normalizePrivateKey,
@@ -375,6 +376,29 @@ test("readSheetRows deduplicates in-flight calls for same sheet range", async ()
   assert.deepEqual(firstRows, [{ ID: "1001" }]);
   assert.deepEqual(secondRows, [{ ID: "1001" }]);
   clearSheetsCache();
+});
+
+test("appendSheetValues appends rows to a sheet range", async () => {
+  let appendRequest = null;
+  const sheetsClient = {
+    spreadsheets: {
+      values: {
+        append: async (request) => {
+          appendRequest = request;
+          return { data: { updates: { updatedRows: 1 } } };
+        },
+      },
+    },
+  };
+  await appendSheetValues({
+    spreadsheetId: "spreadsheet-id",
+    range: "'worked'!A:K",
+    values: [["a", "b"]],
+    sheetsClient,
+  });
+  assert.equal(appendRequest.spreadsheetId, "spreadsheet-id");
+  assert.equal(appendRequest.range, "'worked'!A:K");
+  assert.deepEqual(appendRequest.requestBody.values, [["a", "b"]]);
 });
 
 test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", async () => {

@@ -3762,6 +3762,9 @@ export default function DashboardPage() {
     setExportState((prev) => ({ ...prev, error: "" }));
     try {
       const query = buildReportQuery(appliedFilters);
+      if (quickPreset) {
+        query.set("activityQuickPreset", quickPreset);
+      }
       query.set("monitor", "1");
       const response = await fetch(`/api/dashboard/report?${query.toString()}`, { cache: "no-store" });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
@@ -3890,7 +3893,7 @@ export default function DashboardPage() {
         failedStep: prev.failedStep || prev.currentStep || "",
       }));
     }
-  }, [appliedFilters, sessionState.authorized]);
+  }, [appliedFilters, quickPreset, sessionState.authorized]);
 
   useEffect(() => {
     fetchSession();
@@ -4123,6 +4126,9 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      if (quickPreset) {
+        query.set("activityQuickPreset", quickPreset);
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4144,7 +4150,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, quickPreset]);
 
   const report = reportState.report;
   const options = report?.options || {};
