@@ -54,6 +54,43 @@ test("KYC FTD counts FTD sheet rows by roster-mapped agent", () => {
   assert.equal(scoped, 3);
 });
 
+test("KYC FTD uses Leads profile for desk and team when roster is missing", () => {
+  const leadsProfileMap = new Map([
+    [
+      "abdulrahim fe",
+      {
+        agentName: "Abdulrahim Fe",
+        desk: "Turkey Africa",
+        teamLeader: "Epere Aw",
+      },
+    ],
+  ]);
+  const kycRows = buildKycFtdRowsFromFtdSheet(
+    [
+      {
+        "FTD Date": "01.07.2026",
+        CID: "ACC200",
+        Agents: "Abdulrahim Fe",
+      },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+    { leadsProfileMap },
+  );
+  assert.equal(kycRows[0].Desk, "Turkey Africa");
+  assert.equal(kycRows[0]["Team Leader"], "Epere Aw");
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: kycRows,
+      dateFilter: { type: "month", month: 6, year: 2026 },
+      scope: { agent: ["Abdulrahim Fe"] },
+      now: new Date("2026-07-15T12:00:00Z"),
+    }),
+    1,
+  );
+});
+
 test("KYC FTD can exceed FTD when FTD sheet has extra pending rows", () => {
   const rosterProfileMap = new Map([
     [
