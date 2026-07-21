@@ -91,6 +91,35 @@ test("KYC FTD uses Leads profile for desk and team when roster is missing", () =
   );
 });
 
+test("KYC FTD counts every Agents column match like COUNTIF on FTD sheet column D", () => {
+  const ftdRows = Array.from({ length: 13 }, (_, index) => ({
+    "FTD Date": "01.07.2026",
+    CID: `ACC3979${index}`,
+    Agents: "Abdulrahim Fe",
+    TEAM: "Epere Aw",
+  }));
+  const kycRows = buildKycFtdRowsFromFtdSheet(ftdRows, ftdTabConfig, tabConfig, new Map(), {
+    leadsProfileMap: new Map([
+      [
+        "abdulrahim fe",
+        {
+          agentName: "Abdulrahim Fe",
+          desk: "Turkey Africa",
+          teamLeader: "Epere Aw",
+        },
+      ],
+    ]),
+  });
+  assert.equal(kycRows.length, 13);
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: kycRows,
+      scope: { agent: ["Abdulrahim Fe"] },
+    }),
+    13,
+  );
+});
+
 test("KYC FTD can exceed FTD when FTD sheet has extra pending rows", () => {
   const rosterProfileMap = new Map([
     [
