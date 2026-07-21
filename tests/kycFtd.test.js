@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildKycFtdRowsFromFtdSheet, kycFtdCountFromRows } from "../lib/dashboardService.js";
+import {
+  buildKycFtdRowsFromFtdSheet,
+  filterKycFtdRowsForPermission,
+  kycFtdCountFromRows,
+} from "../lib/dashboardService.js";
 import { calculateSummary } from "../lib/calculations.js";
 import { getTabConfig } from "../config/sheetsConfig.js";
 
@@ -154,6 +158,45 @@ test("KYC FTD counts FTD sheet rows for month file when FTD date is missing", ()
       scope: { agent: ["Abdulrahim Fe"] },
     }),
     1,
+  );
+});
+
+test("KYC FTD permission merge keeps every FTD-sheet row without CID", () => {
+  const kycRows = buildKycFtdRowsFromFtdSheet(
+    Array.from({ length: 13 }, () => ({
+      Agents: "Abdulrahim Fe",
+    })),
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+    {
+      monthKey: "2026-07",
+      leadsProfileMap: new Map([
+        [
+          "abdulrahim fe",
+          {
+            agentName: "Abdulrahim Fe",
+            desk: "Turkey Africa",
+            teamLeader: "Epere Aw",
+          },
+        ],
+      ]),
+    },
+  );
+  const filtered = filterKycFtdRowsForPermission(
+    kycRows,
+    tabConfig,
+    { desk: ["Turkey Africa"] },
+    new Set(["abdulrahim fe"]),
+  );
+  assert.equal(filtered.length, 13);
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: filtered,
+      dateFilter: { type: "month", month: 6, year: 2026 },
+      scope: { agent: ["Abdulrahim Fe"] },
+    }),
+    13,
   );
 });
 
