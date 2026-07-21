@@ -26,7 +26,21 @@ const DEFAULT_LEADS_COLUMNS = [
   "Lead Date",
 ];
 
-const DEFAULT_FTD_COLUMNS = ["FTD Date", "CID", "LIST OF COUNTRY'S", "Agents", "AFF", "RegistrationDate", "TEAM", "BRAND", "Cheker"];
+// FTD tab layout (monthly office spreadsheets):
+// A FTD Date | B CID | C LIST OF COUNTRYS | D Agents | E AFF | F RegistrationDate
+// G TEAM | H BRAND | I Cheker | J FTD Date (duplicate)
+const DEFAULT_FTD_COLUMNS = [
+  "FTD Date",
+  "CID",
+  "LIST OF COUNTRYS",
+  "Agents",
+  "AFF",
+  "RegistrationDate",
+  "TEAM",
+  "BRAND",
+  "Cheker",
+  "FTD Date Duplicate",
+];
 
 const DEFAULT_TRANSACTION_COLUMNS = [
   "Date",
@@ -136,12 +150,16 @@ export const sheetsConfig = {
     ftd: {
       key: "ftd",
       name: ftdTabName,
-      range: process.env.GOOGLE_FTD_RANGE || sheetRange(ftdTabName),
+      range: process.env.GOOGLE_FTD_RANGE || sheetRange(ftdTabName, "A:J"),
       dateColumn: "FTD Date",
-      countryColumn: "LIST OF COUNTRY'S",
+      countryColumn: "LIST OF COUNTRYS",
       customerIdColumn: "CID",
       agentColumn: "Agents",
       teamColumn: "TEAM",
+      brandColumn: "BRAND",
+      affiliateColumn: "AFF",
+      registrationDateColumn: "RegistrationDate",
+      checkerColumn: "Cheker",
       statusColumn: null,
       amountColumn: "Amount",
       columns: DEFAULT_FTD_COLUMNS,
@@ -149,8 +167,12 @@ export const sheetsConfig = {
         date: "FTD Date",
         customerId: "CID",
         agent: "Agents",
-        country: "LIST OF COUNTRY'S",
+        country: "LIST OF COUNTRYS",
         team: "TEAM",
+        brand: "BRAND",
+        affiliate: "AFF",
+        registrationDate: "RegistrationDate",
+        checker: "Cheker",
       },
     },
     transactions: {

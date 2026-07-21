@@ -129,6 +129,47 @@ test("readSheetRows falls back to configured column when header cell is blank", 
   assert.equal(rows[0]["Starting Date"], "13/02/2022");
 });
 
+test("readSheetRows preserves duplicate sheet headers with configured fallback names", async () => {
+  const rows = await readSheetRows("ftd", {
+    spreadsheetId: "spreadsheet-id",
+    tabConfig: {
+      name: "FTD",
+      range: "'FTD'!A:J",
+      columns: [
+        "FTD Date",
+        "CID",
+        "LIST OF COUNTRYS",
+        "Agents",
+        "AFF",
+        "RegistrationDate",
+        "TEAM",
+        "BRAND",
+        "Cheker",
+        "FTD Date Duplicate",
+      ],
+    },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({
+            data: {
+              values: [
+                ["FTD Date", "CID", "LIST OF COUNTRYS", "Agents", "AFF", "RegistrationDate", "TEAM", "BRAND", "Cheker", "FTD Date"],
+                ["01.07.2026", "ACC1", "India", "Abdulrahim Fe", "AFF1", "01.07.2026", "Epere Aw", "Fintana", "1", ""],
+              ],
+            },
+          }),
+        },
+      },
+    },
+  });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]["FTD Date"], "01.07.2026");
+  assert.equal(rows[0]["FTD Date Duplicate"], "");
+  assert.equal(rows[0].Agents, "Abdulrahim Fe");
+});
+
 test("readSheetRows aligns headerless Leads rows when Department column is missing", async () => {
   const rows = await readSheetRows("leads", {
     spreadsheetId: "spreadsheet-id",
