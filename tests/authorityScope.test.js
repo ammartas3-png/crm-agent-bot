@@ -87,21 +87,62 @@ test("computeAuthorityScopeFromRows applies team filter for Desk Manager role", 
   assert.deepEqual(scope.filters.teamLeader, ["Rafik B"]);
 });
 
-test("computeAuthorityScopeFromRows handles all access rows", () => {
+test("computeAuthorityScopeFromRows handles all access rows with office desk team scope", () => {
+  const scope = computeAuthorityScopeFromRows(
+    [
+      {
+        "User Telegram": "ggggnsss",
+        Office: "Dubai Office",
+        Desk: "AE Indonesia, AE Malaysian",
+        Team: "Sofia",
+        Authority: "all",
+      },
+    ],
+    { id: 5061394895, username: "ggggnsss" },
+  );
+  assert.equal(scope.allowed, true);
+  assert.equal(scope.botReportAccess, true);
+  assert.equal(scope.unrestricted, false);
+  assert.deepEqual(scope.filters.office, ["Dubai Office"]);
+  assert.deepEqual(scope.filters.desk, ["AE Indonesia", "AE Malaysian"]);
+  assert.deepEqual(scope.filters.teamLeader, ["Sofia"]);
+});
+
+test("computeAuthorityScopeFromRows denies bot reports for manager role but keeps scope filters", () => {
+  const scope = computeAuthorityScopeFromRows(
+    [
+      {
+        "User Telegram": "SandyRat56",
+        Office: "Dubai Office",
+        Desk: "AE Indonesia",
+        Team: "Sofia",
+        Authority: "Manager",
+      },
+    ],
+    { id: 7371996588, username: "SandyRat56" },
+  );
+  assert.equal(scope.allowed, true);
+  assert.equal(scope.botReportAccess, false);
+  assert.equal(scope.unrestricted, false);
+  assert.deepEqual(scope.filters.office, ["Dubai Office"]);
+  assert.deepEqual(scope.filters.desk, ["AE Indonesia"]);
+  assert.deepEqual(scope.filters.teamLeader, ["Sofia"]);
+});
+
+test("computeAuthorityScopeFromRows ignores sheet formula errors in team values", () => {
   const scope = computeAuthorityScopeFromRows(
     [
       {
         "User Telegram ID": "123",
-        Office: "all",
-        Desk: "all",
+        Office: "Dubai Office",
+        Desk: "AE Indonesia",
+        Team: "#N/A (Did not find value 'Gayenur S' in VLOOKUP evaluation.), Sofia",
         Authority: "all",
       },
     ],
     { id: 123, username: "fulluser" },
   );
-  assert.equal(scope.allowed, true);
-  assert.equal(scope.unrestricted, true);
-  assert.deepEqual(scope.filters, {});
+  assert.deepEqual(scope.filters.teamLeader, ["Sofia"]);
 });
 
 test("resolveAuthorityScopeForUser reads rows via injected reader", async () => {

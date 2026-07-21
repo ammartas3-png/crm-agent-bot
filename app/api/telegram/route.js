@@ -717,7 +717,7 @@ function formatValueList(values = [], limit = 10) {
 }
 
 async function buildDebugAccessReport({ telegramUser, authorityScope, userId, now = new Date() }) {
-  const isAdmin = isAdminTelegramUser(telegramUser) || Boolean(authorityScope?.unrestricted);
+  const isAdmin = isAdminTelegramUser(telegramUser) || Boolean(authorityScope?.admin);
   const authorityFilters = scopeFiltersFromAuthority(authorityScope);
   const permissionFilters = isAdmin ? {} : authorityFilters;
   const session = getSession(userId) || {};
