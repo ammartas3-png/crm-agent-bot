@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { handleMenuCallback, isGreeting, startMenu } from "../lib/menu.js";
+import { getSession, setSession } from "../lib/session.js";
 import { upsertMonthFile } from "../lib/monthlyReports.js";
 
 // The Telegram bot uses the "simple" quick-report flow:
@@ -108,6 +109,19 @@ test("selecting an office lists the quick reports", async () => {
 
 test("a single-month report asks which month to use", async () => {
   await openOfficeReports(103);
+  const session = getSession(103);
+  setSession(103, {
+    ...session,
+    officeMonthFiles: [
+      {
+        key: "2026-05",
+        month_label: "May 2026",
+        sheet_id: "sheet-may-test",
+        active: true,
+        office_name: session.selectedOfficeCountry || "Test Office",
+      },
+    ],
+  });
   const monthStep = await handleMenuCallback(103, "simple:report:monthly", opts);
   assert.match(monthStep.text, /Select report month/i);
   const monthButtons = buttons(monthStep).filter((button) =>
