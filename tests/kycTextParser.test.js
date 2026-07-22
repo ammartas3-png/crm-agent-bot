@@ -20,6 +20,7 @@ import {
   buildOtherLanguageAudit,
   otherLanguageReason,
   validApprovedDepositTabTitles,
+  diagnoseKycLanguages,
 } from "../lib/approvedDepositsService.js";
 
 test("parseKycText extracts language, amount, and language category", () => {
@@ -714,4 +715,35 @@ test("loadApprovedDepositsReport keeps CID matches scoped to selected KYC office
   assert.equal(turkiyeReport.rows[0].kycOffice, "Turkiye");
   assert.equal(turkiyeReport.rows[0].languageCategory, "English & Native");
   assert.equal(dubaiReport.totalCount, 0);
+});
+
+test("diagnoseKycLanguages explains why KYC rows fall into Other", async () => {
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:Z",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["01.07.2026", "ACC1", "01.07.2026", "Turkey German", "Switzerland", "A", "B", "C", "Language: German"],
+        ["01.07.2026", "ACC2", "01.07.2026", "Turkey X", "Georgia", "A", "B", "C", "Language: Klingon"],
+        ["01.07.2026", "ACC3", "01.07.2026", "Turkey X", "Georgia", "A", "B", "C", "no language here at all"],
+        ["01.07.2026", "ACC4", "01.07.2026", "Turkey X", "Georgia", "A", "B", "C", "Language: Klingon"],
+      ],
+    ],
+  ]);
+
+  const result = await diagnoseKycLanguages({
+    kycSources: [{ office: "Turkiye", spreadsheetId: "kyc-turkiye" }],
+    getSheetTitles: async () => ["Checker", "JULY26"],
+    readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+  });
+
+  assert.equal(result.totals.withCid, 4);
+  assert.equal(result.byCategory.Native, 1);
+  assert.equal(result.byCategory.Other, 3);
+  assert.equal(result.otherReasons.noLanguageLabel, 1);
+  assert.equal(result.otherReasons.unmappedLanguage, 2);
+  assert.equal(result.topUnmappedLanguages[0].value, "Klingon");
+  assert.equal(result.topUnmappedLanguages[0].count, 2);
+  assert.equal(result.topUnmappedLanguages[0].samples[0].country, "Georgia");
 });
