@@ -138,23 +138,27 @@ function OtherLanguageAuditTable({ audit }) {
     return null;
   }
   const hasEntries = columns.some((column) => column.entries?.length);
+  const columnWidth = 236;
   return (
     <section className={`${styles.panel} ${styles.section}`}>
       <h2 className={styles.sectionTitle}>Other Language Audit - CID List by Month</h2>
       <p className={styles.sectionHint}>
-        Deposits classified as <strong>Other</strong> are listed below by approved month. Each CID shows country, parsed language,
-        KYC office, amount, and why it landed in Other so you can manually check the KYC sheet.
+        Deposits classified as <strong>Other</strong> are listed below by approved month. Each row shows CID, Brand,
+        Original Department, country, parsed language, KYC office, amount, and why it landed in Other.
       </p>
       <p className={styles.sectionHint}>
         Unique CIDs in Other: <strong>{Number(audit?.uniqueCidCount || 0).toLocaleString("en-US")}</strong>
       </p>
       {!hasEntries ? <p className={styles.sectionHint}>No Other-language deposits for the current filter selection.</p> : null}
       <div className={styles.tableScroll}>
-        <table className={`${styles.table} ${styles.tableSticky}`}>
+        <table
+          className={styles.table}
+          style={{ width: "max-content", tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0 }}
+        >
           <thead>
             <tr>
               {columns.map((column) => (
-                <th key={column.monthKey}>
+                <th key={column.monthKey} style={{ width: columnWidth, minWidth: columnWidth, maxWidth: columnWidth, padding: "8px 10px" }}>
                   {column.label}
                   <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b" }}>
                     {Number(column.count || 0).toLocaleString("en-US")} CID · {formatUsd(column.totalAmount)}
@@ -166,27 +170,42 @@ function OtherLanguageAuditTable({ audit }) {
           <tbody>
             <tr>
               {columns.map((column) => (
-                <td key={column.monthKey} style={{ verticalAlign: "top", minWidth: 220 }}>
-                  <div style={{ display: "grid", gap: 8, maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+                <td
+                  key={column.monthKey}
+                  style={{
+                    verticalAlign: "top",
+                    width: columnWidth,
+                    minWidth: columnWidth,
+                    maxWidth: columnWidth,
+                    padding: "8px 10px 8px 0",
+                  }}
+                >
+                  <div style={{ display: "grid", gap: 6, maxHeight: 420, overflowY: "auto", paddingRight: 2 }}>
                     {(column.entries || []).map((entry) => (
                       <div
                         key={`${column.monthKey}-${entry.cid}`}
                         style={{
                           border: "1px solid #e2e8f0",
                           borderRadius: 8,
-                          padding: "8px 10px",
+                          padding: "7px 8px",
                           background: "#fff",
+                          fontSize: 11,
+                          lineHeight: 1.35,
                         }}
                       >
-                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>{entry.cid}</div>
-                        <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 12 }}>{entry.cid}</div>
+                        <div style={{ color: "#334155", marginTop: 3 }}>
+                          <strong>Brand:</strong> {entry.brand || "-"}
+                        </div>
+                        <div style={{ color: "#334155", marginTop: 2 }}>
+                          <strong>Dept:</strong> {entry.department || "-"}
+                        </div>
+                        <div style={{ color: "#475569", marginTop: 3 }}>
                           {entry.country} · {entry.language} · {formatUsd(entry.amount)}
                           {Number(entry.count || 0) > 1 ? ` · ${entry.count} rows` : ""}
                         </div>
-                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                          KYC office: {entry.kycOffice || "Not matched"}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#b45309", marginTop: 4 }}>{entry.reason}</div>
+                        <div style={{ color: "#64748b", marginTop: 2 }}>KYC: {entry.kycOffice || "Not matched"}</div>
+                        <div style={{ color: "#b45309", marginTop: 2 }}>{entry.reason}</div>
                       </div>
                     ))}
                     {!column.entries?.length ? <span style={{ color: "#94a3b8", fontSize: 12 }}>-</span> : null}

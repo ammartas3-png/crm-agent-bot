@@ -81,6 +81,8 @@ test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
     [
       {
         accId: "ACC100",
+        brand: "Fintana",
+        department: "HQ / AR / Opening / Team",
         country: "Mexico",
         language: "Unknown",
         kycOffice: "",
@@ -90,6 +92,8 @@ test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
       },
       {
         accId: "ACC100",
+        brand: "Fintana",
+        department: "HQ / AR / Opening / Team",
         country: "Mexico",
         language: "Unknown",
         kycOffice: "",
@@ -99,6 +103,8 @@ test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
       },
       {
         accId: "ACC200",
+        brand: "Mirrox",
+        department: "HQ / CL / Opening / Team",
         country: "Chile",
         language: "German",
         kycOffice: "Argentina",
@@ -125,6 +131,8 @@ test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
   assert.equal(audit.columns[0].monthKey, "2026-07");
   assert.equal(audit.columns[0].entries.length, 1);
   assert.equal(audit.columns[0].entries[0].cid, "ACC100");
+  assert.equal(audit.columns[0].entries[0].brand, "Fintana");
+  assert.equal(audit.columns[0].entries[0].department, "HQ / AR / Opening / Team");
   assert.equal(audit.columns[0].entries[0].amount, 150);
   assert.equal(audit.columns[0].entries[0].count, 2);
   assert.equal(audit.columns[1].entries[0].cid, "ACC200");
