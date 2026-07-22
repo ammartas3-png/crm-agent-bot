@@ -200,6 +200,9 @@ test("parseKycLanguageParts handles extra spaces and accented language labels", 
   assert.deepEqual(parseKycLanguageParts("Language: Deutsch"), ["German"]);
   assert.deepEqual(parseKycLanguageParts("Language: Italiano"), ["Italian"]);
   assert.deepEqual(parseKycLanguageParts("Language: Español"), ["Spanish"]);
+  assert.deepEqual(parseKycLanguageParts("Language: German 10/10"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("9. Language: German 10/10"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("Language: English/French"), ["English", "French"]);
   assert.deepEqual(parseKycLanguageParts("Language:    "), []);
   assert.deepEqual(parseKycLanguageParts("8) Language:    "), []);
 });
@@ -318,6 +321,48 @@ test("loadApprovedDepositsReport joins numbered KYC blocks with English for UAE"
   assert.equal(report.rows[0].languageCategory, "English");
   assert.equal(report.rows[0].kycOffice, "Turkiye");
   assert.equal(report.totals.English.amount, 1000);
+  assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
+});
+
+test("loadApprovedDepositsReport reads Switzerland German ratings from numbered KYC blocks", async () => {
+  const kycBlock = [
+    "Muller Maria | ACC72189",
+    "8. Country: Switzerland",
+    "9. Language: German 10/10",
+    "10. Citizenship: Swiss",
+  ].join("\n");
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:L",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["06.07.2026", "ACC72189", "06.07.2026", "Turkey German", "Switzerland", "Ali Da", "Riverquode", "Axiom", kycBlock],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [72189, "HQ / TR1 / GE / Opening / Aaron", "Approved", 571.98, "Fintech360", "Credit Card", "Pay", "7/6/2026 8:46", "Yes", "Switzerland", "Axiom", "7/6/2026 8:46", "Riverquode"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [{ office: "Turkiye", spreadsheetId: "kyc-turkiye" }],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => (spreadsheetId === "kyc-turkiye" ? ["JULY26"] : ["ALL"]),
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(report.rows[0].language, "German");
+  assert.equal(report.rows[0].languageCategory, "Native");
+  assert.equal(report.totals.Native.amount, 571.98);
   assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
 });
 
