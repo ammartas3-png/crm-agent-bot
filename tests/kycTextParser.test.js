@@ -191,6 +191,42 @@ test("resolveApprovedDepositsKycSources defaults to all office KYC sheets", () =
   assert.equal(sources.some((source) => source.office === "Dubai"), true);
 });
 
+test("parseKycLanguageParts handles extra spaces and accented language labels", () => {
+  assert.deepEqual(parseKycLanguageParts("Language:    German"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("Lang:    French"), ["French"]);
+  assert.deepEqual(parseKycLanguageParts("10. Language :    German"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("Language:\nGerman"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Français"), ["French"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Deutsch"), ["German"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Italiano"), ["Italian"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Español"), ["Spanish"]);
+  assert.deepEqual(parseKycLanguageParts("Language:    "), []);
+  assert.deepEqual(parseKycLanguageParts("8) Language:    "), []);
+});
+
+test("Switzerland German and French map to Native using country aliases and KYC country", () => {
+  assert.equal(categorizeKycLanguages({ country: "Switzerland", languages: ["German"] }), "Native");
+  assert.equal(categorizeKycLanguages({ country: "Switzerland", languages: ["French"] }), "Native");
+  assert.equal(categorizeKycLanguages({ country: "CH", languages: ["German"] }), "Native");
+  assert.equal(categorizeKycLanguages({ country: "Suisse", languages: ["French"] }), "Native");
+  assert.equal(
+    categorizeKycLanguages({
+      country: "Germany",
+      kycCountry: "Switzerland",
+      languages: parseKycLanguageParts("Language:    German"),
+    }),
+    "Native",
+  );
+  assert.equal(
+    categorizeKycLanguages({
+      country: "France",
+      kycCountry: "Schweiz",
+      languages: parseKycLanguageParts("Lang:    French"),
+    }),
+    "Native",
+  );
+});
+
 test("Chile language values map to expected categories", () => {
   assert.equal(categorizeKycLanguages({ country: "Chile", languages: ["Spanish"] }), "Native");
   assert.equal(categorizeKycLanguages({ country: "Chile", languages: ["English"] }), "English");

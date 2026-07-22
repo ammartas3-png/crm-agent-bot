@@ -23,6 +23,10 @@ const COUNTRY_CASES = [
   { country: "Chile", language: "Spanish", category: "Native" },
   { country: "French Guiana", language: "French", category: "Native" },
   { country: "Guyane", language: "French", category: "Native", normalized: "French Guiana" },
+  { country: "Switzerland", language: "German", category: "Native" },
+  { country: "Switzerland", language: "French", category: "Native" },
+  { country: "CH", language: "German", category: "Native", normalized: "Switzerland" },
+  { country: "Suisse", language: "Français", category: "Native", normalized: "Switzerland" },
   { country: "Malaysia", language: "English & Malay", category: "English & Native" },
   { country: "India", language: "Hindi", category: "Native" },
   { country: "India", language: "English & Hindi", category: "English & Native" },
@@ -41,6 +45,8 @@ test("normalizeKycCountry resolves common aliases", () => {
   assert.equal(normalizeKycCountry("turkey"), "Turkiye");
   assert.equal(normalizeKycCountry("French Guiana"), "French Guiana");
   assert.equal(normalizeKycCountry("guyane"), "French Guiana");
+  assert.equal(normalizeKycCountry("CH"), "Switzerland");
+  assert.equal(normalizeKycCountry("Suisse"), "Switzerland");
 });
 
 test("country language matrix maps native and english categories", () => {
