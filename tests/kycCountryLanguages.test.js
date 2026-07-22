@@ -35,6 +35,12 @@ const COUNTRY_CASES = [
   { country: "Nigeria", language: "Hausa", category: "Native" },
   { country: "Nigeria", language: "English", category: "English" },
   { country: "Turkey", language: "Turkish", category: "Native", normalized: "Turkiye" },
+  { country: "French Polynesia", language: "French", category: "Native" },
+  { country: "Mauritius", language: "French", category: "Native" },
+  { country: "Reunion Island", language: "French", category: "Native", normalized: "Reunion" },
+  { country: "Korea (South)", language: "Korean", category: "Native", normalized: "South Korea" },
+  { country: "Mayotte", language: "French", category: "Native" },
+  { country: "India", language: "Bengali", category: "Native" },
 ];
 
 test("normalizeKycCountry resolves common aliases", () => {
@@ -48,6 +54,9 @@ test("normalizeKycCountry resolves common aliases", () => {
   assert.equal(normalizeKycCountry("CH"), "Switzerland");
   assert.equal(normalizeKycCountry("Suisse"), "Switzerland");
   assert.equal(normalizeKycCountry("U.A.E."), "United Arab Emirates");
+  assert.equal(normalizeKycCountry("Korea (South)"), "South Korea");
+  assert.equal(normalizeKycCountry("Reunion Island"), "Reunion");
+  assert.equal(normalizeKycCountry("French Polynesia"), "French Polynesia");
 });
 
 test("country language matrix maps native and english categories", () => {
@@ -67,6 +76,15 @@ test("nativeLanguagesForCountry returns local languages without English", () => 
   assert.deepEqual(nativeLanguagesForCountry("Kenya"), ["Swahili"]);
   assert.deepEqual(nativeLanguagesForCountry("Singapore"), ["Malay", "Chinese"]);
   assert.deepEqual(nativeLanguagesForCountry("United Kingdom"), []);
+});
+
+test("parseKycLanguageParts maps common typos and shorthand aliases", () => {
+  assert.deepEqual(parseKycLanguageParts("Language: Indo"), ["Indonesian"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Englsih"), ["English"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Potuguese"), ["Portuguese"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Arabici"), ["Arabic"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Bisaya"), ["Filipino"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Sg"), ["Malay"]);
 });
 
 test("unknown country with only english maps to English", () => {
