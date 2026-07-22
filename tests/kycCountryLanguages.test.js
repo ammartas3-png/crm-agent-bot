@@ -47,6 +47,7 @@ test("normalizeKycCountry resolves common aliases", () => {
   assert.equal(normalizeKycCountry("guyane"), "French Guiana");
   assert.equal(normalizeKycCountry("CH"), "Switzerland");
   assert.equal(normalizeKycCountry("Suisse"), "Switzerland");
+  assert.equal(normalizeKycCountry("U.A.E."), "United Arab Emirates");
 });
 
 test("country language matrix maps native and english categories", () => {

@@ -248,6 +248,16 @@ test("parseKycLanguageParts supports bilingual values as English & Native", () =
   assert.equal(categorizeKycLanguage({ country: "Malaysia", language: "English & Malay" }), "English & Native");
 });
 
+test("lookupKycLanguageRecord dedupes identical KYC rows across offices", () => {
+  const index = createKycLanguageIndex();
+  addKycLanguageRecord(index, { office: "Turkiye", cid: "ACC70683", country: "United Arab Emirates", language: "English" });
+  addKycLanguageRecord(index, { office: "Dubai", cid: "ACC70683", country: "United Arab Emirates", language: "English" });
+
+  const match = lookupKycLanguageRecord(index, { accId: "ACC70683", country: "United Arab Emirates" });
+  assert.equal(match?.language, "English");
+  assert.ok(["Turkiye", "Dubai"].includes(match?.office));
+});
+
 test("lookupKycLanguageRecord matches ACC ID together with LIST OF COUNTRYS", () => {
   const index = createKycLanguageIndex();
   addKycLanguageRecord(index, { office: "Turkiye", cid: "ACC123456", country: "Vietnam", language: "Vietnamese" });
@@ -256,6 +266,59 @@ test("lookupKycLanguageRecord matches ACC ID together with LIST OF COUNTRYS", ()
   assert.equal(lookupKycLanguageRecord(index, { accId: "123456", country: "Japan" })?.language, "Japanese");
   assert.equal(lookupKycLanguageRecord(index, { accId: "ACC123456", country: "Vietnam" })?.language, "Vietnamese");
   assert.equal(lookupKycLanguageRecord(index, { accId: "ACC123456", country: "Thailand" }), null);
+});
+
+test("loadApprovedDepositsReport joins numbered KYC blocks with English for UAE", async () => {
+  const kycBlock = [
+    "1. Registration Date: 2026-07-02",
+    "8. Country: United Arab Emirates",
+    "9. Language: English",
+    "26. Comments: ready to start.",
+    "CID : ACC70784",
+  ].join("\n");
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:L",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["02.07.2026", "ACC70683", "02.07.2026", "Turkey English", "United Arab Emirates", "Agent A", "Riverquode", "Fiat", kycBlock],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [70683, "HQ / TR1 / EN / Opening / Elham", "Approved", 1000, "Fintech360", "Credit Card", "Pay", "7/2/2026 8:46", "Yes", "United Arab Emirates", "Fiat", "7/2/2026 8:46", "Riverquode"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [
+        { office: "Turkiye", spreadsheetId: "kyc-turkiye" },
+        { office: "Dubai", spreadsheetId: "kyc-dubai" },
+      ],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => {
+        if (spreadsheetId === "kyc-turkiye" || spreadsheetId === "kyc-dubai") {
+          return ["JULY26"];
+        }
+        return ["ALL"];
+      },
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(report.rows[0].accId, "ACC70683");
+  assert.equal(report.rows[0].language, "English");
+  assert.equal(report.rows[0].languageCategory, "English");
+  assert.equal(report.rows[0].kycOffice, "Turkiye");
+  assert.equal(report.totals.English.amount, 1000);
+  assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
 });
 
 test("loadApprovedDepositsReport disambiguates similar ACC IDs by country", async () => {
