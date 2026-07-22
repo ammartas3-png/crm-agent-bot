@@ -142,7 +142,7 @@ test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
 test("loadApprovedDepositsReport reads language from year-suffixed KYC tabs", async () => {
   const valuesByRange = new Map([
     [
-      "'JULY26'!A:L",
+      "'JULY26'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -315,7 +315,7 @@ test("loadApprovedDepositsReport joins numbered KYC blocks with English for UAE"
   ].join("\n");
   const valuesByRange = new Map([
     [
-      "'JULY26'!A:L",
+      "'JULY26'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -367,7 +367,7 @@ test("loadApprovedDepositsReport reads Switzerland German ratings from numbered 
   ].join("\n");
   const valuesByRange = new Map([
     [
-      "'JULY26'!A:L",
+      "'JULY26'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -400,10 +400,92 @@ test("loadApprovedDepositsReport reads Switzerland German ratings from numbered 
   assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
 });
 
+test("loadApprovedDepositsReport reads language when the KYC column is unlabeled", async () => {
+  const kycBlock = [
+    "1. CID: ACC72577",
+    "10. Country: Switzerland",
+    "12. Language: German",
+  ].join("\n");
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:Z",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNRTYS", "Agents", "BRAND", "AFF", "", "SEC PSW", "Eng", "BONUS"],
+        ["07.07.2026", "ACC72577", "07.07.2026", "Turkey German", "Switzerland", "Eda Ci", "Riverquode", "Bugatti", kycBlock, "2577", "", ""],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [72577, "HQ / TR1 / GE / Opening / Aaron", "Approved", 572, "Fintech360", "Credit Card", "Pay", "7/7/2026 8:46", "Yes", "Switzerland", "Bugatti", "7/7/2026 8:46", "Riverquode"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [{ office: "Turkiye", spreadsheetId: "kyc-turkiye" }],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => (spreadsheetId === "kyc-turkiye" ? ["JULY26"] : ["ALL"]),
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(report.rows[0].language, "German");
+  assert.equal(report.rows[0].languageCategory, "Native");
+  assert.equal(report.rows[0].kycOffice, "Turkiye");
+  assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
+});
+
+test("loadApprovedDepositsReport treats country-name language values as native", async () => {
+  const kycBlock = [
+    "1. CID: ACC296554",
+    "8. Country: Indonesia",
+    "9. Preferred Language: INDONESIA",
+    "10. English Proficiency (10%-100%): 30%",
+  ].join("\n");
+  const valuesByRange = new Map([
+    [
+      "'JULY26'!A:Z",
+      [
+        ["JULY KYC"],
+        ["FTD Date", "CID", "Registration Date", "TXN", "Department / Office", "LIST OF COUNRTYS", "Agents", "BRAND", "AFF", "KYC"],
+        ["03.07.2026", "ACC296554", "03.07.2026", "TXN254461", "AE Indonesia", "Indonesia", "Ryan Pr", "Spova", "Fiat", kycBlock],
+      ],
+    ],
+    [
+      "'ALL'!A:Z",
+      [
+        ["ACC ID", "Original Department", "Status", "USD Amount", "Cashier", "Method", "Cleared By", "Created", "FTD", "Country", "Campaign", "Approved", "Brand"],
+        [296554, "HQ / AE / ID / Opening / Team5", "Approved", 300, "Fintech360", "APM", "Pay", "7/3/2026 8:46", "Yes", "Indonesia", "Fiat", "7/3/2026 8:46", "Spova"],
+      ],
+    ],
+  ]);
+
+  const report = await loadApprovedDepositsReport(
+    {},
+    {
+      kycSources: [{ office: "Dubai", spreadsheetId: "kyc-dubai" }],
+      amountSpreadsheetId: "amount-sheet-id",
+      amountSheetTitles: ["ALL"],
+      getSheetTitles: async (spreadsheetId) => (spreadsheetId === "kyc-dubai" ? ["JULY26"] : ["ALL"]),
+      readValues: async (_spreadsheetId, range) => valuesByRange.get(range) || [],
+    },
+  );
+
+  assert.equal(report.rows[0].language, "Indonesian");
+  assert.equal(report.rows[0].languageCategory, "Native");
+  assert.equal(report.otherLanguageAudit.uniqueCidCount, 0);
+});
+
 test("loadApprovedDepositsReport disambiguates similar ACC IDs by country", async () => {
   const valuesByRange = new Map([
     [
-      "'JULY'!A:L",
+      "'JULY'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -438,7 +520,7 @@ test("loadApprovedDepositsReport disambiguates similar ACC IDs by country", asyn
 test("loadApprovedDepositsReport reads country from misspelled LIST OF COUNRTYS header", async () => {
   const valuesByRange = new Map([
     [
-      "'JULY'!A:L",
+      "'JULY'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNRTYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -474,7 +556,7 @@ test("loadApprovedDepositsReport reads country from misspelled LIST OF COUNRTYS 
 test("loadApprovedDepositsReport joins language across multiple KYC office sheets", async () => {
   const valuesByRange = new Map([
     [
-      "'JULY'!A:L",
+      "'JULY'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -509,7 +591,7 @@ test("loadApprovedDepositsReport joins language across multiple KYC office sheet
 test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by ACC ID", async () => {
   const valuesByRange = new Map([
     [
-      "'JANUARY'!A:L",
+      "'JANUARY'!A:Z",
       [
         ["JUNE KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
@@ -568,7 +650,7 @@ test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by 
 test("loadApprovedDepositsReport keeps CID matches scoped to selected KYC office", async () => {
   const valuesByRange = new Map([
     [
-      "'JULY'!A:L",
+      "'JULY'!A:Z",
       [
         ["JULY KYC"],
         ["FTD Date", "CID", "RegistrationDate", "Department / Office", "LIST OF COUNTRYS", "Agents", "BRAND", "AFF", "KYC"],
