@@ -132,6 +132,75 @@ function CountryBars({ title, countries = [], monthKey = "" }) {
   );
 }
 
+function OtherLanguageAuditTable({ audit }) {
+  const columns = audit?.columns || [];
+  if (!columns.length) {
+    return null;
+  }
+  const hasEntries = columns.some((column) => column.entries?.length);
+  return (
+    <section className={`${styles.panel} ${styles.section}`}>
+      <h2 className={styles.sectionTitle}>Other Language Audit - CID List by Month</h2>
+      <p className={styles.sectionHint}>
+        Deposits classified as <strong>Other</strong> are listed below by approved month. Each CID shows country, parsed language,
+        KYC office, amount, and why it landed in Other so you can manually check the KYC sheet.
+      </p>
+      <p className={styles.sectionHint}>
+        Unique CIDs in Other: <strong>{Number(audit?.uniqueCidCount || 0).toLocaleString("en-US")}</strong>
+      </p>
+      {!hasEntries ? <p className={styles.sectionHint}>No Other-language deposits for the current filter selection.</p> : null}
+      <div className={styles.tableScroll}>
+        <table className={`${styles.table} ${styles.tableSticky}`}>
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th key={column.monthKey}>
+                  {column.label}
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b" }}>
+                    {Number(column.count || 0).toLocaleString("en-US")} CID · {formatUsd(column.totalAmount)}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {columns.map((column) => (
+                <td key={column.monthKey} style={{ verticalAlign: "top", minWidth: 220 }}>
+                  <div style={{ display: "grid", gap: 8, maxHeight: 420, overflowY: "auto", paddingRight: 4 }}>
+                    {(column.entries || []).map((entry) => (
+                      <div
+                        key={`${column.monthKey}-${entry.cid}`}
+                        style={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 8,
+                          padding: "8px 10px",
+                          background: "#fff",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>{entry.cid}</div>
+                        <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                          {entry.country} · {entry.language} · {formatUsd(entry.amount)}
+                          {Number(entry.count || 0) > 1 ? ` · ${entry.count} rows` : ""}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                          KYC office: {entry.kycOffice || "Not matched"}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#b45309", marginTop: 4 }}>{entry.reason}</div>
+                      </div>
+                    ))}
+                    {!column.entries?.length ? <span style={{ color: "#94a3b8", fontSize: 12 }}>-</span> : null}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function MultiSelectField({ label, value = [], options = [], onChange }) {
   const selectedValues = Array.isArray(value) ? value : [];
   const normalizedOptions = options.map((option) => (typeof option === "string" ? { key: option, label: option } : option));
@@ -391,6 +460,8 @@ export default function ApprovedDepositsPage() {
         <CountryBars title="Selected Period" countries={report?.countries || []} />
         <CountryBars title={latestMonth ? `${latestMonth.label} MTY` : "Latest Month"} countries={report?.countries || []} monthKey={latestMonth?.key || ""} />
       </section>
+
+      <OtherLanguageAuditTable audit={report?.otherLanguageAudit} />
     </main>
   );
 }

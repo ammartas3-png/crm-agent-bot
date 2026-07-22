@@ -17,6 +17,8 @@ import {
   addKycLanguageRecord,
   parseApprovedDepositMonthTab,
   resolveApprovedDepositsKycSources,
+  buildOtherLanguageAudit,
+  otherLanguageReason,
   validApprovedDepositTabTitles,
 } from "../lib/approvedDepositsService.js";
 
@@ -66,6 +68,67 @@ test("parseApprovedDepositMonthTab recognizes office KYC tab naming styles", () 
   assert.equal(parseApprovedDepositMonthTab("JULY")?.key, "july");
   assert.equal(parseApprovedDepositMonthTab("Self July26"), null);
   assert.equal(parseApprovedDepositMonthTab("Checker"), null);
+});
+
+test("otherLanguageReason explains missing KYC vs unmapped language", () => {
+  assert.equal(otherLanguageReason({ language: "Unknown", kycOffice: "" }), "No KYC match");
+  assert.equal(otherLanguageReason({ language: "Unknown", kycOffice: "Dubai" }), "KYC matched but language missing");
+  assert.equal(otherLanguageReason({ language: "French", kycOffice: "Dubai" }), "Unmapped language: French");
+});
+
+test("buildOtherLanguageAudit groups Other CIDs by month column", () => {
+  const audit = buildOtherLanguageAudit(
+    [
+      {
+        accId: "ACC100",
+        country: "Mexico",
+        language: "Unknown",
+        kycOffice: "",
+        languageCategory: "Other",
+        monthKey: "2026-07",
+        amount: 120,
+      },
+      {
+        accId: "ACC100",
+        country: "Mexico",
+        language: "Unknown",
+        kycOffice: "",
+        languageCategory: "Other",
+        monthKey: "2026-07",
+        amount: 30,
+      },
+      {
+        accId: "ACC200",
+        country: "Chile",
+        language: "German",
+        kycOffice: "Argentina",
+        languageCategory: "Other",
+        monthKey: "2026-06",
+        amount: 80,
+      },
+      {
+        accId: "ACC300",
+        country: "India",
+        language: "Hindi",
+        kycOffice: "Turkiye",
+        languageCategory: "Native",
+        monthKey: "2026-07",
+        amount: 500,
+      },
+    ],
+    [
+      { key: "2026-07", label: "Jul 2026" },
+      { key: "2026-06", label: "Jun 2026" },
+    ],
+  );
+  assert.equal(audit.uniqueCidCount, 2);
+  assert.equal(audit.columns[0].monthKey, "2026-07");
+  assert.equal(audit.columns[0].entries.length, 1);
+  assert.equal(audit.columns[0].entries[0].cid, "ACC100");
+  assert.equal(audit.columns[0].entries[0].amount, 150);
+  assert.equal(audit.columns[0].entries[0].count, 2);
+  assert.equal(audit.columns[1].entries[0].cid, "ACC200");
+  assert.equal(audit.columns[1].entries[0].reason, "Unmapped language: German");
 });
 
 test("loadApprovedDepositsReport reads language from year-suffixed KYC tabs", async () => {
@@ -298,6 +361,9 @@ test("loadApprovedDepositsReport uses FTD amount rows and joins KYC language by 
   assert.equal(report.totals.Other.amount, 50);
   assert.equal(report.options.brands.includes("Fintana"), true);
   assert.equal(report.countries.find((row) => row.country === "Vietnam").total.Native.count, 1);
+  assert.equal(report.otherLanguageAudit.uniqueCidCount, 1);
+  assert.equal(report.otherLanguageAudit.columns[0].entries[0].cid, "ACC423333");
+  assert.equal(report.otherLanguageAudit.columns[0].entries[0].reason, "No KYC match");
 
   const filtered = await loadApprovedDepositsReport(
     { status: "Approved,Pending", campaign: "Audi,BMaster", brand: "Fintana" },
