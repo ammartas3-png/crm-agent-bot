@@ -207,6 +207,40 @@ test("parseKycLanguageParts handles extra spaces and accented language labels", 
   assert.deepEqual(parseKycLanguageParts("8) Language:    "), []);
 });
 
+test("parseKycLanguageParts keeps both languages from comma and annotation lists", () => {
+  assert.deepEqual(parseKycLanguageParts("Language: Arabic (native), English (fluent)"), ["Arabic", "English"]);
+  assert.deepEqual(parseKycLanguageParts("Language: German (native), English (B2)"), ["German", "English"]);
+  assert.deepEqual(parseKycLanguageParts("Language: English + Arabic"), ["English", "Arabic"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Deutsch & Englisch"), ["German", "English"]);
+  assert.deepEqual(parseKycLanguageParts("Language: English B2"), ["English"]);
+  assert.deepEqual(parseKycLanguageParts("Language: Ger"), ["German"]);
+});
+
+test("parseKycLanguageParts drops placeholder language values", () => {
+  assert.deepEqual(parseKycLanguageParts("Language: N/A"), []);
+  assert.deepEqual(parseKycLanguageParts("Language: -"), []);
+  assert.deepEqual(parseKycLanguageParts("Language: TBD"), []);
+  assert.deepEqual(parseKycLanguageParts("Language: none"), []);
+  assert.deepEqual(parseKycLanguageParts("Language: x"), []);
+});
+
+test("native indicator values count as the country's native language", () => {
+  assert.deepEqual(parseKycLanguageParts("Language: Native"), ["Native language"]);
+  assert.deepEqual(parseKycLanguageParts("Language: mother tongue"), ["Native language"]);
+  assert.equal(
+    categorizeKycLanguages({ country: "Thailand", languages: parseKycLanguageParts("Language: local") }),
+    "Native",
+  );
+  assert.equal(
+    categorizeKycLanguages({ country: "Thailand", languages: parseKycLanguageParts("Language: Native & English") }),
+    "English & Native",
+  );
+  assert.equal(
+    categorizeKycLanguages({ country: "Unknown", languages: parseKycLanguageParts("Language: Native") }),
+    "Other",
+  );
+});
+
 test("Switzerland German and French map to Native using country aliases and KYC country", () => {
   assert.equal(categorizeKycLanguages({ country: "Switzerland", languages: ["German"] }), "Native");
   assert.equal(categorizeKycLanguages({ country: "Switzerland", languages: ["French"] }), "Native");
