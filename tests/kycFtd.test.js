@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildKycFtdRowsFromFtdSheet, kycFtdCountFromRows } from "../lib/dashboardService.js";
+import {
+  buildKycFtdRowsFromFtdSheet,
+  combineKycFtdRowsBySourceMonth,
+  kycFtdCountFromRows,
+} from "../lib/dashboardService.js";
 import { calculateSummary } from "../lib/calculations.js";
 import { getTabConfig } from "../config/sheetsConfig.js";
 
@@ -157,4 +161,56 @@ test("KYC FTD can exceed FTD when FTD sheet has extra pending rows", () => {
   });
   assert.equal(ftdTotal, 32);
   assert.equal(kycTotal, 33);
+});
+
+test("combineKycFtdRowsBySourceMonth attributes each row to its own month", () => {
+  const juneRows = buildKycFtdRowsFromFtdSheet(
+    [
+      { "FTD Date": "10.06.2026", CID: "ACC1", Agents: "Mehmet Ki" },
+      { "FTD Date": "12.06.2026", CID: "ACC2", Agents: "Mehmet Ki" },
+      // A stray July-dated row echoed inside the June spreadsheet's FTD tab.
+      { "FTD Date": "02.07.2026", CID: "ACC3", Agents: "Mehmet Ki" },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+  );
+  const julyRows = buildKycFtdRowsFromFtdSheet(
+    [
+      { "FTD Date": "02.07.2026", CID: "ACC3", Agents: "Mehmet Ki" },
+      { "FTD Date": "05.07.2026", CID: "ACC4", Agents: "Mehmet Ki" },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+  );
+  const combined = combineKycFtdRowsBySourceMonth([
+    { monthRecord: { key: "2026-06" }, kycFtdRows: juneRows },
+    { monthRecord: { key: "2026-07" }, kycFtdRows: julyRows },
+  ]);
+  // June contributes its two June rows; the stray July row inside June is
+  // dropped, and July contributes its two July rows -> 4 total, no double count.
+  assert.equal(combined.length, 4);
+  const total = kycFtdCountFromRows([], tabConfig, { kycFtdRows: combined });
+  assert.equal(total, 4);
+});
+
+test("combineKycFtdRowsBySourceMonth de-duplicates a shared spreadsheet across months", () => {
+  // Same FTD tab (spanning June + July) read once per month record because the
+  // office-month map points both month columns at the same spreadsheet.
+  const sharedRows = buildKycFtdRowsFromFtdSheet(
+    [
+      { "FTD Date": "10.06.2026", CID: "ACC1", Agents: "Mehmet Ki" },
+      { "FTD Date": "05.07.2026", CID: "ACC2", Agents: "Mehmet Ki" },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+  );
+  const combined = combineKycFtdRowsBySourceMonth([
+    { monthRecord: { key: "2026-06" }, kycFtdRows: sharedRows },
+    { monthRecord: { key: "2026-07" }, kycFtdRows: sharedRows },
+  ]);
+  assert.equal(combined.length, 2);
+  assert.equal(kycFtdCountFromRows([], tabConfig, { kycFtdRows: combined }), 2);
 });
