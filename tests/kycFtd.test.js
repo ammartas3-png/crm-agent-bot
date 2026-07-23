@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildKycFtdRowsFromFtdSheet,
   combineKycFtdRowsBySourceMonth,
+  ftdObjectsFromRawValues,
   kycFtdCountFromRows,
 } from "../lib/dashboardService.js";
 import { calculateSummary } from "../lib/calculations.js";
@@ -161,6 +162,60 @@ test("KYC FTD can exceed FTD when FTD sheet has extra pending rows", () => {
   });
   assert.equal(ftdTotal, 32);
   assert.equal(kycTotal, 33);
+});
+
+test("ftdObjectsFromRawValues reads FTD Date and Agents positionally despite duplicate headers", () => {
+  // Mirrors the real office FTD sheets: IMPORTRANGE repeats "FTD Date", "CID"
+  // and the agent header several times. Header-based mapping collapses those
+  // duplicates onto the LAST (empty) column, which used to blank FTD Date and
+  // the agent, zeroing out KYC FTD.
+  const rawValues = [
+    [
+      "FTD Date",
+      "CID",
+      "LIST OF COUNRTYS",
+      "Agents",
+      "AFF",
+      "RegistrationDate",
+      "TEAM",
+      "BRAND",
+      "Cheker",
+      "FTD Date",
+      "AGENTS",
+      "FTD Date",
+      "CID",
+    ],
+    ["01.07.2026", "ACC100", "Saint Lucia", "Oluwasgun Oy", "996-FR", "16.06.2026", "Murat K", "Fintana", 1, "", "Epere Aw", "", ""],
+    ["03.07.2026", "ACC101", "Nigeria", "Astrolan No", "996-FR", "01.07.2026", "Yosr S", "Fintana", 1, "", "AE Self", "", ""],
+    ["06.07.2026", "ACC102", "Ghana", "Gloire Ki", "Porche", "01.07.2026", "Murat K", "Fintana", 1, "", "", "", ""],
+  ];
+  const rows = ftdObjectsFromRawValues(rawValues);
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0]["FTD Date"], "01.07.2026");
+  assert.equal(rows[0]["CID"], "ACC100");
+  assert.equal(rows[0]["Agents"], "Oluwasgun Oy");
+
+  const kycRows = buildKycFtdRowsFromFtdSheet(rows, ftdTabConfig, tabConfig, new Map());
+  assert.equal(kycRows.length, 3);
+  assert.equal(kycRows[0]["AGENT NAMES"], "Oluwasgun Oy");
+  assert.equal(kycRows[0].__sourceMonthKey, "2026-07");
+  assert.equal(kycFtdCountFromRows([], tabConfig, { kycFtdRows: kycRows }), 3);
+});
+
+test("ftdObjectsFromRawValues resolves the primary agent column when it is uppercase", () => {
+  // Argentina/Pakistan style: the primary agent header (column D) is uppercase
+  // "AGENTS" and appears again later, so header mapping kept the wrong column.
+  const rawValues = [
+    ["FTD Date", "CID", "LIST OF COUNRTYS", "AGENTS", "BRAND", "Registration Date", "TEAM", "Cheker", "COUNRTY", "FTD DATE", "AGENTS"],
+    ["01.07.2026", "ACC200", "Brazil", "Pedro Qu", "Fintana", "24.06.2026", "Rafaela Da", 1, "Paraguay", "1/7/2026", ""],
+    ["02.07.2026", "ACC201", "Colombia", "Marana Ha", "Fintana", "26.06.2026", "Tifany Ma", 1, "Colombia", "2/7/2026", ""],
+  ];
+  const rows = ftdObjectsFromRawValues(rawValues);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]["Agents"], "Pedro Qu");
+  const kycRows = buildKycFtdRowsFromFtdSheet(rows, ftdTabConfig, tabConfig, new Map());
+  assert.equal(kycRows.length, 2);
+  assert.equal(kycRows[0]["AGENT NAMES"], "Pedro Qu");
 });
 
 test("combineKycFtdRowsBySourceMonth attributes each row to its own month", () => {
