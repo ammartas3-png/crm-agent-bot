@@ -17,6 +17,7 @@ import {
   targetAggregationForScope,
   targetReachPercent,
 } from "../lib/targets.js";
+import { buildDashboardStats } from "../lib/dashboardService.js";
 
 const tabConfig = {
   fields: {
@@ -302,4 +303,42 @@ test("targetAggregationForScope reads dynamic non-CR target columns", () => {
     },
   });
   assert.equal(aggregation.includedTarget, 14);
+});
+
+test("buildDashboardStats target-achieved rate reflects only the agents in view", () => {
+  // Info sheet has 3 working agents with targets, but the filtered rows only
+  // contain one of them (Ahmet, who hit target). The rate must be over the
+  // agents on screen (1/1 = 100%), not the whole office (1/3), which used to
+  // produce a nonsensical value for filtered/scoped teams.
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  const infoContext = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Ahmet", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+    { "Working Status": "Working", "Agent Name": "Mehmet", "Agent Target": "10", Office: "Turkey Africa", "Team Leader": "Epere" },
+    { "Working Status": "Working", "Agent Name": "Ayse", "Agent Target": "10", Office: "Turkey Africa", "Team Leader": "Epere" },
+  ]);
+  const rows = Array.from({ length: 12 }, (_, index) => ({
+    ID: `L${index + 1}`,
+    "AGENT NAMES": "Ahmet",
+    "Team Leader": "Housse",
+    Desk: "Turkey English",
+    FTD: "1",
+    "FTD MAKER": "Closer",
+    Created: "2026-07-05T08:00:00Z",
+    "FTD DATE": "2026-07-05",
+  }));
+  const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-07-20T12:00:00Z"));
+  assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.totalTargetAchieved, 1);
+  assert.equal(stats.rateOfTargetAchieved, 100);
 });
