@@ -5,14 +5,19 @@ import { deskCodeFromDepartment, buildLeadSplitterReport } from "../lib/dashboar
 
 const tabConfig = {
   fields: {
+    id: "ID",
     department: "Department",
     country: "Country",
     agentNames: "AGENT NAMES",
     firstCallAgent: "First Call Agent",
     ftd: "FTD",
+    ftdMaker: "FTD MAKER",
     crTarget: "CR TARGET",
   },
 };
+
+let leadId = 0;
+const lead = (fields) => ({ ID: `L${(leadId += 1)}`, ...fields });
 
 test("deskCodeFromDepartment reads the leading capitals after the second slash", () => {
   assert.equal(deskCodeFromDepartment("HQ / CY1 / GE-TR"), "GE");
@@ -31,12 +36,12 @@ test("deskCodeFromDepartment reads the leading capitals after the second slash",
 
 test("buildLeadSplitterReport groups Desk > Country > Agent with subtotals and desk totals", () => {
   const rows = [
-    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "1", "CR TARGET": "10%" },
-    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "", "CR TARGET": "10%" },
-    { Department: "HQ / CY1 / GE-TR", Country: "Germany", "AGENT NAMES": "Agent B", FTD: "1", "CR TARGET": "20%" },
-    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "Agent C", FTD: "0", "CR TARGET": "10%" },
+    lead({ Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "1", "CR TARGET": "10%" }),
+    lead({ Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "", "CR TARGET": "10%" }),
+    lead({ Department: "HQ / CY1 / GE-TR", Country: "Germany", "AGENT NAMES": "Agent B", FTD: "1", "CR TARGET": "20%" }),
+    lead({ Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "Agent C", FTD: "0", "CR TARGET": "10%" }),
     // AGENT NAMES empty -> falls back to First Call Agent.
-    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "", "First Call Agent": "Agent D", FTD: "1", "CR TARGET": "10%" },
+    lead({ Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "", "First Call Agent": "Agent D", FTD: "1", "CR TARGET": "10%" }),
   ];
   const report = buildLeadSplitterReport(rows, tabConfig);
 
@@ -87,8 +92,16 @@ test("buildLeadSplitterReport groups Desk > Country > Agent with subtotals and d
   assert.ok(report.rows.some((row) => row.kind === "agent" && row.agent === "Agent D"));
 });
 
-test("buildLeadSplitterReport buckets rows without a parseable desk under Other", () => {
-  const rows = [{ Department: "no slashes here", Country: "Nowhere", "AGENT NAMES": "Agent X", FTD: "1" }];
+test("buildLeadSplitterReport excludes rows whose Department has no desk code", () => {
+  const rows = [
+    lead({ Department: "no slashes here", Country: "Nowhere", "AGENT NAMES": "Agent X", FTD: "1" }),
+    lead({ Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "1" }),
+  ];
   const report = buildLeadSplitterReport(rows, tabConfig);
-  assert.ok(report.rows.some((row) => row.kind === "agent" && row.desk === "Other" && row.agent === "Agent X"));
+  // The unmapped row is dropped entirely -- no "Other" desk, and it is not
+  // counted in any total.
+  assert.ok(!report.rows.some((row) => row.desk === "Other"));
+  assert.ok(!report.rows.some((row) => row.agent === "Agent X"));
+  assert.equal(report.summary.leads, 1);
+  assert.equal(report.summary.ftd, 1);
 });
