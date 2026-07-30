@@ -3411,6 +3411,7 @@ const COMPARISON_COLUMNS = [
   { key: "leads", label: "Leads", type: "number" },
   { key: "ftd", label: "FTD", type: "number" },
   { key: "cr", label: "CR", type: "number" },
+  { key: "crTarget", label: "CR Target", type: "number" },
   { key: "crTargetReach", label: "CR Reach", type: "number" },
 ];
 
@@ -3612,6 +3613,9 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
         .map((item) => ({
           ...item,
           cr: item.leads > 0 ? (item.ftd / item.leads) * 100 : 0,
+          // Weighted CR target: targetBase is sum(leads_i * crTarget_i/100), so
+          // dividing by leads recovers the average CR target as a percentage.
+          crTarget: item.leads > 0 ? (item.targetBase / item.leads) * 100 : 0,
           crTargetReach: item.targetBase > 0 ? (item.ftd / item.targetBase) * 100 : 0,
         }))
         .sort((left, right) => {
@@ -3731,6 +3735,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                             <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
                           </td>
                           <td>{formatPercent(row.cr)}</td>
+                          <td>{formatPercent(row.crTarget)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );

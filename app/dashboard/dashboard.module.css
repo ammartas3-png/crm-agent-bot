@@ -662,16 +662,16 @@
   font-size: 12px;
 }
 
-/* Name column + 4 metric columns (Leads / FTD / CR / CR Reach):
-   32% + 17% x4 = 100% so every column fits without a horizontal scrollbar. */
+/* Name column + 5 metric columns (Leads / FTD / CR / CR Target / CR Reach):
+   25% + 15% x5 = 100% so every column fits without a horizontal scrollbar. */
 .comparisonTable th:first-child,
 .comparisonTable td:first-child {
-  width: 32%;
+  width: 25%;
 }
 
 .comparisonTable th:not(:first-child),
 .comparisonTable td:not(:first-child) {
-  width: 17%;
+  width: 15%;
   text-align: center;
 }
 
