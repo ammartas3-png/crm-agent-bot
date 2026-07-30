@@ -3390,6 +3390,8 @@ const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
+const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
@@ -3418,6 +3420,83 @@ function asOptions(values = []) {
 function toMetricNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function LeadSplitterTable({ data = { rows: [] } }) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const formatPercent = (value) => `${(Number(value) || 0).toFixed(2)}%`;
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
+  let lastDesk = null;
+  let lastCountry = null;
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <h3 className={styles.sectionTitle}>LeadSplitter</h3>
+      <div style={{ overflowX: "auto" }}>
+        <table className={`${styles.table} ${styles.tableSticky}`}>
+          <thead>
+            <tr>
+              <th>Desk</th>
+              <th>Country</th>
+              <th>Agent</th>
+              <th style={numberCell}>Leads</th>
+              <th style={numberCell}>FTD</th>
+              <th style={numberCell}>CR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              if (row.kind === "deskTotal") {
+                lastDesk = null;
+                lastCountry = null;
+                return (
+                  <tr key={`d-${index}`} style={{ background: "#dbeafe", fontWeight: 700 }}>
+                    <td>{row.desk}</td>
+                    <td colSpan={2}>{row.label}</td>
+                    <td style={numberCell}>{row.leads}</td>
+                    <td style={numberCell}>{row.ftd}</td>
+                    <td style={numberCell}>{formatPercent(row.cr)}</td>
+                  </tr>
+                );
+              }
+              if (row.kind === "countryTotal") {
+                lastCountry = null;
+                return (
+                  <tr key={`c-${index}`} style={{ background: "#eef2ff", fontWeight: 600 }}>
+                    <td />
+                    <td colSpan={2}>{row.label}</td>
+                    <td style={numberCell}>{row.leads}</td>
+                    <td style={numberCell}>{row.ftd}</td>
+                    <td style={numberCell}>{formatPercent(row.cr)}</td>
+                  </tr>
+                );
+              }
+              const showDesk = row.desk !== lastDesk;
+              const showCountry = showDesk || row.country !== lastCountry;
+              lastDesk = row.desk;
+              lastCountry = row.country;
+              return (
+                <tr key={`a-${index}`}>
+                  <td style={{ fontWeight: showDesk ? 600 : 400 }}>{showDesk ? row.desk : ""}</td>
+                  <td>{showCountry ? row.country : ""}</td>
+                  <td>{row.agent}</td>
+                  <td style={numberCell}>{row.leads}</td>
+                  <td style={numberCell}>{row.ftd}</td>
+                  <td style={{ ...numberCell, color: Number(row.cr) > 0 ? "#16a34a" : "#dc2626" }}>{formatPercent(row.cr)}</td>
+                </tr>
+              );
+            })}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 16 }}>
+                  No leads found for this selection.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, onClearSelections }) {
@@ -4150,9 +4229,11 @@ export default function DashboardPage() {
   const options = report?.options || {};
   const isComparisonPreset = quickPreset === "comparison-report";
   const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
+  const isLeadSplitterPreset = quickPreset === "leadsplitter";
   const isTrafficPreset = quickPreset === "traffic";
-  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset;
+  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
+  const isLeadSplitterView = report?.tableType === "leadsplitter";
   const isAgentProductivityReportView =
     report?.tableType === "builder" && (isAgentProductivityPreset || Boolean(appliedFilters?.agentProductivityPlanMode));
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -4210,6 +4291,7 @@ export default function DashboardPage() {
           agentProductivityPlanMode: false,
           last4QuickMode: false,
           comparisonMode: false,
+          leadSplitter: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -4317,6 +4399,18 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_COMPARISON_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COMPARISON_METRICS,
+          };
+        }
+        if (preset === "leadsplitter") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: false,
+            hideNotWorking: false,
+            leadSplitter: true,
+            rowDimensions: QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_LEADSPLITTER_METRICS,
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -4877,6 +4971,15 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("leadsplitter")}
+              className={styles.reportModeCard}
+              style={quickPreset === "leadsplitter" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>LeadSplitter</span>
+              <span className={styles.reportModeIcon}>🧩</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -5059,9 +5162,12 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
-          {!isComparisonReportView ? <StatusCards stats={report.stats || {}} /> : null}
-          {!isComparisonReportView ? <OverviewBand report={report} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView ? <SummaryCards summary={report.summary || {}} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView ? <StatusCards stats={report.stats || {}} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView ? <OverviewBand report={report} /> : null}
+          {report.tableType === "leadsplitter" ? (
+            <LeadSplitterTable data={report.leadSplitter || { rows: [] }} />
+          ) : null}
           {report.tableType === "pivot" ? (
             <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
           ) : null}
