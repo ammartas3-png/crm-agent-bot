@@ -3410,6 +3410,7 @@ const COMPARISON_COLUMNS = [
   { key: "label", label: "Name", type: "text" },
   { key: "leads", label: "Leads", type: "number" },
   { key: "ftd", label: "FTD", type: "number" },
+  { key: "cr", label: "CR", type: "number" },
   { key: "crTargetReach", label: "CR Reach", type: "number" },
 ];
 
@@ -3729,6 +3730,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                             <DataBar value={row.ftd} max={maxFtd} color="#bbf7d0" />
                             <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
                           </td>
+                          <td>{formatPercent(row.cr)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
