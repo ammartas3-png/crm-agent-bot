@@ -3424,23 +3424,44 @@ function toMetricNumber(value) {
 
 function LeadSplitterTable({ data = { rows: [] } }) {
   const rows = Array.isArray(data?.rows) ? data.rows : [];
-  const formatPercent = (value) => `${(Number(value) || 0).toFixed(2)}%`;
-  const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
+  const formatPercent = (value) => `${Math.round(Number(value) || 0)}%`;
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap", border: "1px solid #b8cce4", padding: "3px 8px" };
+  const textCell = { border: "1px solid #b8cce4", padding: "3px 8px" };
+  const headerStyle = {
+    background: "#1f3864",
+    color: "#ffffff",
+    fontWeight: 700,
+    border: "1px solid #16294d",
+    padding: "4px 8px",
+    textAlign: "center",
+  };
+  const crStyle = (value) =>
+    Number(value) > 0
+      ? { background: "#c6efce", color: "#006100" }
+      : { background: "#ffc7ce", color: "#9c0006" };
+  const reachStyle = (value) =>
+    Number(value) >= 100
+      ? { background: "#c6efce", color: "#006100" }
+      : { background: "#ffc7ce", color: "#9c0006" };
+  const countryTotalRow = { background: "#ddebf7", fontWeight: 600 };
+  const deskTotalRow = { background: "#bdd7ee", fontWeight: 700 };
   let lastDesk = null;
   let lastCountry = null;
   return (
     <section className={styles.section} style={{ padding: 0 }}>
       <h3 className={styles.sectionTitle}>LeadSplitter</h3>
       <div style={{ overflowX: "auto" }}>
-        <table className={`${styles.table} ${styles.tableSticky}`}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
           <thead>
             <tr>
-              <th>Desk</th>
-              <th>Country</th>
-              <th>Agent</th>
-              <th style={numberCell}>Leads</th>
-              <th style={numberCell}>FTD</th>
-              <th style={numberCell}>CR</th>
+              <th style={headerStyle}>Desk</th>
+              <th style={headerStyle}>Country</th>
+              <th style={headerStyle}>Agent</th>
+              <th style={headerStyle}>Leads</th>
+              <th style={headerStyle}>FTD</th>
+              <th style={headerStyle}>CR</th>
+              <th style={headerStyle}>CR Target</th>
+              <th style={headerStyle}>CR Target Reach</th>
             </tr>
           </thead>
           <tbody>
@@ -3449,24 +3470,32 @@ function LeadSplitterTable({ data = { rows: [] } }) {
                 lastDesk = null;
                 lastCountry = null;
                 return (
-                  <tr key={`d-${index}`} style={{ background: "#dbeafe", fontWeight: 700 }}>
-                    <td>{row.desk}</td>
-                    <td colSpan={2}>{row.label}</td>
+                  <tr key={`d-${index}`} style={deskTotalRow}>
+                    <td style={textCell}>{row.desk}</td>
+                    <td style={textCell} colSpan={2}>
+                      {row.label}
+                    </td>
                     <td style={numberCell}>{row.leads}</td>
                     <td style={numberCell}>{row.ftd}</td>
-                    <td style={numberCell}>{formatPercent(row.cr)}</td>
+                    <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                    <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                    <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
                   </tr>
                 );
               }
               if (row.kind === "countryTotal") {
                 lastCountry = null;
                 return (
-                  <tr key={`c-${index}`} style={{ background: "#eef2ff", fontWeight: 600 }}>
-                    <td />
-                    <td colSpan={2}>{row.label}</td>
+                  <tr key={`c-${index}`} style={countryTotalRow}>
+                    <td style={textCell} />
+                    <td style={textCell} colSpan={2}>
+                      {row.label}
+                    </td>
                     <td style={numberCell}>{row.leads}</td>
                     <td style={numberCell}>{row.ftd}</td>
-                    <td style={numberCell}>{formatPercent(row.cr)}</td>
+                    <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                    <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                    <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
                   </tr>
                 );
               }
@@ -3476,18 +3505,20 @@ function LeadSplitterTable({ data = { rows: [] } }) {
               lastCountry = row.country;
               return (
                 <tr key={`a-${index}`}>
-                  <td style={{ fontWeight: showDesk ? 600 : 400 }}>{showDesk ? row.desk : ""}</td>
-                  <td>{showCountry ? row.country : ""}</td>
-                  <td>{row.agent}</td>
+                  <td style={{ ...textCell, fontWeight: showDesk ? 600 : 400 }}>{showDesk ? row.desk : ""}</td>
+                  <td style={textCell}>{showCountry ? row.country : ""}</td>
+                  <td style={textCell}>{row.agent}</td>
                   <td style={numberCell}>{row.leads}</td>
                   <td style={numberCell}>{row.ftd}</td>
-                  <td style={{ ...numberCell, color: Number(row.cr) > 0 ? "#16a34a" : "#dc2626" }}>{formatPercent(row.cr)}</td>
+                  <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                  <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                  <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
                 </tr>
               );
             })}
             {!rows.length ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 16 }}>
+                <td colSpan={8} style={{ textAlign: "center", padding: 16 }}>
                   No leads found for this selection.
                 </td>
               </tr>

@@ -10,6 +10,7 @@ const tabConfig = {
     agentNames: "AGENT NAMES",
     firstCallAgent: "First Call Agent",
     ftd: "FTD",
+    crTarget: "CR TARGET",
   },
 };
 
@@ -30,16 +31,18 @@ test("deskCodeFromDepartment reads the leading capitals after the second slash",
 
 test("buildLeadSplitterReport groups Desk > Country > Agent with subtotals and desk totals", () => {
   const rows = [
-    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "1" },
-    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "" },
-    { Department: "HQ / CY1 / GE-TR", Country: "Germany", "AGENT NAMES": "Agent B", FTD: "1" },
-    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "Agent C", FTD: "0" },
+    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "1", "CR TARGET": "10%" },
+    { Department: "HQ / TR1 / GE", Country: "Germany", "AGENT NAMES": "Agent A", FTD: "", "CR TARGET": "10%" },
+    { Department: "HQ / CY1 / GE-TR", Country: "Germany", "AGENT NAMES": "Agent B", FTD: "1", "CR TARGET": "20%" },
+    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "Agent C", FTD: "0", "CR TARGET": "10%" },
     // AGENT NAMES empty -> falls back to First Call Agent.
-    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "", "First Call Agent": "Agent D", FTD: "1" },
+    { Department: "HQ / CY1 / AR-TR", Country: "Oman", "AGENT NAMES": "", "First Call Agent": "Agent D", FTD: "1", "CR TARGET": "10%" },
   ];
   const report = buildLeadSplitterReport(rows, tabConfig);
 
-  assert.deepEqual(report.summary, { leads: 5, ftd: 3, cr: (3 / 5) * 100 });
+  assert.equal(report.summary.leads, 5);
+  assert.equal(report.summary.ftd, 3);
+  assert.equal(report.summary.cr, (3 / 5) * 100);
 
   // Desks are alphabetical: AR before GE.
   const kinds = report.rows.map((row) => `${row.kind}:${row.desk}`);
@@ -71,6 +74,14 @@ test("buildLeadSplitterReport groups Desk > Country > Agent with subtotals and d
   assert.equal(agentA.leads, 2);
   assert.equal(agentA.ftd, 1);
   assert.equal(agentA.cr, 50);
+  // CR Target is the average of the per-lead CR TARGET; reach = CR / CR Target.
+  assert.equal(agentA.crTarget, 10);
+  assert.equal(agentA.crTargetReach, 500);
+
+  // Germany country subtotal: CR target averages Agent A (10,10) + Agent B (20) = 40/3.
+  const geCountryFull = report.rows.find((row) => row.kind === "countryTotal" && row.desk === "GE");
+  assert.ok(Math.abs(geCountryFull.crTarget - 40 / 3) < 1e-9);
+  assert.equal(geCountryFull.cr, (2 / 3) * 100);
 
   // First Call Agent fallback populated the agent name.
   assert.ok(report.rows.some((row) => row.kind === "agent" && row.agent === "Agent D"));
