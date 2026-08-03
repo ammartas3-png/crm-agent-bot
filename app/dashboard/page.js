@@ -4339,7 +4339,7 @@ export default function DashboardPage() {
             ...basePreset,
             monthKey: defaultMonth,
             includeWorkTime: true,
-            hideNotWorking: true,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_MONTHLY_METRICS,
