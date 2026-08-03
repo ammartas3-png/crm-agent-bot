@@ -4043,13 +4043,8 @@ export default function DashboardPage() {
     router.prefetch("/dashboard/details");
   }, [router]);
 
-  useEffect(() => {
-    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
-    if (!hasOfficeScope || filters.reportMode) {
-      return;
-    }
-    setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "builder" }));
-  }, [filters.officeScope, filters.reportMode]);
+  // Initial default report (Monthly Quick) is applied + auto-loaded below, once
+  // applyQuickPreset is defined (see the effects after it).
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -4470,6 +4465,45 @@ export default function DashboardPage() {
     },
     [availableMonthKeys, officeOptions],
   );
+
+  // On first open, default the report to Monthly Quick and auto-load it (for
+  // everyone). Runs once per page load: applies the preset when the office and
+  // months are ready, then copies the draft into appliedFilters so the report
+  // fetches without needing a manual "Load Report" click.
+  const initialMonthlyPresetDone = useRef(false);
+  useEffect(() => {
+    if (initialMonthlyPresetDone.current) {
+      return;
+    }
+    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
+    if (!hasOfficeScope || !availableMonthKeys.length) {
+      return;
+    }
+    if (filters.reportMode) {
+      // A report mode is already set (e.g. the user navigated/selected) -- don't
+      // override their choice, just stop trying to force the default.
+      initialMonthlyPresetDone.current = true;
+      return;
+    }
+    applyQuickPreset("monthly");
+  }, [filters.officeScope, filters.reportMode, availableMonthKeys, applyQuickPreset]);
+
+  useEffect(() => {
+    if (initialMonthlyPresetDone.current) {
+      return;
+    }
+    if (quickPreset !== "monthly") {
+      return;
+    }
+    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
+    const hasMonth = Array.isArray(filters.monthKey) && filters.monthKey.length > 0;
+    if (!hasOfficeScope || filters.reportMode !== "specific" || !hasMonth) {
+      return;
+    }
+    initialMonthlyPresetDone.current = true;
+    setAppliedFilters({ ...filters });
+  }, [quickPreset, filters]);
+
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
   const hasPendingChanges = draftQueryKey !== appliedQueryKey;
