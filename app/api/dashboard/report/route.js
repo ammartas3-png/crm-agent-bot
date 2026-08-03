@@ -34,7 +34,7 @@ function queryParams(searchParams) {
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
-    hideHrCode: String(searchParams.get("hideHrCode") || "").trim(),
+    showHrCode: String(searchParams.get("showHrCode") || "").trim(),
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),

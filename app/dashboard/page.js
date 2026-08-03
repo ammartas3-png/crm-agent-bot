@@ -3341,7 +3341,7 @@ const EMPTY_FILTERS = {
   last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
-  hideHrCode: false,
+  showHrCode: false,
   benchmarkMode: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
@@ -4268,6 +4268,9 @@ export default function DashboardPage() {
   const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isLeadSplitterView = report?.tableType === "leadsplitter";
+  // HR Code is a Turkey-only column, so its toggle only appears for that office.
+  const isTurkeyOfficeSelected =
+    Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
   const isAgentProductivityReportView =
     report?.tableType === "builder" && (isAgentProductivityPreset || Boolean(appliedFilters?.agentProductivityPlanMode));
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -5161,15 +5164,19 @@ export default function DashboardPage() {
                 </button>
               </>
             ) : null}
-            <span className={styles.workTimeToggleLabel}>HR Code</span>
-            <button
-              type="button"
-              className={`${styles.workTimeToggle} ${!filters.hideHrCode ? styles.workTimeToggleOn : ""}`}
-              onClick={() => setFilters((prev) => ({ ...prev, hideHrCode: !prev.hideHrCode }))}
-            >
-              <span className={styles.workTimeToggleThumb} />
-              <span>{!filters.hideHrCode ? "ON" : "OFF"}</span>
-            </button>
+            {isTurkeyOfficeSelected ? (
+              <>
+                <span className={styles.workTimeToggleLabel}>HR Code</span>
+                <button
+                  type="button"
+                  className={`${styles.workTimeToggle} ${filters.showHrCode ? styles.workTimeToggleOn : ""}`}
+                  onClick={() => setFilters((prev) => ({ ...prev, showHrCode: !prev.showHrCode }))}
+                >
+                  <span className={styles.workTimeToggleThumb} />
+                  <span>{filters.showHrCode ? "ON" : "OFF"}</span>
+                </button>
+              </>
+            ) : null}
           </div>
           <ToggleGroup
             label="Metrics / Data Fields"
