@@ -4,6 +4,11 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import { DataBar, RankBars } from "./viz.js";
+import {
+  TRAFFIC_DEFAULT_COUNT,
+  allocationSequence,
+  resolveTrafficRanking,
+} from "../../lib/trafficPriority.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -3393,6 +3398,8 @@ const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placemen
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
 const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS = ["country", "campaign", "agent"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_METRICS = ["leads", "ftd", "cr"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
@@ -3528,6 +3535,282 @@ function LeadSplitterTable({ data = { rows: [] } }) {
             ) : null}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+function TrafficPriorityPanel({
+  data = { countries: [] },
+  selections = {},
+  onSelectCountry,
+  onSelectCampaign,
+  onClear,
+  onCountChange,
+}) {
+  const countries = Array.isArray(data?.countries) ? data.countries : [];
+  const minSegmentLeads = Number(data?.minSegmentLeads) || 10;
+  const windowDays = Number(data?.windowDays) || 60;
+  const blockWindowDays = Number(data?.blockWindowDays) || 7;
+  const selectedCountry = String(selections?.country || "").trim();
+  const selectedCampaign = String(selections?.campaign || "").trim();
+  const count =
+    Number(selections?.count) > 0 ? Number(selections.count) : Number(data?.defaultCount) || TRAFFIC_DEFAULT_COUNT;
+
+  const countryEntry = useMemo(
+    () => countries.find((entry) => entry.country === selectedCountry) || null,
+    [countries, selectedCountry],
+  );
+  const campaigns = countryEntry && Array.isArray(countryEntry.campaigns) ? countryEntry.campaigns : [];
+
+  const ranking = useMemo(
+    () => resolveTrafficRanking(data, { country: selectedCountry, campaign: selectedCampaign }),
+    [data, selectedCountry, selectedCampaign],
+  );
+  const allocation = useMemo(() => allocationSequence(ranking.agents, count), [ranking, count]);
+  const summaryAgents = useMemo(() => {
+    const list = Array.isArray(ranking.agents) ? ranking.agents.slice() : [];
+    return list
+      .map((agent) => ({
+        ...agent,
+        allocated: allocation.counts[agent.agent] || 0,
+        share: allocation.shares[agent.agent] || 0,
+      }))
+      .sort(
+        (left, right) =>
+          Number(left.blocked) - Number(right.blocked) ||
+          right.allocated - left.allocated ||
+          right.cr - left.cr ||
+          String(left.agent).localeCompare(String(right.agent)),
+      );
+  }, [ranking, allocation]);
+
+  const crCell = (value) =>
+    Number(value) > 0 ? { background: "#c6efce", color: "#006100" } : { background: "#ffc7ce", color: "#9c0006" };
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
+
+  const basisNote = (() => {
+    if (ranking.basis === "segment") {
+      return { tone: "ok", text: `Ranking: ${selectedCountry} · ${selectedCampaign} (segment CR, ${ranking.segmentLeads} leads)` };
+    }
+    if (ranking.basis === "country-fallback") {
+      return {
+        tone: "warn",
+        text: `Not enough data for this AFF (${ranking.segmentLeads} < ${minSegmentLeads}) — ranking by ${selectedCountry} country-wide CR`,
+      };
+    }
+    if (ranking.basis === "country") {
+      return { tone: "ok", text: `Ranking: ${selectedCountry} country-wide (last ${windowDays} days)` };
+    }
+    return { tone: "muted", text: "Select a country to build the priority list." };
+  })();
+
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
+        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Traffic Priority</h3>
+        <span style={{ fontSize: 12, color: "#64748b" }}>
+          Last {windowDays} days · block = no FTD in last {blockWindowDays} days
+        </span>
+        {selectedCountry ? (
+          <button type="button" className={styles.tableActionButton} style={{ marginLeft: "auto" }} onClick={() => onClear?.()}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div className={styles.comparisonGrid}>
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Country</h4>
+          </div>
+          <div className={styles.tableScroll}>
+            <table className={`${styles.table} ${styles.tableSticky}`}>
+              <thead>
+                <tr>
+                  <th>Country</th>
+                  <th>Leads</th>
+                  <th>FTD</th>
+                  <th>CR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {countries.map((entry) => {
+                  const isSelected = entry.country === selectedCountry;
+                  return (
+                    <tr
+                      key={`tp-country-${entry.country}`}
+                      className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                      onClick={() => onSelectCountry?.(entry.country)}
+                    >
+                      <td className={styles.tableStrong}>{entry.country}</td>
+                      <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                      <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                      <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                    </tr>
+                  );
+                })}
+                {!countries.length ? (
+                  <tr>
+                    <td colSpan={4} className={styles.tableEmpty}>
+                      No leads in the last {windowDays} days.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Campaign (AFF)</h4>
+            {selectedCampaign ? (
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+                onClick={() => onSelectCampaign?.("")}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.tableScroll}>
+            {!selectedCountry ? (
+              <p className={styles.tableEmpty}>Select a country first.</p>
+            ) : (
+              <table className={`${styles.table} ${styles.tableSticky}`}>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Leads</th>
+                    <th>FTD</th>
+                    <th>CR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((entry) => {
+                    const isSelected = entry.campaign === selectedCampaign;
+                    const thin = Number(entry.leads) < minSegmentLeads;
+                    return (
+                      <tr
+                        key={`tp-campaign-${entry.campaign}`}
+                        className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                        onClick={() => onSelectCampaign?.(entry.campaign)}
+                        title={thin ? `Below ${minSegmentLeads} leads — falls back to country-wide ranking` : ""}
+                      >
+                        <td className={styles.tableStrong}>
+                          {entry.campaign}
+                          {thin ? <span style={{ color: "#b45309", marginLeft: 4 }}>*</span> : null}
+                        </td>
+                        <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                        <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                        <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!campaigns.length ? (
+                    <tr>
+                      <td colSpan={4} className={styles.tableEmpty}>
+                        No campaigns for this country.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Agent Priority</h4>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+              N
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={count}
+                onChange={(event) => onCountChange?.(event.target.value)}
+                style={{ width: 60, padding: "2px 6px", border: "1px solid #cbd5e1", borderRadius: 6 }}
+              />
+            </label>
+          </div>
+          <div style={{ padding: "6px 8px" }}>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 8,
+                padding: "4px 8px",
+                borderRadius: 6,
+                background: basisNote.tone === "warn" ? "#fef3c7" : basisNote.tone === "ok" ? "#ecfdf5" : "#f1f5f9",
+                color: basisNote.tone === "warn" ? "#92400e" : basisNote.tone === "ok" ? "#065f46" : "#475569",
+              }}
+            >
+              {basisNote.text}
+            </div>
+            {allocation.sequence.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {allocation.sequence.map((agent, index) => (
+                  <span
+                    key={`tp-seq-${index}`}
+                    style={{
+                      fontSize: 11,
+                      background: "#e0e7ff",
+                      color: "#3730a3",
+                      borderRadius: 6,
+                      padding: "2px 6px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <b>{index + 1}.</b> {agent}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className={styles.tableScroll}>
+              <table className={`${styles.table} ${styles.tableSticky}`}>
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>TL</th>
+                    <th>CR</th>
+                    <th>Count</th>
+                    <th>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryAgents.map((agent) => (
+                    <tr
+                      key={`tp-agent-${agent.agent}`}
+                      style={agent.blocked ? { background: "#ffc7ce", color: "#9c0006" } : undefined}
+                    >
+                      <td className={styles.tableStrong}>
+                        {agent.blocked ? <span title={`No FTD in last ${blockWindowDays} days`}>🚫 </span> : null}
+                        {agent.agent}
+                        {agent.inSelectedCampaign ? (
+                          <span style={{ color: "#2563eb", marginLeft: 4, fontSize: 11 }}>• in AFF</span>
+                        ) : null}
+                      </td>
+                      <td>{agent.teamLeader || "-"}</td>
+                      <td style={numberCell}>{formatPercent(agent.cr)}</td>
+                      <td style={numberCell}>{agent.blocked ? "-" : agent.allocated}</td>
+                      <td style={numberCell}>{agent.blocked ? "-" : formatPercent(agent.share)}</td>
+                    </tr>
+                  ))}
+                  {!summaryAgents.length ? (
+                    <tr>
+                      <td colSpan={5} className={styles.tableEmpty}>
+                        {selectedCountry ? "No agents for this selection." : "Select a country."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -3799,6 +4082,7 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
+  const [trafficSelections, setTrafficSelections] = useState({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
     open: false,
@@ -4039,6 +4323,9 @@ export default function DashboardPage() {
     if (quickPreset !== "comparison-report") {
       setComparisonSelections({});
     }
+    if (quickPreset !== "traffic-priority") {
+      setTrafficSelections({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+    }
   }, [quickPreset]);
   useEffect(() => {
     router.prefetch("/dashboard/details");
@@ -4236,6 +4523,15 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      if (appliedFilters.trafficPriority) {
+        if (trafficSelections.country) {
+          query.set("tpCountry", trafficSelections.country);
+        }
+        if (trafficSelections.campaign) {
+          query.set("tpCampaign", trafficSelections.campaign);
+        }
+        query.set("tpCount", String(trafficSelections.count || TRAFFIC_DEFAULT_COUNT));
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4257,7 +4553,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, trafficSelections]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -4265,9 +4561,12 @@ export default function DashboardPage() {
   const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
   const isLeadSplitterPreset = quickPreset === "leadsplitter";
   const isTrafficPreset = quickPreset === "traffic";
-  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset;
+  const isTrafficPriorityPreset = quickPreset === "traffic-priority";
+  const isBuilderLockedPreset =
+    isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset || isTrafficPriorityPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isLeadSplitterView = report?.tableType === "leadsplitter";
+  const isTrafficPriorityView = report?.tableType === "trafficpriority";
   // HR Code is a Turkey-only column, so its toggle only appears for that office.
   const isTurkeyOfficeSelected =
     Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
@@ -4329,6 +4628,7 @@ export default function DashboardPage() {
           last4QuickMode: false,
           comparisonMode: false,
           leadSplitter: false,
+          trafficPriority: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -4448,6 +4748,21 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LEADSPLITTER_METRICS,
+          };
+        }
+        if (preset === "traffic-priority") {
+          return {
+            ...basePreset,
+            // Score the trailing 60-day window across all offices; load a few
+            // recent months so the window is fully covered.
+            officeScope: officeOptions.length ? [...officeOptions] : selectedOfficeScope,
+            monthKey: availableMonthKeys.slice(0, 3),
+            includeWorkTime: false,
+            hideNotWorking: false,
+            trafficPriority: true,
+            rowDimensions: QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_TRAFFIC_PRIORITY_METRICS,
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -5056,6 +5371,15 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("traffic-priority")}
+              className={styles.reportModeCard}
+              style={quickPreset === "traffic-priority" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Traffic Priority</span>
+              <span className={styles.reportModeIcon}>🚦</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -5251,11 +5575,38 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView && !isLeadSplitterView ? <SummaryCards summary={report.summary || {}} /> : null}
-          {!isComparisonReportView && !isLeadSplitterView ? <StatusCards stats={report.stats || {}} /> : null}
-          {!isComparisonReportView && !isLeadSplitterView ? <OverviewBand report={report} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <SummaryCards summary={report.summary || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <StatusCards stats={report.stats || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <OverviewBand report={report} />
+          ) : null}
           {report.tableType === "leadsplitter" ? (
             <LeadSplitterTable data={report.leadSplitter || { rows: [] }} />
+          ) : null}
+          {report.tableType === "trafficpriority" ? (
+            <TrafficPriorityPanel
+              data={report.trafficPriority || { countries: [] }}
+              selections={trafficSelections}
+              onSelectCountry={(country) =>
+                setTrafficSelections((prev) => ({
+                  ...prev,
+                  country: prev.country === country ? "" : country,
+                  campaign: prev.country === country ? prev.campaign : "",
+                }))
+              }
+              onSelectCampaign={(campaign) =>
+                setTrafficSelections((prev) => ({ ...prev, campaign: prev.campaign === campaign ? "" : campaign }))
+              }
+              onClear={() => setTrafficSelections((prev) => ({ ...prev, country: "", campaign: "" }))}
+              onCountChange={(value) => {
+                const parsed = Math.max(1, Math.min(500, Math.floor(Number(value) || 0)));
+                setTrafficSelections((prev) => ({ ...prev, count: parsed }));
+              }}
+            />
           ) : null}
           {report.tableType === "pivot" ? (
             <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
@@ -5300,7 +5651,12 @@ export default function DashboardPage() {
               )}
             </section>
           ) : null}
-          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
+          {report.tableType &&
+          report.tableType !== "pivot" &&
+          report.tableType !== "last4_matrix" &&
+          report.tableType !== "builder" &&
+          report.tableType !== "leadsplitter" &&
+          report.tableType !== "trafficpriority" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>
