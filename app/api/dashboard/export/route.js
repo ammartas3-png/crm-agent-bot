@@ -34,6 +34,7 @@ function queryParams(searchParams) {
     tpCountry: String(searchParams.get("tpCountry") || "").trim(),
     tpCampaign: String(searchParams.get("tpCampaign") || "").trim(),
     tpCount: String(searchParams.get("tpCount") || "").trim(),
+    tpExclude: String(searchParams.get("tpExclude") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),

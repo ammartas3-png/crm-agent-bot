@@ -3547,6 +3547,7 @@ function TrafficPriorityPanel({
   onSelectCampaign,
   onClear,
   onCountChange,
+  onExcludedChange,
 }) {
   const countries = Array.isArray(data?.countries) ? data.countries : [];
   const minSegmentLeads = Number(data?.minSegmentLeads) || 10;
@@ -3556,6 +3557,13 @@ function TrafficPriorityPanel({
   const selectedCampaign = String(selections?.campaign || "").trim();
   const count =
     Number(selections?.count) > 0 ? Number(selections.count) : Number(data?.defaultCount) || TRAFFIC_DEFAULT_COUNT;
+
+  // Manual per-agent include/exclude overrides. Reset whenever the country /
+  // campaign selection changes so defaults recompute for the new segment.
+  const [manualChecks, setManualChecks] = useState({});
+  useEffect(() => {
+    setManualChecks({});
+  }, [selectedCountry, selectedCampaign]);
 
   const countryEntry = useMemo(
     () => countries.find((entry) => entry.country === selectedCountry) || null,
@@ -3567,12 +3575,42 @@ function TrafficPriorityPanel({
     () => resolveTrafficRanking(data, { country: selectedCountry, campaign: selectedCampaign }),
     [data, selectedCountry, selectedCampaign],
   );
-  const allocation = useMemo(() => allocationSequence(ranking.agents, count), [ranking, count]);
+  // An agent whose FTD count equals its lead count = 100% CR, almost always a
+  // tiny-sample fluke (e.g. 1 lead / 1 FTD). Flag it yellow and leave its
+  // checkbox OFF by default so it does not dominate the allocation.
+  const isFullConversion = useCallback(
+    (agent) => Number(agent?.leads) > 0 && Number(agent?.ftd) === Number(agent?.leads),
+    [],
+  );
+  const isChecked = useCallback(
+    (agent) => {
+      if (agent?.blocked) {
+        return false;
+      }
+      const override = manualChecks[agent.agent];
+      if (override !== undefined) {
+        return override;
+      }
+      return !isFullConversion(agent);
+    },
+    [manualChecks, isFullConversion],
+  );
+  const toggleAgent = useCallback((agentName, nextChecked) => {
+    setManualChecks((prev) => ({ ...prev, [agentName]: nextChecked }));
+  }, []);
+
+  const allocation = useMemo(() => {
+    const active = (Array.isArray(ranking.agents) ? ranking.agents : []).filter((agent) => isChecked(agent));
+    return allocationSequence(active, count);
+  }, [ranking, count, isChecked]);
+
   const summaryAgents = useMemo(() => {
     const list = Array.isArray(ranking.agents) ? ranking.agents.slice() : [];
     return list
       .map((agent) => ({
         ...agent,
+        checked: isChecked(agent),
+        fullConversion: isFullConversion(agent),
         allocated: allocation.counts[agent.agent] || 0,
         share: allocation.shares[agent.agent] || 0,
       }))
@@ -3583,7 +3621,19 @@ function TrafficPriorityPanel({
           right.cr - left.cr ||
           String(left.agent).localeCompare(String(right.agent)),
       );
-  }, [ranking, allocation]);
+  }, [ranking, allocation, isChecked, isFullConversion]);
+
+  // Surface the resolved excluded-agent list (unchecked, non-blocked) so the
+  // XLSX export matches what is shown on screen.
+  useEffect(() => {
+    if (typeof onExcludedChange !== "function") {
+      return;
+    }
+    const excluded = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => !agent.blocked && !isChecked(agent))
+      .map((agent) => agent.agent);
+    onExcludedChange(excluded);
+  }, [ranking, isChecked, onExcludedChange]);
 
   const crCell = (value) =>
     Number(value) > 0 ? { background: "#c6efce", color: "#006100" } : { background: "#ffc7ce", color: "#9c0006" };
@@ -3623,8 +3673,14 @@ function TrafficPriorityPanel({
           <div className={styles.comparisonHeader}>
             <h4 className={styles.comparisonTitle}>Country</h4>
           </div>
-          <div className={styles.tableScroll}>
-            <table className={`${styles.table} ${styles.tableSticky}`}>
+          <div className={styles.trafficScroll}>
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "46%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Country</th>
@@ -3675,11 +3731,17 @@ function TrafficPriorityPanel({
               </button>
             ) : null}
           </div>
-          <div className={styles.tableScroll}>
+          <div className={styles.trafficScroll}>
             {!selectedCountry ? (
               <p className={styles.tableEmpty}>Select a country first.</p>
             ) : (
-              <table className={`${styles.table} ${styles.tableSticky}`}>
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "46%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Campaign</th>
@@ -3769,39 +3831,63 @@ function TrafficPriorityPanel({
                 ))}
               </div>
             ) : null}
-            <div className={styles.tableScroll}>
-              <table className={`${styles.table} ${styles.tableSticky}`}>
+            <div className={styles.trafficScroll}>
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "28px" }} />
+                  <col style={{ width: "38%" }} />
+                  <col style={{ width: "26%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "12%" }} />
+                </colgroup>
                 <thead>
                   <tr>
+                    <th title="Include in allocation" />
                     <th>Agent</th>
                     <th>TL</th>
+                    <th title="Leads in window">Ld</th>
                     <th>CR</th>
-                    <th>Count</th>
-                    <th>Share</th>
+                    <th title="Allocated calls">Cnt</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summaryAgents.map((agent) => (
                     <tr
                       key={`tp-agent-${agent.agent}`}
-                      style={agent.blocked ? { background: "#ffc7ce", color: "#9c0006" } : undefined}
+                      style={
+                        agent.blocked
+                          ? { background: "#ffc7ce", color: "#9c0006" }
+                          : agent.fullConversion
+                            ? { background: "#fff3cd" }
+                            : undefined
+                      }
+                      title={agent.fullConversion ? "FTD = Leads (100% CR) - likely low sample, off by default" : ""}
                     >
-                      <td className={styles.tableStrong}>
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={agent.checked}
+                          disabled={agent.blocked}
+                          onChange={(event) => toggleAgent(agent.agent, event.target.checked)}
+                        />
+                      </td>
+                      <td className={styles.tableStrong} title={agent.agent}>
                         {agent.blocked ? <span title={`No FTD in last ${blockWindowDays} days`}>🚫 </span> : null}
                         {agent.agent}
                         {agent.inSelectedCampaign ? (
-                          <span style={{ color: "#2563eb", marginLeft: 4, fontSize: 11 }}>• in AFF</span>
+                          <span style={{ color: "#2563eb", marginLeft: 4 }}>•</span>
                         ) : null}
                       </td>
-                      <td>{agent.teamLeader || "-"}</td>
+                      <td title={agent.teamLeader || ""}>{agent.teamLeader || "-"}</td>
+                      <td style={numberCell}>{formatNumber(agent.leads)}</td>
                       <td style={numberCell}>{formatPercent(agent.cr)}</td>
-                      <td style={numberCell}>{agent.blocked ? "-" : agent.allocated}</td>
-                      <td style={numberCell}>{agent.blocked ? "-" : formatPercent(agent.share)}</td>
+                      <td style={numberCell}>{agent.blocked || !agent.checked ? "-" : agent.allocated}</td>
                     </tr>
                   ))}
                   {!summaryAgents.length ? (
                     <tr>
-                      <td colSpan={5} className={styles.tableEmpty}>
+                      <td colSpan={6} className={styles.tableEmpty}>
                         {selectedCountry ? "No agents for this selection." : "Select a country."}
                       </td>
                     </tr>
@@ -4083,6 +4169,7 @@ export default function DashboardPage() {
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
   const [trafficSelections, setTrafficSelections] = useState({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+  const [trafficExcluded, setTrafficExcluded] = useState([]);
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
     open: false,
@@ -4531,6 +4618,9 @@ export default function DashboardPage() {
           query.set("tpCampaign", trafficSelections.campaign);
         }
         query.set("tpCount", String(trafficSelections.count || TRAFFIC_DEFAULT_COUNT));
+        if (Array.isArray(trafficExcluded) && trafficExcluded.length) {
+          query.set("tpExclude", trafficExcluded.join(","));
+        }
       }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
@@ -4553,7 +4643,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters, trafficSelections]);
+  }, [appliedFilters, trafficSelections, trafficExcluded]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -5607,6 +5697,7 @@ export default function DashboardPage() {
                 const parsed = Math.max(1, Math.min(500, Math.floor(Number(value) || 0)));
                 setTrafficSelections((prev) => ({ ...prev, count: parsed }));
               }}
+              onExcludedChange={setTrafficExcluded}
             />
           ) : null}
           {report.tableType === "pivot" ? (
