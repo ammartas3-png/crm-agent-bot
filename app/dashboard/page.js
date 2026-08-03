@@ -4753,10 +4753,11 @@ export default function DashboardPage() {
         if (preset === "traffic-priority") {
           return {
             ...basePreset,
-            // Score the trailing 60-day window across all offices; load a few
-            // recent months so the window is fully covered.
-            officeScope: officeOptions.length ? [...officeOptions] : selectedOfficeScope,
-            monthKey: availableMonthKeys.slice(0, 3),
+            // Scores the trailing ~60-day window. Loading all offices for several
+            // months blows the request timeout, so it runs on the selected office
+            // (switch office from the dropdown) with the 2 most recent months.
+            officeScope: selectedOfficeScope,
+            monthKey: availableMonthKeys.slice(0, 2),
             includeWorkTime: false,
             hideNotWorking: false,
             trafficPriority: true,
