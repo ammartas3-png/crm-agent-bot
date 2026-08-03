@@ -3341,6 +3341,7 @@ const EMPTY_FILTERS = {
   last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
+  hideHrCode: false,
   benchmarkMode: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
@@ -5160,6 +5161,15 @@ export default function DashboardPage() {
                 </button>
               </>
             ) : null}
+            <span className={styles.workTimeToggleLabel}>HR Code</span>
+            <button
+              type="button"
+              className={`${styles.workTimeToggle} ${!filters.hideHrCode ? styles.workTimeToggleOn : ""}`}
+              onClick={() => setFilters((prev) => ({ ...prev, hideHrCode: !prev.hideHrCode }))}
+            >
+              <span className={styles.workTimeToggleThumb} />
+              <span>{!filters.hideHrCode ? "ON" : "OFF"}</span>
+            </button>
           </div>
           <ToggleGroup
             label="Metrics / Data Fields"
