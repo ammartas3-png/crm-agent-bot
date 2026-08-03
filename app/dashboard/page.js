@@ -3608,7 +3608,7 @@ function TrafficPriorityPanel({
   return (
     <section className={styles.section} style={{ padding: 0 }}>
       <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
-        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Traffic Priority</h3>
+        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Traffic Distribution</h3>
         <span style={{ fontSize: 12, color: "#64748b" }}>
           Last {windowDays} days · block = no FTD in last {blockWindowDays} days
         </span>
@@ -5375,7 +5375,7 @@ export default function DashboardPage() {
               className={styles.reportModeCard}
               style={quickPreset === "traffic-priority" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
             >
-              <span className={styles.reportModeTitle}>Traffic Priority</span>
+              <span className={styles.reportModeTitle}>Traffic Distribution</span>
               <span className={styles.reportModeIcon}>🚦</span>
             </button>
             <button
