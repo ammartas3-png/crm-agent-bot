@@ -7,6 +7,7 @@ import { DataBar, RankBars } from "./viz.js";
 import {
   TRAFFIC_DEFAULT_COUNT,
   allocationSequence,
+  buildDistributionAudit,
   resolveTrafficRanking,
 } from "../../lib/trafficPriority.js";
 
@@ -3565,6 +3566,15 @@ function TrafficPriorityPanel({
     setManualChecks({});
   }, [selectedCountry, selectedCampaign]);
 
+  // Distribution Check (audit): pick a day + press "Load" to compute it.
+  const availableDays = Array.isArray(data?.days) ? data.days : [];
+  const [auditDaySelection, setAuditDaySelection] = useState("");
+  const [audit, setAudit] = useState(null);
+  useEffect(() => {
+    setAudit(null);
+    setAuditDaySelection("");
+  }, [selectedCountry]);
+
   const countryEntry = useMemo(
     () => countries.find((entry) => entry.country === selectedCountry) || null,
     [countries, selectedCountry],
@@ -3654,6 +3664,18 @@ function TrafficPriorityPanel({
     }
     return { tone: "muted", text: "Select a country to build the priority list." };
   })();
+
+  const formatDay = (dayString) => {
+    const parts = String(dayString || "").split("-");
+    return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dayString;
+  };
+  const runAudit = useCallback(() => {
+    if (!countryEntry || !auditDaySelection) {
+      setAudit(null);
+      return;
+    }
+    setAudit(buildDistributionAudit(countryEntry, auditDaySelection, { windowDays }));
+  }, [countryEntry, auditDaySelection, windowDays]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -3896,6 +3918,108 @@ function TrafficPriorityPanel({
               </table>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className={`${styles.panel} ${styles.tableCard}`} style={{ marginTop: 12 }}>
+        <div className={styles.comparisonHeader} style={{ flexWrap: "wrap", gap: 8 }}>
+          <h4 className={styles.comparisonTitle}>Distribution Check</h4>
+          <span style={{ fontSize: 11, color: "#cbd5e1" }}>
+            Actual vs expected split for a day (expected = CR of the {windowDays} days before)
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+            <select
+              value={auditDaySelection}
+              onChange={(event) => setAuditDaySelection(event.target.value)}
+              disabled={!selectedCountry}
+              style={{ padding: "3px 6px", borderRadius: 6, fontSize: 12 }}
+            >
+              <option value="">Select day…</option>
+              {availableDays.map((day) => (
+                <option key={`tp-day-${day}`} value={day}>
+                  {formatDay(day)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={runAudit}
+              disabled={!selectedCountry || !auditDaySelection}
+            >
+              Load
+            </button>
+          </div>
+        </div>
+        <div className={styles.trafficScroll}>
+          {!selectedCountry ? (
+            <p className={styles.tableEmpty}>Select a country above first.</p>
+          ) : !audit ? (
+            <p className={styles.tableEmpty}>Pick a day and press Load.</p>
+          ) : (
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "26%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Agent — {selectedCountry} · {formatDay(audit.day)}</th>
+                  <th>TL</th>
+                  <th title="CR of prior 60 days">CR</th>
+                  <th title="Expected leads">Exp</th>
+                  <th title="Actual leads received">Act</th>
+                  <th title="Actual − Expected">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.rows.map((row) => {
+                  const under = row.diff <= -0.5;
+                  const over = row.diff >= 0.5;
+                  const rowStyle = row.blocked
+                    ? { background: "#ffc7ce", color: "#9c0006" }
+                    : under
+                      ? { background: "#fde2e1" }
+                      : over
+                        ? { background: "#dbeafe" }
+                        : undefined;
+                  return (
+                    <tr key={`tp-audit-${row.agent}`} style={rowStyle}>
+                      <td className={styles.tableStrong} title={row.agent}>
+                        {row.blocked ? "🚫 " : null}
+                        {row.agent}
+                      </td>
+                      <td title={row.teamLeader}>{row.teamLeader || "-"}</td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(row.priorCr)}</td>
+                      <td style={{ textAlign: "right" }}>{row.blocked ? "-" : row.expected.toFixed(1)}</td>
+                      <td style={{ textAlign: "right" }}>{row.actual}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {row.blocked ? "-" : `${row.diff > 0 ? "+" : ""}${row.diff.toFixed(1)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!audit.rows.length ? (
+                  <tr>
+                    <td colSpan={6} className={styles.tableEmpty}>
+                      No agents for this day.
+                    </td>
+                  </tr>
+                ) : (
+                  <tr style={{ background: "#e5e7eb", fontWeight: 700 }}>
+                    <td colSpan={4}>Total leads that day</td>
+                    <td style={{ textAlign: "right" }}>{audit.totalActual}</td>
+                    <td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </section>

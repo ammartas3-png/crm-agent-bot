@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildTrafficPriorityReport } from "../lib/dashboardService.js";
-import { allocationSequence, resolveTrafficRanking } from "../lib/trafficPriority.js";
+import { allocationSequence, buildDistributionAudit, resolveTrafficRanking } from "../lib/trafficPriority.js";
 
 const tabConfig = {
   fields: {
@@ -93,6 +93,48 @@ test("resolveTrafficRanking falls back to country pool for a thin AFF and tags c
   const byName = Object.fromEntries(ranking.agents.map((agent) => [agent.agent, agent.inSelectedCampaign]));
   assert.equal(byName.A, false, "strong agent absent from the new AFF still ranks");
   assert.equal(byName.B, true);
+});
+
+test("buildDistributionAudit compares actual vs expected using the prior window", () => {
+  const countryEntry = {
+    agents: [
+      {
+        agent: "A",
+        teamLeader: "TL1",
+        blocked: false,
+        leadsByDay: { "2026-07-10": 10, "2026-08-01": 5 },
+        ftdByDay: { "2026-07-11": 5 },
+      },
+      {
+        agent: "B",
+        teamLeader: "TL1",
+        blocked: false,
+        leadsByDay: { "2026-07-10": 10, "2026-08-01": 5 },
+        ftdByDay: { "2026-07-11": 1 },
+      },
+      {
+        agent: "C",
+        teamLeader: "TL2",
+        blocked: true,
+        leadsByDay: { "2026-08-01": 3 },
+        ftdByDay: {},
+      },
+    ],
+  };
+  const audit = buildDistributionAudit(countryEntry, "2026-08-01", { windowDays: 60 });
+  assert.equal(audit.totalActual, 13, "5 + 5 + 3 leads that day");
+
+  const byAgent = Object.fromEntries(audit.rows.map((row) => [row.agent, row]));
+  assert.equal(Math.round(byAgent.A.priorCr), 50);
+  assert.equal(Math.round(byAgent.B.priorCr), 10);
+  // A has higher prior CR so should have been given more than B; A got 5 (under),
+  // B got 5 (over). Blocked C gets no expectation.
+  assert.ok(byAgent.A.expected > byAgent.B.expected);
+  assert.ok(byAgent.A.diff < 0, "A under-served");
+  assert.ok(byAgent.B.diff > 0, "B over-served");
+  assert.equal(byAgent.C.expected, 0, "blocked agent has no expectation");
+  // Rows sorted by diff ascending -> most under-served first.
+  assert.equal(audit.rows[0].agent, "A");
 });
 
 test("buildTrafficPriorityReport groups country/campaign/agent and flags cold agents", () => {
