@@ -3594,14 +3594,13 @@ function TrafficPriorityPanel({
   );
   const isChecked = useCallback(
     (agent) => {
-      if (agent?.blocked) {
-        return false;
-      }
       const override = manualChecks[agent.agent];
       if (override !== undefined) {
         return override;
       }
-      return !isFullConversion(agent);
+      // Off by default for cold (blocked) and full-conversion agents, but both
+      // can still be ticked on manually.
+      return !agent?.blocked && !isFullConversion(agent);
     },
     [manualChecks, isFullConversion],
   );
@@ -3610,7 +3609,11 @@ function TrafficPriorityPanel({
   }, []);
 
   const allocation = useMemo(() => {
-    const active = (Array.isArray(ranking.agents) ? ranking.agents : []).filter((agent) => isChecked(agent));
+    // Ticked agents are recipients regardless of the block flag (the user opted
+    // them in), so clear `blocked` before allocation.
+    const active = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
     return allocationSequence(active, count);
   }, [ranking, count, isChecked]);
 
@@ -3640,7 +3643,7 @@ function TrafficPriorityPanel({
       return;
     }
     const excluded = (Array.isArray(ranking.agents) ? ranking.agents : [])
-      .filter((agent) => !agent.blocked && !isChecked(agent))
+      .filter((agent) => !isChecked(agent))
       .map((agent) => agent.agent);
     onExcludedChange(excluded);
   }, [ranking, isChecked, onExcludedChange]);
@@ -3674,8 +3677,13 @@ function TrafficPriorityPanel({
       setAudit(null);
       return;
     }
-    setAudit(buildDistributionAudit(countryEntry, auditDaySelection, { windowDays }));
-  }, [countryEntry, auditDaySelection, windowDays]);
+    // Only agents currently ticked in Agent Priority take part in the check;
+    // ticked-in blocked agents are treated as active recipients.
+    const checkedAgents = (Array.isArray(countryEntry.agents) ? countryEntry.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
+    setAudit(buildDistributionAudit({ agents: checkedAgents }, auditDaySelection, { windowDays }));
+  }, [countryEntry, auditDaySelection, windowDays, isChecked]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -3890,7 +3898,6 @@ function TrafficPriorityPanel({
                         <input
                           type="checkbox"
                           checked={agent.checked}
-                          disabled={agent.blocked}
                           onChange={(event) => toggleAgent(agent.agent, event.target.checked)}
                         />
                       </td>
@@ -3904,7 +3911,7 @@ function TrafficPriorityPanel({
                       <td title={agent.teamLeader || ""}>{agent.teamLeader || "-"}</td>
                       <td style={numberCell}>{formatNumber(agent.leads)}</td>
                       <td style={numberCell}>{formatPercent(agent.cr)}</td>
-                      <td style={numberCell}>{agent.blocked || !agent.checked ? "-" : agent.allocated}</td>
+                      <td style={numberCell}>{agent.checked ? agent.allocated : "-"}</td>
                     </tr>
                   ))}
                   {!summaryAgents.length ? (
