@@ -137,6 +137,19 @@ test("buildDistributionAudit compares actual vs expected using the prior window"
   assert.equal(audit.rows[0].agent, "A");
 });
 
+test("buildTrafficPriorityReport day picker excludes future and ancient typo dates", () => {
+  leadId = 0;
+  const rows = [
+    lead({ Country: "X", Campaign: "C", "AGENT NAMES": "A", "Lead Date": "2026-02-10" }),
+    lead({ Country: "X", Campaign: "C", "AGENT NAMES": "A", "Lead Date": "2027-07-15" }), // future typo
+    lead({ Country: "X", Campaign: "C", "AGENT NAMES": "A", "Lead Date": "0206-07-28" }), // ancient typo
+  ];
+  const report = buildTrafficPriorityReport(rows, tabConfig, { now: NOW });
+  assert.ok(report.days.includes("2026-02-10"), "valid recent day is offered");
+  assert.ok(!report.days.includes("2027-07-15"), "future day is not offered");
+  assert.ok(!report.days.some((day) => day.startsWith("0206")), "ancient typo day is not offered");
+});
+
 test("buildTrafficPriorityReport groups country/campaign/agent and flags cold agents", () => {
   leadId = 0;
   const rows = [
