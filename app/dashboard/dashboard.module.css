@@ -694,6 +694,30 @@
   max-height: 58vh;
 }
 
+/* Traffic Distribution 3-up tables: fixed layout so columns share the panel
+   width and long text truncates with an ellipsis instead of forcing a
+   horizontal scrollbar. */
+.trafficTable {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.trafficTable th,
+.trafficTable td {
+  padding: 3px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trafficScroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 60vh;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

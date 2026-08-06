@@ -4,6 +4,12 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import { DataBar, RankBars } from "./viz.js";
+import {
+  TRAFFIC_DEFAULT_COUNT,
+  allocationSequence,
+  buildDistributionAudit,
+  resolveTrafficRanking,
+} from "../../lib/trafficPriority.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -3393,6 +3399,8 @@ const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placemen
 const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
 const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS = ["country", "campaign", "agent"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_METRICS = ["leads", "ftd", "cr"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
@@ -3528,6 +3536,498 @@ function LeadSplitterTable({ data = { rows: [] } }) {
             ) : null}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+function TrafficPriorityPanel({
+  data = { countries: [] },
+  selections = {},
+  onSelectCountry,
+  onSelectCampaign,
+  onClear,
+  onCountChange,
+  onExcludedChange,
+}) {
+  const countries = Array.isArray(data?.countries) ? data.countries : [];
+  const minSegmentLeads = Number(data?.minSegmentLeads) || 10;
+  const windowDays = Number(data?.windowDays) || 60;
+  const blockWindowDays = Number(data?.blockWindowDays) || 7;
+  const selectedCountry = String(selections?.country || "").trim();
+  const selectedCampaign = String(selections?.campaign || "").trim();
+  const count =
+    Number(selections?.count) > 0 ? Number(selections.count) : Number(data?.defaultCount) || TRAFFIC_DEFAULT_COUNT;
+
+  // Manual per-agent include/exclude overrides. Reset whenever the country /
+  // campaign selection changes so defaults recompute for the new segment.
+  const [manualChecks, setManualChecks] = useState({});
+  useEffect(() => {
+    setManualChecks({});
+  }, [selectedCountry, selectedCampaign]);
+
+  // Distribution Check (audit): pick a day + press "Load" to compute it.
+  const availableDays = Array.isArray(data?.days) ? data.days : [];
+  const [auditDaySelection, setAuditDaySelection] = useState("");
+  const [audit, setAudit] = useState(null);
+  useEffect(() => {
+    setAudit(null);
+    setAuditDaySelection("");
+  }, [selectedCountry]);
+
+  const countryEntry = useMemo(
+    () => countries.find((entry) => entry.country === selectedCountry) || null,
+    [countries, selectedCountry],
+  );
+  const campaigns = countryEntry && Array.isArray(countryEntry.campaigns) ? countryEntry.campaigns : [];
+
+  const ranking = useMemo(
+    () => resolveTrafficRanking(data, { country: selectedCountry, campaign: selectedCampaign }),
+    [data, selectedCountry, selectedCampaign],
+  );
+  // An agent whose FTD count equals its lead count = 100% CR, almost always a
+  // tiny-sample fluke (e.g. 1 lead / 1 FTD). Flag it yellow and leave its
+  // checkbox OFF by default so it does not dominate the allocation.
+  const isFullConversion = useCallback(
+    (agent) => Number(agent?.leads) > 0 && Number(agent?.ftd) === Number(agent?.leads),
+    [],
+  );
+  const isChecked = useCallback(
+    (agent) => {
+      const override = manualChecks[agent.agent];
+      if (override !== undefined) {
+        return override;
+      }
+      // Off by default for cold (blocked) and full-conversion agents, but both
+      // can still be ticked on manually.
+      return !agent?.blocked && !isFullConversion(agent);
+    },
+    [manualChecks, isFullConversion],
+  );
+  const toggleAgent = useCallback((agentName, nextChecked) => {
+    setManualChecks((prev) => ({ ...prev, [agentName]: nextChecked }));
+  }, []);
+
+  const allocation = useMemo(() => {
+    // Ticked agents are recipients regardless of the block flag (the user opted
+    // them in), so clear `blocked` before allocation.
+    const active = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
+    return allocationSequence(active, count);
+  }, [ranking, count, isChecked]);
+
+  const summaryAgents = useMemo(() => {
+    const list = Array.isArray(ranking.agents) ? ranking.agents.slice() : [];
+    return list
+      .map((agent) => ({
+        ...agent,
+        checked: isChecked(agent),
+        fullConversion: isFullConversion(agent),
+        allocated: allocation.counts[agent.agent] || 0,
+        share: allocation.shares[agent.agent] || 0,
+      }))
+      .sort(
+        (left, right) =>
+          Number(left.blocked) - Number(right.blocked) ||
+          right.allocated - left.allocated ||
+          right.cr - left.cr ||
+          String(left.agent).localeCompare(String(right.agent)),
+      );
+  }, [ranking, allocation, isChecked, isFullConversion]);
+
+  // Surface the resolved excluded-agent list (unchecked, non-blocked) so the
+  // XLSX export matches what is shown on screen.
+  useEffect(() => {
+    if (typeof onExcludedChange !== "function") {
+      return;
+    }
+    const excluded = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => !isChecked(agent))
+      .map((agent) => agent.agent);
+    onExcludedChange(excluded);
+  }, [ranking, isChecked, onExcludedChange]);
+
+  const crCell = (value) =>
+    Number(value) > 0 ? { background: "#c6efce", color: "#006100" } : { background: "#ffc7ce", color: "#9c0006" };
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
+
+  const basisNote = (() => {
+    if (ranking.basis === "segment") {
+      return { tone: "ok", text: `Ranking: ${selectedCountry} · ${selectedCampaign} (segment CR, ${ranking.segmentLeads} leads)` };
+    }
+    if (ranking.basis === "country-fallback") {
+      return {
+        tone: "warn",
+        text: `Not enough data for this AFF (${ranking.segmentLeads} < ${minSegmentLeads}) — ranking by ${selectedCountry} country-wide CR`,
+      };
+    }
+    if (ranking.basis === "country") {
+      return { tone: "ok", text: `Ranking: ${selectedCountry} country-wide (last ${windowDays} days)` };
+    }
+    return { tone: "muted", text: "Select a country to build the priority list." };
+  })();
+
+  const formatDay = (dayString) => {
+    const parts = String(dayString || "").split("-");
+    return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dayString;
+  };
+  const runAudit = useCallback(() => {
+    if (!countryEntry || !auditDaySelection) {
+      setAudit(null);
+      return;
+    }
+    // Only agents currently ticked in Agent Priority take part in the check;
+    // ticked-in blocked agents are treated as active recipients.
+    const checkedAgents = (Array.isArray(countryEntry.agents) ? countryEntry.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
+    setAudit(buildDistributionAudit({ agents: checkedAgents }, auditDaySelection, { windowDays }));
+  }, [countryEntry, auditDaySelection, windowDays, isChecked]);
+
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
+        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Traffic Distribution</h3>
+        <span style={{ fontSize: 12, color: "#64748b" }}>
+          Last {windowDays} days · block = no FTD in last {blockWindowDays} days
+        </span>
+        {selectedCountry ? (
+          <button type="button" className={styles.tableActionButton} style={{ marginLeft: "auto" }} onClick={() => onClear?.()}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div className={styles.comparisonGrid}>
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Country</h4>
+          </div>
+          <div className={styles.trafficScroll}>
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "46%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Country</th>
+                  <th>Leads</th>
+                  <th>FTD</th>
+                  <th>CR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {countries.map((entry) => {
+                  const isSelected = entry.country === selectedCountry;
+                  return (
+                    <tr
+                      key={`tp-country-${entry.country}`}
+                      className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                      onClick={() => onSelectCountry?.(entry.country)}
+                    >
+                      <td className={styles.tableStrong}>{entry.country}</td>
+                      <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                      <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                      <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                    </tr>
+                  );
+                })}
+                {!countries.length ? (
+                  <tr>
+                    <td colSpan={4} className={styles.tableEmpty}>
+                      No leads in the last {windowDays} days.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Campaign (AFF)</h4>
+            {selectedCampaign ? (
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+                onClick={() => onSelectCampaign?.("")}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.trafficScroll}>
+            {!selectedCountry ? (
+              <p className={styles.tableEmpty}>Select a country first.</p>
+            ) : (
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "46%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Leads</th>
+                    <th>FTD</th>
+                    <th>CR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((entry) => {
+                    const isSelected = entry.campaign === selectedCampaign;
+                    const thin = Number(entry.leads) < minSegmentLeads;
+                    return (
+                      <tr
+                        key={`tp-campaign-${entry.campaign}`}
+                        className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                        onClick={() => onSelectCampaign?.(entry.campaign)}
+                        title={thin ? `Below ${minSegmentLeads} leads — falls back to country-wide ranking` : ""}
+                      >
+                        <td className={styles.tableStrong}>
+                          {entry.campaign}
+                          {thin ? <span style={{ color: "#b45309", marginLeft: 4 }}>*</span> : null}
+                        </td>
+                        <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                        <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                        <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!campaigns.length ? (
+                    <tr>
+                      <td colSpan={4} className={styles.tableEmpty}>
+                        No campaigns for this country.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Agent Priority</h4>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+              N
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={count}
+                onChange={(event) => onCountChange?.(event.target.value)}
+                style={{ width: 60, padding: "2px 6px", border: "1px solid #cbd5e1", borderRadius: 6 }}
+              />
+            </label>
+          </div>
+          <div style={{ padding: "6px 8px" }}>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 8,
+                padding: "4px 8px",
+                borderRadius: 6,
+                background: basisNote.tone === "warn" ? "#fef3c7" : basisNote.tone === "ok" ? "#ecfdf5" : "#f1f5f9",
+                color: basisNote.tone === "warn" ? "#92400e" : basisNote.tone === "ok" ? "#065f46" : "#475569",
+              }}
+            >
+              {basisNote.text}
+            </div>
+            {allocation.sequence.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {allocation.sequence.map((agent, index) => (
+                  <span
+                    key={`tp-seq-${index}`}
+                    style={{
+                      fontSize: 11,
+                      background: "#e0e7ff",
+                      color: "#3730a3",
+                      borderRadius: 6,
+                      padding: "2px 6px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <b>{index + 1}.</b> {agent}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className={styles.trafficScroll}>
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "28px" }} />
+                  <col style={{ width: "38%" }} />
+                  <col style={{ width: "26%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "12%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th title="Include in allocation" />
+                    <th>Agent</th>
+                    <th>TL</th>
+                    <th title="Leads in window">Ld</th>
+                    <th>CR</th>
+                    <th title="Allocated calls">Cnt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryAgents.map((agent) => (
+                    <tr
+                      key={`tp-agent-${agent.agent}`}
+                      style={
+                        agent.blocked
+                          ? { background: "#ffc7ce", color: "#9c0006" }
+                          : agent.fullConversion
+                            ? { background: "#fff3cd" }
+                            : undefined
+                      }
+                      title={agent.fullConversion ? "FTD = Leads (100% CR) - likely low sample, off by default" : ""}
+                    >
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={agent.checked}
+                          onChange={(event) => toggleAgent(agent.agent, event.target.checked)}
+                        />
+                      </td>
+                      <td className={styles.tableStrong} title={agent.agent}>
+                        {agent.blocked ? <span title={`No FTD in last ${blockWindowDays} days`}>🚫 </span> : null}
+                        {agent.agent}
+                        {agent.inSelectedCampaign ? (
+                          <span style={{ color: "#2563eb", marginLeft: 4 }}>•</span>
+                        ) : null}
+                      </td>
+                      <td title={agent.teamLeader || ""}>{agent.teamLeader || "-"}</td>
+                      <td style={numberCell}>{formatNumber(agent.leads)}</td>
+                      <td style={numberCell}>{formatPercent(agent.cr)}</td>
+                      <td style={numberCell}>{agent.checked ? agent.allocated : "-"}</td>
+                    </tr>
+                  ))}
+                  {!summaryAgents.length ? (
+                    <tr>
+                      <td colSpan={6} className={styles.tableEmpty}>
+                        {selectedCountry ? "No agents for this selection." : "Select a country."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${styles.panel} ${styles.tableCard}`} style={{ marginTop: 12 }}>
+        <div className={styles.comparisonHeader} style={{ flexWrap: "wrap", gap: 8 }}>
+          <h4 className={styles.comparisonTitle}>Distribution Check</h4>
+          <span style={{ fontSize: 11, color: "#cbd5e1" }}>
+            Actual vs expected split for a day (expected = CR of the {windowDays} days before)
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+            <select
+              value={auditDaySelection}
+              onChange={(event) => setAuditDaySelection(event.target.value)}
+              disabled={!selectedCountry}
+              style={{ padding: "3px 6px", borderRadius: 6, fontSize: 12 }}
+            >
+              <option value="">Select day…</option>
+              {availableDays.map((day) => (
+                <option key={`tp-day-${day}`} value={day}>
+                  {formatDay(day)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={runAudit}
+              disabled={!selectedCountry || !auditDaySelection}
+            >
+              Load
+            </button>
+          </div>
+        </div>
+        <div className={styles.trafficScroll}>
+          {!selectedCountry ? (
+            <p className={styles.tableEmpty}>Select a country above first.</p>
+          ) : !audit ? (
+            <p className={styles.tableEmpty}>Pick a day and press Load.</p>
+          ) : (
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "26%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Agent — {selectedCountry} · {formatDay(audit.day)}</th>
+                  <th>TL</th>
+                  <th title="CR of prior 60 days">CR</th>
+                  <th title="Expected leads">Exp</th>
+                  <th title="Actual leads received">Act</th>
+                  <th title="Actual − Expected">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.rows.map((row) => {
+                  const under = row.diff <= -0.5;
+                  const over = row.diff >= 0.5;
+                  const rowStyle = row.blocked
+                    ? { background: "#ffc7ce", color: "#9c0006" }
+                    : under
+                      ? { background: "#fde2e1" }
+                      : over
+                        ? { background: "#dbeafe" }
+                        : undefined;
+                  return (
+                    <tr key={`tp-audit-${row.agent}`} style={rowStyle}>
+                      <td className={styles.tableStrong} title={row.agent}>
+                        {row.blocked ? "🚫 " : null}
+                        {row.agent}
+                      </td>
+                      <td title={row.teamLeader}>{row.teamLeader || "-"}</td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(row.priorCr)}</td>
+                      <td style={{ textAlign: "right" }}>{row.blocked ? "-" : row.expected.toFixed(1)}</td>
+                      <td style={{ textAlign: "right" }}>{row.actual}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {row.blocked ? "-" : `${row.diff > 0 ? "+" : ""}${row.diff.toFixed(1)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!audit.rows.length ? (
+                  <tr>
+                    <td colSpan={6} className={styles.tableEmpty}>
+                      No agents for this day.
+                    </td>
+                  </tr>
+                ) : (
+                  <tr style={{ background: "#e5e7eb", fontWeight: 700 }}>
+                    <td colSpan={4}>Total leads that day</td>
+                    <td style={{ textAlign: "right" }}>{audit.totalActual}</td>
+                    <td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -3799,6 +4299,8 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
+  const [trafficSelections, setTrafficSelections] = useState({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+  const [trafficExcluded, setTrafficExcluded] = useState([]);
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
     open: false,
@@ -4039,6 +4541,9 @@ export default function DashboardPage() {
     if (quickPreset !== "comparison-report") {
       setComparisonSelections({});
     }
+    if (quickPreset !== "traffic-priority") {
+      setTrafficSelections({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+    }
   }, [quickPreset]);
   useEffect(() => {
     router.prefetch("/dashboard/details");
@@ -4236,6 +4741,18 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      if (appliedFilters.trafficPriority) {
+        if (trafficSelections.country) {
+          query.set("tpCountry", trafficSelections.country);
+        }
+        if (trafficSelections.campaign) {
+          query.set("tpCampaign", trafficSelections.campaign);
+        }
+        query.set("tpCount", String(trafficSelections.count || TRAFFIC_DEFAULT_COUNT));
+        if (Array.isArray(trafficExcluded) && trafficExcluded.length) {
+          query.set("tpExclude", trafficExcluded.join(","));
+        }
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4257,7 +4774,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, trafficSelections, trafficExcluded]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -4265,9 +4782,12 @@ export default function DashboardPage() {
   const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
   const isLeadSplitterPreset = quickPreset === "leadsplitter";
   const isTrafficPreset = quickPreset === "traffic";
-  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset;
+  const isTrafficPriorityPreset = quickPreset === "traffic-priority";
+  const isBuilderLockedPreset =
+    isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset || isTrafficPriorityPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isLeadSplitterView = report?.tableType === "leadsplitter";
+  const isTrafficPriorityView = report?.tableType === "trafficpriority";
   // HR Code is a Turkey-only column, so its toggle only appears for that office.
   const isTurkeyOfficeSelected =
     Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
@@ -4329,6 +4849,7 @@ export default function DashboardPage() {
           last4QuickMode: false,
           comparisonMode: false,
           leadSplitter: false,
+          trafficPriority: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -4448,6 +4969,22 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_LEADSPLITTER_METRICS,
+          };
+        }
+        if (preset === "traffic-priority") {
+          return {
+            ...basePreset,
+            // Scores the trailing ~60-day window. Loading all offices for several
+            // months blows the request timeout, so it runs on the selected office
+            // (switch office from the dropdown) with the 2 most recent months.
+            officeScope: selectedOfficeScope,
+            monthKey: availableMonthKeys.slice(0, 2),
+            includeWorkTime: false,
+            hideNotWorking: false,
+            trafficPriority: true,
+            rowDimensions: QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_TRAFFIC_PRIORITY_METRICS,
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -5071,6 +5608,15 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("traffic-priority")}
+              className={styles.reportModeCard}
+              style={quickPreset === "traffic-priority" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Traffic Distribution</span>
+              <span className={styles.reportModeIcon}>🚦</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -5266,11 +5812,39 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView && !isLeadSplitterView ? <SummaryCards summary={report.summary || {}} /> : null}
-          {!isComparisonReportView && !isLeadSplitterView ? <StatusCards stats={report.stats || {}} /> : null}
-          {!isComparisonReportView && !isLeadSplitterView ? <OverviewBand report={report} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <SummaryCards summary={report.summary || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <StatusCards stats={report.stats || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <OverviewBand report={report} />
+          ) : null}
           {report.tableType === "leadsplitter" ? (
             <LeadSplitterTable data={report.leadSplitter || { rows: [] }} />
+          ) : null}
+          {report.tableType === "trafficpriority" ? (
+            <TrafficPriorityPanel
+              data={report.trafficPriority || { countries: [] }}
+              selections={trafficSelections}
+              onSelectCountry={(country) =>
+                setTrafficSelections((prev) => ({
+                  ...prev,
+                  country: prev.country === country ? "" : country,
+                  campaign: prev.country === country ? prev.campaign : "",
+                }))
+              }
+              onSelectCampaign={(campaign) =>
+                setTrafficSelections((prev) => ({ ...prev, campaign: prev.campaign === campaign ? "" : campaign }))
+              }
+              onClear={() => setTrafficSelections((prev) => ({ ...prev, country: "", campaign: "" }))}
+              onCountChange={(value) => {
+                const parsed = Math.max(1, Math.min(500, Math.floor(Number(value) || 0)));
+                setTrafficSelections((prev) => ({ ...prev, count: parsed }));
+              }}
+              onExcludedChange={setTrafficExcluded}
+            />
           ) : null}
           {report.tableType === "pivot" ? (
             <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
@@ -5315,7 +5889,12 @@ export default function DashboardPage() {
               )}
             </section>
           ) : null}
-          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
+          {report.tableType &&
+          report.tableType !== "pivot" &&
+          report.tableType !== "last4_matrix" &&
+          report.tableType !== "builder" &&
+          report.tableType !== "leadsplitter" &&
+          report.tableType !== "trafficpriority" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>
