@@ -250,6 +250,35 @@ test("combineKycFtdRowsBySourceMonth attributes each row to its own month", () =
   assert.equal(total, 4);
 });
 
+test("KYC FTD repairs an implausible year typo using the tab's own month", () => {
+  // Real data: an FTD Date typed "28.07.0206" instead of "28.07.2026". Without
+  // repair the row's month key ("206-07") never matches the July tab and the FTD
+  // silently drops from the KYC count.
+  const kycRows = buildKycFtdRowsFromFtdSheet(
+    [
+      { "FTD Date": "06.07.2026", CID: "ACC1", Agents: "Priscila Pa" },
+      { "FTD Date": "28.07.0206", CID: "ACC2", Agents: "Priscila Pa" },
+    ],
+    ftdTabConfig,
+    tabConfig,
+    new Map(),
+    { monthPeriod: "2026-07" },
+  );
+  assert.equal(kycRows[1].__sourceMonthKey, "2026-07", "typo year repaired to the tab year");
+  const combined = combineKycFtdRowsBySourceMonth([{ monthRecord: { key: "2026-07" }, kycFtdRows: kycRows }]);
+  assert.equal(combined.length, 2, "the repaired row survives month attribution");
+  assert.equal(
+    kycFtdCountFromRows([], tabConfig, {
+      kycFtdRows: combined,
+      dateFilter: { type: "month", month: 6, year: 2026 },
+      scope: { agent: ["Priscila Pa"] },
+      now: new Date("2026-08-01T12:00:00Z"),
+    }),
+    2,
+    "both FTDs counted under the July month filter",
+  );
+});
+
 test("combineKycFtdRowsBySourceMonth de-duplicates a shared spreadsheet across months", () => {
   // Same FTD tab (spanning June + July) read once per month record because the
   // office-month map points both month columns at the same spreadsheet.
