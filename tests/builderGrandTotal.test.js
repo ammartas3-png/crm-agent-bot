@@ -36,6 +36,30 @@ test("flat builder table appends a Grand Total row (counts summed, CR recomputed
   assert.equal(Math.round(grand.cr), 67);
 });
 
+test("date columns are restricted to the selected month (no stray other-month columns)", () => {
+  const augustRows = [
+    { ID: "a1", "Lead Date": "2026-08-05", Country: "United States", "AGENT NAMES": "Agent A" },
+    { ID: "a2", "Lead Date": "2026-08-06", Country: "United States", "AGENT NAMES": "Agent A" },
+    // Stray lead mistakenly dated in July inside the August sheet.
+    { ID: "a3", "Lead Date": "2026-07-31", Country: "Switzerland", "AGENT NAMES": "Agent B" },
+  ];
+  const augustFilter = { type: "month", month: 7, year: 2026 }; // month is 0-indexed (August)
+  const result = specificBuilderTable(
+    augustRows,
+    tabConfig,
+    infoContext,
+    augustFilter,
+    { rowDimensions: "country", columnDimension: "date", metricFields: "leads" },
+    new Date("2026-08-15T12:00:00Z"),
+  );
+  assert.ok(result.columnValues.length > 0, "has date columns");
+  assert.ok(
+    result.columnValues.every((value) => String(value).startsWith("2026-08")),
+    "only August date columns appear",
+  );
+  assert.ok(!result.columnValues.includes("2026-07-31"), "stray July column dropped");
+});
+
 test("column-pivot builder table Grand Total sums each column", () => {
   const result = specificBuilderTable(
     rows,
