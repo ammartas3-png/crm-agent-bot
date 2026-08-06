@@ -4525,9 +4525,16 @@ export default function DashboardPage() {
       return [];
     }
     const rows = Array.isArray(report?.table) ? [...report.table] : [];
+    // Grand Total row (computed server-side over the full data set). Rendered as
+    // a "total"-styled row pinned to the very bottom, only on the last page.
+    const grandTotalRow = report?.builder?.grandTotalRow;
+    const pag = report?.pagination;
+    const onLastPage = !pag || !pag.totalPages || (pag.page || 1) >= pag.totalPages;
+    const appendGrandTotal = (list) =>
+      grandTotalRow && onLastPage ? [...list, { ...grandTotalRow, __rowKind: "total", __grandTotal: true }] : list;
     const activeColumn = builderColumns.find((column) => column.key === builderSort.key);
     if (!activeColumn) {
-      return rows;
+      return appendGrandTotal(rows);
     }
     const selectedDimensions = Array.isArray(report?.builder?.selectedDimensions) ? report.builder.selectedDimensions : [];
     const selectedTotalDimensions = Array.isArray(report?.builder?.selectedTotalDimensions)
@@ -4543,7 +4550,7 @@ export default function DashboardPage() {
         const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
         return builderSort.direction === "desc" ? -compare : compare;
       });
-      return rows;
+      return appendGrandTotal(rows);
     }
 
     const detailRows = rows.filter((row) => row.__rowKind !== "total");
@@ -4645,8 +4652,16 @@ export default function DashboardPage() {
       return ordered;
     };
 
-    return orderHierarchical(detailRows, 0, []);
-  }, [builderColumns, builderSort.direction, builderSort.key, report?.table, report?.tableType]);
+    return appendGrandTotal(orderHierarchical(detailRows, 0, []));
+  }, [
+    builderColumns,
+    builderSort.direction,
+    builderSort.key,
+    report?.table,
+    report?.tableType,
+    report?.builder?.grandTotalRow,
+    report?.pagination,
+  ]);
 
   useEffect(() => {
     if (report?.tableType !== "builder") {
