@@ -40,16 +40,35 @@ function queryParams(searchParams) {
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
     showHrCode: String(searchParams.get("showHrCode") || "").trim(),
+    reportName: String(searchParams.get("reportName") || "").trim(),
+    sourceUrl: String(searchParams.get("sourceUrl") || "").trim(),
   };
 }
 
 function safeName(value = "") {
   return String(value || "")
     .trim()
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 64);
+    .replace(/[^\w.\- ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
+// Derives the exported report's display name when the client did not send one
+// (custom Report Builder rather than a named quick report).
+function fallbackReportName(query) {
+  const truthy = (value) => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+  if (truthy(query.trafficPriority)) return "Traffic Distribution";
+  if (truthy(query.leadSplitter)) return "LeadSplitter";
+  if (truthy(query.comparisonMode)) return "Comparison Report";
+  if (truthy(query.agentProductivityPlanMode)) return "Agent Productivity vs Plan";
+  if (truthy(query.last4QuickMode)) return "Last 4 Months";
+  if (truthy(query.benchmarkMode)) return "Benchmark";
+  const dims = String(query.rowDimensions || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return dims.length ? `Report Builder ${dims.join("-")}` : "Report Builder";
 }
 
 export async function GET(request) {
@@ -65,11 +84,18 @@ export async function GET(request) {
     const query = queryParams(searchParams);
     void logReportEvent({ telegramUser: resolved.telegramUser, searchParams, action: "export" });
     const report = await loadDashboardReport(resolved.access, query);
-    const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
-    const office = safeName(report?.month?.office_name || query.officeScope || "office");
-    const month = safeName(report?.month?.key || query.monthKey || "month");
-    const mode = safeName(report?.reportMode || "report");
-    const filename = `crm-${mode}-${office}-${month}.xlsx`;
+    const workbookBuffer = await dashboardReportWorkbookBuffer(report, query, {
+      exportedBy: resolved.telegramUser,
+      sourceUrl: query.sourceUrl,
+      reportName: query.reportName,
+    });
+    // Filename: "<Office> - <Month> <Date> - <Report Name>.xlsx".
+    const office = safeName(report?.month?.office_name || query.officeScope || "Office");
+    const month = safeName(report?.month?.label || report?.month?.key || query.monthKey || "");
+    const date = safeName(query.date || "");
+    const reportName = safeName(query.reportName || fallbackReportName(query));
+    const period = [month, date].filter(Boolean).join(" ");
+    const filename = `${[office, period, reportName].filter(Boolean).join(" - ")}.xlsx`;
     return new NextResponse(workbookBuffer, {
       status: 200,
       headers: {

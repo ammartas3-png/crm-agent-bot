@@ -3401,6 +3401,22 @@ const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
 const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
 const QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS = ["country", "campaign", "agent"];
 const QUICK_PRESET_TRAFFIC_PRIORITY_METRICS = ["leads", "ftd", "cr"];
+// Display names used for the export filename + Info sheet (matches the quick
+// report buttons). Empty preset = a custom Report Builder run.
+const QUICK_PRESET_LABELS = {
+  monthly: "Monthly Quick",
+  last4: "Last 4 Months Quick",
+  traffic: "Traffic Reports",
+  "country-daily": "Country Daily Watch",
+  benchmark: "Benchmark Report",
+  "desk-country-cr": "Desk Country Daily CR Watch",
+  "country-campaign-hourly-cr": "Country Campaign Hourly CR Watch",
+  "status-watch": "Status Performance Watch",
+  "comparison-report": "Comparison Report",
+  leadsplitter: "LeadSplitter",
+  "traffic-priority": "Traffic Distribution",
+  "agent-productivity-plan": "Agent Productivity vs Plan Report",
+};
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
@@ -4741,6 +4757,13 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      const presetName = QUICK_PRESET_LABELS[quickPreset] || "";
+      if (presetName) {
+        query.set("reportName", presetName);
+      }
+      if (typeof window !== "undefined") {
+        query.set("sourceUrl", `${window.location.origin}${window.location.pathname}`);
+      }
       if (appliedFilters.trafficPriority) {
         if (trafficSelections.country) {
           query.set("tpCountry", trafficSelections.country);
@@ -4774,7 +4797,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters, trafficSelections, trafficExcluded]);
+  }, [appliedFilters, trafficSelections, trafficExcluded, quickPreset]);
 
   const report = reportState.report;
   const options = report?.options || {};
