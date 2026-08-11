@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
+import { logReportEvent } from "../../../../lib/reportLog.js";
 
 function queryParams(searchParams) {
   return {
@@ -60,7 +61,9 @@ export async function GET(request) {
     if (!resolved.access?.authorized) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    const query = queryParams(new URL(request.url).searchParams);
+    const searchParams = new URL(request.url).searchParams;
+    const query = queryParams(searchParams);
+    void logReportEvent({ telegramUser: resolved.telegramUser, searchParams, action: "export" });
     const report = await loadDashboardReport(resolved.access, query);
     const workbookBuffer = await dashboardReportWorkbookBuffer(report, query);
     const office = safeName(report?.month?.office_name || query.officeScope || "office");
