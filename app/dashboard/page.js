@@ -8,6 +8,7 @@ import {
   TRAFFIC_DEFAULT_COUNT,
   allocationSequence,
   buildDistributionAudit,
+  mergeCountryEntries,
   resolveTrafficRanking,
 } from "../../lib/trafficPriority.js";
 
@@ -3560,7 +3561,9 @@ function LeadSplitterTable({ data = { rows: [] } }) {
 function TrafficPriorityPanel({
   data = { countries: [] },
   selections = {},
-  onSelectCountry,
+  onToggleCountry,
+  onSelectAllCountries,
+  onClearCountries,
   onSelectCampaign,
   onClear,
   onCountChange,
@@ -3570,8 +3573,14 @@ function TrafficPriorityPanel({
   const minSegmentLeads = Number(data?.minSegmentLeads) || 10;
   const windowDays = Number(data?.windowDays) || 60;
   const blockWindowDays = Number(data?.blockWindowDays) || 7;
-  const selectedCountry = String(selections?.country || "").trim();
-  const selectedCampaign = String(selections?.campaign || "").trim();
+  const selectedCountries = useMemo(
+    () => (Array.isArray(selections?.countries) ? selections.countries.map((value) => String(value || "").trim()).filter(Boolean) : []),
+    [selections],
+  );
+  const selectedCountrySet = useMemo(() => new Set(selectedCountries), [selectedCountries]);
+  const isSingleCountry = selectedCountries.length === 1;
+  const selectedCampaign = isSingleCountry ? String(selections?.campaign || "").trim() : "";
+  const selectionKey = `${selectedCountries.join("|")}::${selectedCampaign}`;
   const count =
     Number(selections?.count) > 0 ? Number(selections.count) : Number(data?.defaultCount) || TRAFFIC_DEFAULT_COUNT;
 
@@ -3580,7 +3589,7 @@ function TrafficPriorityPanel({
   const [manualChecks, setManualChecks] = useState({});
   useEffect(() => {
     setManualChecks({});
-  }, [selectedCountry, selectedCampaign]);
+  }, [selectionKey]);
 
   // Distribution Check (audit): pick a day + press "Load" to compute it.
   const availableDays = Array.isArray(data?.days) ? data.days : [];
@@ -3589,17 +3598,21 @@ function TrafficPriorityPanel({
   useEffect(() => {
     setAudit(null);
     setAuditDaySelection("");
-  }, [selectedCountry]);
+  }, [selectionKey]);
 
+  // For the audit: a single (possibly merged) country entry for the selection.
   const countryEntry = useMemo(
-    () => countries.find((entry) => entry.country === selectedCountry) || null,
-    [countries, selectedCountry],
+    () => (selectedCountries.length ? mergeCountryEntries(data, selectedCountries) : null),
+    [data, selectedCountries],
   );
-  const campaigns = countryEntry && Array.isArray(countryEntry.campaigns) ? countryEntry.campaigns : [];
+  const singleCountryEntry = isSingleCountry
+    ? countries.find((entry) => entry.country === selectedCountries[0]) || null
+    : null;
+  const campaigns = singleCountryEntry && Array.isArray(singleCountryEntry.campaigns) ? singleCountryEntry.campaigns : [];
 
   const ranking = useMemo(
-    () => resolveTrafficRanking(data, { country: selectedCountry, campaign: selectedCampaign }),
-    [data, selectedCountry, selectedCampaign],
+    () => resolveTrafficRanking(data, { countries: selectedCountries, campaign: selectedCampaign }),
+    [data, selectedCountries, selectedCampaign],
   );
   // An agent whose FTD count equals its lead count = 100% CR, almost always a
   // tiny-sample fluke (e.g. 1 lead / 1 FTD). Flag it yellow and leave its
@@ -3669,20 +3682,28 @@ function TrafficPriorityPanel({
   const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
 
   const basisNote = (() => {
+    const only = selectedCountries[0];
     if (ranking.basis === "segment") {
-      return { tone: "ok", text: `Ranking: ${selectedCountry} · ${selectedCampaign} (segment CR, ${ranking.segmentLeads} leads)` };
+      return { tone: "ok", text: `Ranking: ${only} · ${selectedCampaign} (segment CR, ${ranking.segmentLeads} leads)` };
     }
     if (ranking.basis === "country-fallback") {
       return {
         tone: "warn",
-        text: `Not enough data for this AFF (${ranking.segmentLeads} < ${minSegmentLeads}) — ranking by ${selectedCountry} country-wide CR`,
+        text: `Not enough data for this AFF (${ranking.segmentLeads} < ${minSegmentLeads}) — ranking by ${only} country-wide CR`,
       };
     }
     if (ranking.basis === "country") {
-      return { tone: "ok", text: `Ranking: ${selectedCountry} country-wide (last ${windowDays} days)` };
+      return { tone: "ok", text: `Ranking: ${only} country-wide (last ${windowDays} days)` };
     }
-    return { tone: "muted", text: "Select a country to build the priority list." };
+    if (ranking.basis === "multi-country") {
+      return {
+        tone: "ok",
+        text: `Ranking: ${selectedCountries.length} countries combined (last ${windowDays} days)`,
+      };
+    }
+    return { tone: "muted", text: "Select one or more countries to build the priority list." };
   })();
+  const selectionLabel = selectedCountries.length === 1 ? selectedCountries[0] : `${selectedCountries.length} countries`;
 
   const formatDay = (dayString) => {
     const parts = String(dayString || "").split("-");
@@ -3708,7 +3729,7 @@ function TrafficPriorityPanel({
         <span style={{ fontSize: 12, color: "#64748b" }}>
           Last {windowDays} days · block = no FTD in last {blockWindowDays} days
         </span>
-        {selectedCountry ? (
+        {selectedCountries.length ? (
           <button type="button" className={styles.tableActionButton} style={{ marginLeft: "auto" }} onClick={() => onClear?.()}>
             Clear
           </button>
@@ -3717,18 +3738,42 @@ function TrafficPriorityPanel({
       <div className={styles.comparisonGrid}>
         <div className={`${styles.panel} ${styles.tableCard}`}>
           <div className={styles.comparisonHeader}>
-            <h4 className={styles.comparisonTitle}>Country</h4>
+            <h4 className={styles.comparisonTitle}>
+              Country{selectedCountries.length ? ` (${selectedCountries.length})` : ""}
+            </h4>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+                onClick={() => onSelectAllCountries?.(countries.map((entry) => entry.country))}
+              >
+                Select all
+              </button>
+              {selectedCountries.length ? (
+                <button
+                  type="button"
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  style={{ padding: "4px 8px", fontSize: 11 }}
+                  onClick={() => onClearCountries?.()}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </div>
           <div className={styles.trafficScroll}>
             <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
               <colgroup>
-                <col style={{ width: "46%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "18%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "40%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "17%" }} />
                 <col style={{ width: "18%" }} />
               </colgroup>
               <thead>
                 <tr>
+                  <th title="Select country" />
                   <th>Country</th>
                   <th>Leads</th>
                   <th>FTD</th>
@@ -3737,13 +3782,21 @@ function TrafficPriorityPanel({
               </thead>
               <tbody>
                 {countries.map((entry) => {
-                  const isSelected = entry.country === selectedCountry;
+                  const isSelected = selectedCountrySet.has(entry.country);
                   return (
                     <tr
                       key={`tp-country-${entry.country}`}
                       className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
-                      onClick={() => onSelectCountry?.(entry.country)}
+                      onClick={() => onToggleCountry?.(entry.country)}
                     >
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onToggleCountry?.(entry.country)}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </td>
                       <td className={styles.tableStrong}>{entry.country}</td>
                       <td style={numberCell}>{formatNumber(entry.leads)}</td>
                       <td style={numberCell}>{formatNumber(entry.ftd)}</td>
@@ -3753,7 +3806,7 @@ function TrafficPriorityPanel({
                 })}
                 {!countries.length ? (
                   <tr>
-                    <td colSpan={4} className={styles.tableEmpty}>
+                    <td colSpan={5} className={styles.tableEmpty}>
                       No leads in the last {windowDays} days.
                     </td>
                   </tr>
@@ -3778,8 +3831,12 @@ function TrafficPriorityPanel({
             ) : null}
           </div>
           <div className={styles.trafficScroll}>
-            {!selectedCountry ? (
+            {!selectedCountries.length ? (
               <p className={styles.tableEmpty}>Select a country first.</p>
+            ) : !isSingleCountry ? (
+              <p className={styles.tableEmpty}>
+                Multiple countries selected — campaign filter is off (ranking is combined country-wide).
+              </p>
             ) : (
               <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
                 <colgroup>
@@ -3933,7 +3990,7 @@ function TrafficPriorityPanel({
                   {!summaryAgents.length ? (
                     <tr>
                       <td colSpan={6} className={styles.tableEmpty}>
-                        {selectedCountry ? "No agents for this selection." : "Select a country."}
+                        {selectedCountries.length ? "No agents for this selection." : "Select a country."}
                       </td>
                     </tr>
                   ) : null}
@@ -3954,7 +4011,7 @@ function TrafficPriorityPanel({
             <select
               value={auditDaySelection}
               onChange={(event) => setAuditDaySelection(event.target.value)}
-              disabled={!selectedCountry}
+              disabled={!selectedCountries.length}
               style={{ padding: "3px 6px", borderRadius: 6, fontSize: 12 }}
             >
               <option value="">Select day…</option>
@@ -3969,14 +4026,14 @@ function TrafficPriorityPanel({
               className={`${styles.button} ${styles.buttonSecondary}`}
               style={{ padding: "4px 10px", fontSize: 12 }}
               onClick={runAudit}
-              disabled={!selectedCountry || !auditDaySelection}
+              disabled={!selectedCountries.length || !auditDaySelection}
             >
               Load
             </button>
           </div>
         </div>
         <div className={styles.trafficScroll}>
-          {!selectedCountry ? (
+          {!selectedCountries.length ? (
             <p className={styles.tableEmpty}>Select a country above first.</p>
           ) : !audit ? (
             <p className={styles.tableEmpty}>Pick a day and press Load.</p>
@@ -3992,7 +4049,7 @@ function TrafficPriorityPanel({
               </colgroup>
               <thead>
                 <tr>
-                  <th>Agent — {selectedCountry} · {formatDay(audit.day)}</th>
+                  <th>Agent — {selectionLabel} · {formatDay(audit.day)}</th>
                   <th>TL</th>
                   <th title="CR of prior 60 days">CR</th>
                   <th title="Expected leads">Exp</th>
@@ -4315,7 +4372,7 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
-  const [trafficSelections, setTrafficSelections] = useState({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+  const [trafficSelections, setTrafficSelections] = useState({ countries: [], campaign: "", count: TRAFFIC_DEFAULT_COUNT });
   const [trafficExcluded, setTrafficExcluded] = useState([]);
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
@@ -4558,7 +4615,7 @@ export default function DashboardPage() {
       setComparisonSelections({});
     }
     if (quickPreset !== "traffic-priority") {
-      setTrafficSelections({ country: "", campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+      setTrafficSelections({ countries: [], campaign: "", count: TRAFFIC_DEFAULT_COUNT });
     }
   }, [quickPreset]);
   useEffect(() => {
@@ -4765,10 +4822,10 @@ export default function DashboardPage() {
         query.set("sourceUrl", `${window.location.origin}${window.location.pathname}`);
       }
       if (appliedFilters.trafficPriority) {
-        if (trafficSelections.country) {
-          query.set("tpCountry", trafficSelections.country);
+        if (Array.isArray(trafficSelections.countries) && trafficSelections.countries.length) {
+          query.set("tpCountries", trafficSelections.countries.join(","));
         }
-        if (trafficSelections.campaign) {
+        if (trafficSelections.countries?.length === 1 && trafficSelections.campaign) {
           query.set("tpCampaign", trafficSelections.campaign);
         }
         query.set("tpCount", String(trafficSelections.count || TRAFFIC_DEFAULT_COUNT));
@@ -5851,17 +5908,28 @@ export default function DashboardPage() {
             <TrafficPriorityPanel
               data={report.trafficPriority || { countries: [] }}
               selections={trafficSelections}
-              onSelectCountry={(country) =>
+              onToggleCountry={(country) =>
+                setTrafficSelections((prev) => {
+                  const current = Array.isArray(prev.countries) ? prev.countries : [];
+                  const nextCountries = current.includes(country)
+                    ? current.filter((item) => item !== country)
+                    : [...current, country];
+                  // Campaign only applies to a single-country selection.
+                  return { ...prev, countries: nextCountries, campaign: nextCountries.length === 1 ? prev.campaign : "" };
+                })
+              }
+              onSelectAllCountries={(allCountries) =>
                 setTrafficSelections((prev) => ({
                   ...prev,
-                  country: prev.country === country ? "" : country,
-                  campaign: prev.country === country ? prev.campaign : "",
+                  countries: Array.isArray(allCountries) ? [...allCountries] : [],
+                  campaign: "",
                 }))
               }
+              onClearCountries={() => setTrafficSelections((prev) => ({ ...prev, countries: [], campaign: "" }))}
               onSelectCampaign={(campaign) =>
                 setTrafficSelections((prev) => ({ ...prev, campaign: prev.campaign === campaign ? "" : campaign }))
               }
-              onClear={() => setTrafficSelections((prev) => ({ ...prev, country: "", campaign: "" }))}
+              onClear={() => setTrafficSelections((prev) => ({ ...prev, countries: [], campaign: "" }))}
               onCountChange={(value) => {
                 const parsed = Math.max(1, Math.min(500, Math.floor(Number(value) || 0)));
                 setTrafficSelections((prev) => ({ ...prev, count: parsed }));

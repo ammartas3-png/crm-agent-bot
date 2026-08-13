@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildTrafficPriorityReport } from "../lib/dashboardService.js";
-import { allocationSequence, buildDistributionAudit, resolveTrafficRanking } from "../lib/trafficPriority.js";
+import {
+  allocationSequence,
+  buildDistributionAudit,
+  mergeCountryEntries,
+  resolveTrafficRanking,
+} from "../lib/trafficPriority.js";
 
 const tabConfig = {
   fields: {
@@ -93,6 +98,38 @@ test("resolveTrafficRanking falls back to country pool for a thin AFF and tags c
   const byName = Object.fromEntries(ranking.agents.map((agent) => [agent.agent, agent.inSelectedCampaign]));
   assert.equal(byName.A, false, "strong agent absent from the new AFF still ranks");
   assert.equal(byName.B, true);
+});
+
+test("resolveTrafficRanking merges agents across multiple selected countries", () => {
+  const data = {
+    minSegmentLeads: 10,
+    countries: [
+      {
+        country: "A",
+        agents: [
+          { agent: "X", leads: 10, ftd: 2, cr: 20, blocked: false, leadsByDay: { "2026-08-01": 10 }, ftdByDay: { "2026-08-02": 2 } },
+          { agent: "Y", leads: 5, ftd: 1, cr: 20, blocked: false, leadsByDay: {}, ftdByDay: {} },
+        ],
+      },
+      {
+        country: "B",
+        agents: [
+          { agent: "X", leads: 10, ftd: 4, cr: 40, blocked: false, leadsByDay: { "2026-08-01": 10 }, ftdByDay: {} },
+          { agent: "Z", leads: 8, ftd: 0, cr: 0, blocked: true, leadsByDay: {}, ftdByDay: {} },
+        ],
+      },
+    ],
+  };
+  const ranking = resolveTrafficRanking(data, { countries: ["A", "B"] });
+  assert.equal(ranking.basis, "multi-country");
+  const x = ranking.agents.find((agent) => agent.agent === "X");
+  assert.equal(x.leads, 20, "leads summed across countries");
+  assert.equal(x.ftd, 6, "ftd summed across countries");
+  assert.equal(Math.round(x.cr), 30, "CR recomputed from combined totals (6/20)");
+  assert.equal(x.leadsByDay["2026-08-01"], 20, "day maps merged");
+
+  const merged = mergeCountryEntries(data, ["A", "B"]);
+  assert.equal(merged.agents.find((agent) => agent.agent === "X").leads, 20);
 });
 
 test("buildDistributionAudit compares actual vs expected using the prior window", () => {

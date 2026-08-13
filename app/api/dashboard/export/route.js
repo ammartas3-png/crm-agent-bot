@@ -33,6 +33,7 @@ function queryParams(searchParams) {
     leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
     trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     tpCountry: String(searchParams.get("tpCountry") || "").trim(),
+    tpCountries: String(searchParams.get("tpCountries") || "").trim(),
     tpCampaign: String(searchParams.get("tpCampaign") || "").trim(),
     tpCount: String(searchParams.get("tpCount") || "").trim(),
     tpExclude: String(searchParams.get("tpExclude") || "").trim(),
