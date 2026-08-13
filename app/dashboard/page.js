@@ -3665,6 +3665,16 @@ function TrafficPriorityPanel({
       );
   }, [ranking, allocation, isChecked, isFullConversion]);
 
+  const teamLeaderByAgent = useMemo(() => {
+    const map = {};
+    for (const agent of Array.isArray(ranking.agents) ? ranking.agents : []) {
+      if (agent?.agent && !map[agent.agent]) {
+        map[agent.agent] = agent.teamLeader || "";
+      }
+    }
+    return map;
+  }, [ranking]);
+
   // Surface the resolved excluded-agent list (unchecked, non-blocked) so the
   // XLSX export matches what is shown on screen.
   useEffect(() => {
@@ -3917,21 +3927,25 @@ function TrafficPriorityPanel({
             </div>
             {allocation.sequence.length ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
-                {allocation.sequence.map((agent, index) => (
-                  <span
-                    key={`tp-seq-${index}`}
-                    style={{
-                      fontSize: 11,
-                      background: "#e0e7ff",
-                      color: "#3730a3",
-                      borderRadius: 6,
-                      padding: "2px 6px",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <b>{index + 1}.</b> {agent}
-                  </span>
-                ))}
+                {allocation.sequence.map((agent, index) => {
+                  const teamLeader = teamLeaderByAgent[agent];
+                  return (
+                    <span
+                      key={`tp-seq-${index}`}
+                      style={{
+                        fontSize: 11,
+                        background: "#e0e7ff",
+                        color: "#3730a3",
+                        borderRadius: 6,
+                        padding: "2px 6px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <b>{index + 1}.</b> {agent}
+                      {teamLeader ? ` / ${teamLeader}` : ""}
+                    </span>
+                  );
+                })}
               </div>
             ) : null}
             <div className={styles.trafficScroll}>
