@@ -4349,6 +4349,215 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
   );
 }
 
+function DashboardGuide() {
+  return (
+    <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy} ${styles.guide}`}>
+      <div className={styles.guideHeader}>
+        <h2 className={styles.guideHeaderTitle}>Kullanım Kılavuzu</h2>
+        <p className={styles.guideHeaderSub}>
+          Bu panel; ofislerin lead ve FTD performansını tek yerden izlemenizi sağlar. Aşağıda raporların
+          nasıl oluşturulacağı, indirileceği ve metriklerin ne anlama geldiği kısaca özetlenmiştir. Yalnızca
+          yetkiniz dahilindeki ofis, desk ve agent verilerini görürsünüz.
+        </p>
+      </div>
+
+      <div className={styles.guideSteps}>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>1</span>
+          <span className={styles.guideStepTitle}>Ofis Seçin</span>
+          <span className={styles.guideStepText}>
+            Yukarıdan bir ofis kartına tıklayın. Yalnızca yetkiniz dahilindeki ofisler listelenir.
+          </span>
+        </div>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>2</span>
+          <span className={styles.guideStepTitle}>Filtre ya da Quick Rapor</span>
+          <span className={styles.guideStepText}>
+            Hazır bir Quick Rapor seçin ya da Report Builder ile kendi kırılımınızı kurun. Ay, tarih, desk ve
+            ülke gibi filtreleri uygulayın.
+          </span>
+        </div>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>3</span>
+          <span className={styles.guideStepTitle}>Görüntüle ve İndir</span>
+          <span className={styles.guideStepText}>
+            “Load Report” ile tabloyu getirin, “Export XLSX” ile Excel olarak indirin.
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.guideGrid}>
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>📊</span> Quick Raporlar
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Monthly Quick</span> — Seçili ayın Desk → Takım Lideri → Agent
+              kırılımında ana performansı. Panel açıldığında otomatik yüklenir.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Comparison Report</span> — Ülke, kampanya, placement, takım
+              lideri ve agent kırılımlarını yan yana karşılaştırır.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>LeadSplitter</span> — Lead’leri Department alanından türetilen
+              Desk’e göre böler (Desk → Ülke → Agent).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Traffic Distribution</span> — Son 60 günün performansına göre
+              yeni müşterilerin kime, hangi oranda dağıtılacağını hesaplar; günlük kontrol tablosu içerir.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Benchmark Report</span> — Agent FTD’sini desk’in uzun dönem
+              ortalamasıyla kıyaslar.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Last 4 Months</span> — Son 4 ayın FTD ve CR trendini gösterir.
+            </li>
+            <li>
+              Ayrıca <span className={styles.guideTerm}>Country Daily</span>, <span className={styles.guideTerm}>Hourly CR</span> ve
+              <span className={styles.guideTerm}> Status Watch</span> gibi günlük/saatlik takip raporları.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>🎯</span> Temel Metrikler
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Leads</span> — Toplam lead (kayıt) sayısı.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>FTD</span> — İlk kez yatırım yapan müşteri sayısı (First Time
+              Deposit).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR</span> — Dönüşüm oranı = FTD ÷ Leads.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR Target</span> — Agent/desk için belirlenen hedef dönüşüm oranı.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR Target Reach</span> — CR ÷ CR Target. %100 ve üzeri, hedefin
+              tutturulduğu anlamına gelir.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>FTD Target / Reach</span> — Beklenen FTD adedi ve ona ulaşma oranı.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>KYC FTD</span> — KYC (kimlik doğrulama) tarafında onaylanan gerçek
+              FTD sayısı; ayrı bir kaynaktan sayılır.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>📈</span> İleri Metrikler
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Benchmark Rate</span> — Agent’ın FTD’sinin, desk’in uzun dönem
+              benchmark değerine oranı.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Lead Share</span> — Satırın toplam lead içindeki payı (%).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Late FTD / Late FTD/FTD</span> — Lead’den sonra geç gelen FTD ve
+              bunun toplam FTD içindeki oranı.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Missing FTD</span> — Hedefe göre beklenen ama gelmeyen FTD.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Avg Lead / FTD by Agent</span> — Agent başına ortalama lead ve
+              FTD (günlük seçenekli).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Number of Agents</span> — Kırılımdaki agent sayısı.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>🧩</span> Report Builder (Kendi Raporun)
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Dimensions (Kırılım)</span> — Satırların neye göre gruplanacağı:
+              Desk, Takım Lideri, Agent, Ülke, Kampanya, Placement…
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Metrics</span> — Tabloda görmek istediğiniz metrikleri seçin.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Filtreler</span> — Ofis, Ay, Tarih, Saat, Desk, Ülke, Status,
+              Takım Lideri ve Agent.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Load Report</span> ile çalıştırın. Tablonun en altındaki
+              <span className={styles.guideTerm}> Grand Total</span> satırı tüm sütunların toplamını verir.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>⬇️</span> İndirme (Export)
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Export XLSX</span> butonuyla rapor Excel olarak indirilir.
+            </li>
+            <li>
+              Dosya adı: <span className={styles.guideBadge}>Ofis - Ay Tarih - Rapor Adı.xlsx</span>
+            </li>
+            <li>
+              <span className={styles.guideTerm}>1. sayfa</span> ana rapordur.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>2. sayfa (Info)</span> — kaynak adres, kullanılan metrikler,
+              kimin ne zaman indirdiği ve özet toplamlar.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>⚙️</span> Çalışma Durumu ve Ayarlar
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Hide Not Working</span> — Aktif çalışmayan / ayrılmış (“Not
+              Working”) agent’ları rapordan gizler. Kapalıyken herkes görünür; Monthly Quick’te varsayılan
+              olarak kapalıdır.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Include Work Time</span> — Agent’ın çalıştığı gün/ay bilgisini
+              hesaba katan “agent başına ortalama” metriklerini etkinleştirir.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>HR Code</span> <span className={styles.guideBadge}>Sadece Türkiye</span>
+              — Agent kırılımında “Agent ID” listesinden HR kodunu gösteren opsiyonel sütun. Varsayılan kapalı;
+              açıldığında export’a da yansır.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <p className={styles.guideNote}>
+        Veriler ilgili ofisin Google Sheet kaynaklarından beslenir ve kaynak güncellendikçe otomatik yenilenir.
+        Bir soru ya da tutarsızlık gördüğünüzde önce filtreleri (ofis/ay/tarih) kontrol edin.
+      </p>
+    </section>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [sessionState, setSessionState] = useState({
@@ -5366,9 +5575,12 @@ export default function DashboardPage() {
       </section>
 
       {needOfficeSelection ? (
-        <section className={`${styles.panel} ${styles.section}`}>
-          <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
-          <p className={styles.sectionHint}>Choose your office first, then filters and quick reports will open.</p>
+        <>
+        <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy}`}>
+          <h2 className={styles.sectionTitle}>1. Adım — Ofis Seçin</h2>
+          <p className={styles.sectionHint}>
+            Başlamak için bir ofis seçin. Ofis seçildiğinde filtreler ve hazır Quick raporlar açılır.
+          </p>
           <div className={styles.officeGrid}>
             {officeOptions.map((office) => {
               const officeTheme = officeThemeForName(office);
@@ -5418,6 +5630,8 @@ export default function DashboardPage() {
             })}
           </div>
         </section>
+        <DashboardGuide />
+        </>
       ) : null}
 
       {!needOfficeSelection ? (
