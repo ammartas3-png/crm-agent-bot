@@ -8,6 +8,7 @@ import {
   parseOfficeSourcesFromValues,
   parseSpreadsheetId,
   parseUsersFromValues,
+  resolveRecentMonthsLimit,
 } from "../lib/registry.js";
 
 test("officeSlug builds a stable kebab-case slug", () => {
@@ -31,6 +32,14 @@ test("filterSourcesToRecentMonths keeps only the most recent N months", () => {
   // 0 or invalid limit returns everything unchanged.
   assert.equal(filterSourcesToRecentMonths(sources, 0).length, 5);
   assert.equal(filterSourcesToRecentMonths(sources, -1).length, 5);
+});
+
+test("resolveRecentMonthsLimit defaults to four months for Upstash sync", () => {
+  assert.equal(resolveRecentMonthsLimit(undefined, {}), 4);
+  assert.equal(resolveRecentMonthsLimit("", {}), 4);
+  assert.equal(resolveRecentMonthsLimit("2", {}), 2);
+  assert.equal(resolveRecentMonthsLimit("0", {}), 0);
+  assert.equal(resolveRecentMonthsLimit(undefined, { REDIS_RECENT_MONTHS: "3" }), 3);
 });
 
 test("parseMonthLabel handles two- and four-digit years", () => {
