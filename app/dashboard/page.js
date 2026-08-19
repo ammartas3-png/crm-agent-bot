@@ -4,6 +4,12 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import { DataBar, RankBars } from "./viz.js";
+import {
+  COMPARISON_COLUMNS,
+  COMPARISON_DEFAULT_SORT,
+  COMPARISON_TABLE_DIMENSIONS,
+  buildComparisonTablesFromDetailRows,
+} from "../../lib/comparisonReport.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -3338,6 +3344,7 @@ const EMPTY_FILTERS = {
   columnDimension: "",
   includeColumnGrandTotal: false,
   agentProductivityPlanMode: false,
+  comparisonMode: false,
   last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
@@ -3389,27 +3396,9 @@ const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["leads", "ftd", "cr", "crTarge
 const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
-const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
+const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
-const COMPARISON_TABLE_DIMENSIONS = [
-  { key: "country", label: "Country" },
-  { key: "teamLeader", label: "Team Leader" },
-  { key: "agent", label: "Agent" },
-  { key: "campaign", label: "Campaign" },
-  { key: "placement", label: "Placement" },
-  { key: "subCampaign", label: "Sub-Campaign" },
-];
-const COMPARISON_DEFAULT_SORT = { key: "leads", direction: "desc" };
-// Comparison tables show one name column + 3 metrics so they fit without a
-// horizontal scrollbar in the 3-up grid. (The report still computes all metrics;
-// this only limits the compact comparison display.)
-const COMPARISON_COLUMNS = [
-  { key: "label", label: "Name", type: "text" },
-  { key: "leads", label: "Leads", type: "number" },
-  { key: "ftd", label: "FTD", type: "number" },
-  { key: "crTargetReach", label: "CR Reach", type: "number" },
-];
 
 function asOptions(values = []) {
   return values.map((value) => ({ value, label: value }));
@@ -3420,7 +3409,14 @@ function toMetricNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, onClearSelections }) {
+function ComparisonTablesPanel({
+  comparisonDetailRows = null,
+  comparisonTables = null,
+  rows = [],
+  selections = {},
+  onToggleSelection,
+  onClearSelections,
+}) {
   const [tablesExpanded, setTablesExpanded] = useState(true);
   const [sortByTable, setSortByTable] = useState(() =>
     Object.fromEntries(COMPARISON_TABLE_DIMENSIONS.map((dimension) => [dimension.key, COMPARISON_DEFAULT_SORT])),
@@ -3459,6 +3455,42 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
   }, []);
 
   const tables = useMemo(() => {
+    const applySort = (table) => {
+      const sortState = sortByTable?.[table.key] || COMPARISON_DEFAULT_SORT;
+      return {
+        ...table,
+        rows: [...(table.rows || [])].sort((left, right) => {
+          const sortKey = sortState.key || "leads";
+          const sortDirection = sortState.direction === "asc" ? "asc" : "desc";
+          let baseCompare = 0;
+          if (sortKey === "label") {
+            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
+              numeric: true,
+              sensitivity: "base",
+            });
+          } else {
+            baseCompare = toMetricNumber(left[sortKey]) - toMetricNumber(right[sortKey]);
+          }
+          if (baseCompare === 0) {
+            baseCompare = String(left.label || "").localeCompare(String(right.label || ""), undefined, {
+              numeric: true,
+              sensitivity: "base",
+            });
+          }
+          return sortDirection === "asc" ? baseCompare : -baseCompare;
+        }),
+        sort: sortState,
+      };
+    };
+
+    if (Array.isArray(comparisonDetailRows) && comparisonDetailRows.length) {
+      return buildComparisonTablesFromDetailRows(comparisonDetailRows, selections, sortByTable);
+    }
+
+    if (Array.isArray(comparisonTables) && comparisonTables.length) {
+      return comparisonTables.map((table) => applySort(table));
+    }
+
     return COMPARISON_TABLE_DIMENSIONS.map((dimension) => {
       const filteredRows = cleanRows.filter((row) =>
         COMPARISON_TABLE_DIMENSIONS.every((dimensionItem) => {
@@ -3525,13 +3557,12 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
           return sortDirection === "asc" ? baseCompare : -baseCompare;
         });
 
-      return {
+      return applySort({
         ...dimension,
         rows: data,
-        sort: sortByTable?.[dimension.key] || COMPARISON_DEFAULT_SORT,
-      };
+      });
     });
-  }, [cleanRows, selections, sortByTable]);
+  }, [comparisonDetailRows, comparisonTables, cleanRows, selections, sortByTable]);
 
   return (
     <section className={styles.section} style={{ padding: 0 }}>
@@ -3619,6 +3650,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                             <DataBar value={row.ftd} max={maxFtd} color="#bbf7d0" />
                             <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
                           </td>
+                          <td>{formatPercent(row.cr)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
@@ -4123,6 +4155,9 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      if (appliedFilters?.comparisonMode && Object.keys(comparisonSelections).length) {
+        query.set("comparisonSelections", JSON.stringify(comparisonSelections));
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4144,7 +4179,7 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, comparisonSelections]);
 
   const report = reportState.report;
   const options = report?.options || {};
@@ -4312,6 +4347,7 @@ export default function DashboardPage() {
             monthKey: defaultMonth,
             includeWorkTime: false,
             hideNotWorking: false,
+            comparisonMode: true,
             rowDimensions: QUICK_PRESET_COMPARISON_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COMPARISON_METRICS,
@@ -5074,6 +5110,8 @@ export default function DashboardPage() {
             <section className={styles.section} style={{ padding: 0 }}>
               {isComparisonReportView ? (
                 <ComparisonTablesPanel
+                  comparisonDetailRows={report.comparisonDetailRows}
+                  comparisonTables={report.comparisonTables}
                   rows={report.table || []}
                   selections={comparisonSelections}
                   onToggleSelection={handleComparisonSelectionToggle}
