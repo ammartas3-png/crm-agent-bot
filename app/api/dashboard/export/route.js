@@ -5,6 +5,10 @@ import { loadDashboardReport } from "../../../../lib/dashboardService.js";
 import { dashboardReportWorkbookBuffer } from "../../../../lib/dashboardWorkbookExporter.js";
 import { logReportEvent } from "../../../../lib/reportLog.js";
 
+// Large exports (full report + workbook build) can take longer than the
+// platform default. Match the report route so downloads don't get cut off.
+export const maxDuration = 300;
+
 function queryParams(searchParams) {
   return {
     monthKey: String(searchParams.get("monthKey") || "").trim(),
