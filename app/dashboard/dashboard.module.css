@@ -1699,6 +1699,29 @@
   color-scheme: dark;
 }
 
+/* Filter field container (wraps every filter incl. the date range). */
+:global([data-theme="dark"]) .selectWrap {
+  background: #16213a;
+  border-color: #2b3a56;
+  box-shadow: none;
+}
+
+:global([data-theme="dark"]) .dateRangeInput {
+  background: #0f1830;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .dateRangeSummary {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .dateRangeClear {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
 /* Quick Report cards */
 :global([data-theme="dark"]) .reportModeCard {
   background: linear-gradient(180deg, #17233d 0%, #131d33 100%);
