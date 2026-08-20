@@ -7,6 +7,7 @@
   --viz-label: #334155;
   --viz-value: #0f172a;
   --metric-value: #0f172a;
+  --cell-text: #0f172a;
   font-family:
     Inter,
     "Segoe UI",
@@ -1571,6 +1572,7 @@
   --viz-label: #cbd5e1;
   --viz-value: #e2e8f0;
   --metric-value: #f1f5f9;
+  --cell-text: #e2e8f0;
 }
 
 :global([data-theme="dark"]) .panel {

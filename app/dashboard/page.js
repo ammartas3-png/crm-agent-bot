@@ -93,7 +93,7 @@ function reachCellStyle(value) {
 function benchmarkRateStyle(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
-    return { background: "transparent", color: "#0f172a" };
+    return { background: "transparent", color: "var(--cell-text, #0f172a)" };
   }
   const fill = Math.max(0, Math.min(100, number));
   let fillColor;
@@ -125,7 +125,7 @@ function workingStatusStyle(value) {
   if (normalized === "not working" || normalized === "not_working" || normalized) {
     return { background: "#ef4444", color: "#ffffff" };
   }
-  return { background: "transparent", color: "#0f172a" };
+  return { background: "transparent", color: "var(--cell-text, #0f172a)" };
 }
 
 function officeThemeForName(officeName = "") {
@@ -2446,7 +2446,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                 ? benchmarkStyle.color
                                 : isReach
                                   ? reachStyle.color
-                                  : "#0f172a",
+                                  : "var(--cell-text, #0f172a)",
                             background: missingFtdStyle
                               ? missingFtdStyle.background
                               : statusStyle
@@ -2517,7 +2517,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                   ? benchmarkStyle.color
                                   : isReach
                                     ? reachStyle.color
-                                    : "#0f172a",
+                                    : "var(--cell-text, #0f172a)",
                             background: isHistoricalBeforeStartMonth
                               ? "#f8fafc"
                               : missingFtdStyle
@@ -3148,7 +3148,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                       ? benchmarkStyle.color
                                       : isReach
                                         ? reachStyle.color
-                                        : "#0f172a",
+                                        : "var(--cell-text, #0f172a)",
                                 background: missingFtdStyle
                                   ? missingFtdStyle.background
                                   : statusStyle
@@ -3233,7 +3233,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                         ? benchmarkStyle.color
                                         : isReach
                                           ? reachStyle.color
-                                          : "#0f172a",
+                                          : "var(--cell-text, #0f172a)",
                                 background: isHistoricalBeforeStartMonth
                                   ? "#f8fafc"
                                   : missingFtdStyle
