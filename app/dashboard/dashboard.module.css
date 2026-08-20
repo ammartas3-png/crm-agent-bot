@@ -1692,6 +1692,48 @@
   color: #e2e8f0;
 }
 
+/* Let native controls (date pickers, scrollbars, dropdowns) render dark. */
+:global([data-theme="dark"]) {
+  color-scheme: dark;
+}
+
+/* Quick Report cards */
+:global([data-theme="dark"]) .reportModeCard {
+  background: linear-gradient(180deg, #17233d 0%, #131d33 100%);
+  border-color: #2b3a56;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .reportModeCard:hover {
+  border-color: #3b82f6;
+}
+
+/* Builder dimension / metric chips (inactive). Active chips keep their
+   green/blue highlight, which stays readable on the dark panel. */
+:global([data-theme="dark"]) .chip {
+  background: #17233d;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .chipTitle {
+  color: #94a3b8;
+}
+
+/* Selection "order" preview bars (Column / Row order / Metrics order) */
+:global([data-theme="dark"]) .orderPreview {
+  background: #101a30;
+  border-color: #26324a;
+}
+
+:global([data-theme="dark"]) .orderLabel {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .orderValue {
+  color: #e2e8f0;
+}
+
 /* Metric / status labels */
 :global([data-theme="dark"]) .metricLabel,
 :global([data-theme="dark"]) .statusLabel {
