@@ -1002,11 +1002,11 @@ function OverviewBand({ report }) {
       <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>{`Overview — Top ${data.dimensionLabel}`}</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
         <div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By FTD</div>
+          <div style={{ fontSize: 12, color: "var(--viz-label, #64748b)", marginBottom: 6 }}>By FTD</div>
           <RankBars items={data.topFtd} color="#16a34a" formatValue={(value) => formatNumber(value)} />
         </div>
         <div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By Leads</div>
+          <div style={{ fontSize: 12, color: "var(--viz-label, #64748b)", marginBottom: 6 }}>By Leads</div>
           <RankBars items={data.topLeads} color="#2563eb" formatValue={(value) => formatNumber(value)} />
         </div>
       </div>
@@ -1037,7 +1037,7 @@ function SummaryCards({ summary }) {
       {items.map((item) => (
         <div key={item.label} className={`${styles.panel} ${styles.metricCard}`}>
           <div className={styles.metricLabel}>{item.label}</div>
-          <div className={styles.metricValue} style={{ color: item.color || "#0f172a" }}>
+          <div className={styles.metricValue} style={{ color: item.color || "var(--metric-value, #0f172a)" }}>
             {item.value}
           </div>
         </div>
@@ -3453,8 +3453,8 @@ function toMetricNumber(value) {
 function LeadSplitterTable({ data = { rows: [] } }) {
   const rows = Array.isArray(data?.rows) ? data.rows : [];
   const formatPercent = (value) => `${Math.round(Number(value) || 0)}%`;
-  const numberCell = { textAlign: "right", whiteSpace: "nowrap", border: "1px solid #b8cce4", padding: "3px 8px" };
-  const textCell = { border: "1px solid #b8cce4", padding: "3px 8px" };
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap", border: "1px solid #b8cce4", padding: "3px 8px", color: "#0f172a" };
+  const textCell = { border: "1px solid #b8cce4", padding: "3px 8px", color: "#0f172a" };
   const headerStyle = {
     background: "#1f3864",
     color: "#ffffff",
@@ -3479,7 +3479,7 @@ function LeadSplitterTable({ data = { rows: [] } }) {
     <section className={styles.section} style={{ padding: 0 }}>
       <h3 className={styles.sectionTitle}>LeadSplitter</h3>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, background: "#ffffff" }}>
           <thead>
             <tr>
               <th style={headerStyle}>Desk</th>
@@ -3976,7 +3976,7 @@ function TrafficPriorityPanel({
                         agent.blocked
                           ? { background: "#ffc7ce", color: "#9c0006" }
                           : agent.fullConversion
-                            ? { background: "#fff3cd" }
+                            ? { background: "#fff3cd", color: "#0f172a" }
                             : undefined
                       }
                       title={agent.fullConversion ? "FTD = Leads (100% CR) - likely low sample, off by default" : ""}
@@ -4078,9 +4078,9 @@ function TrafficPriorityPanel({
                   const rowStyle = row.blocked
                     ? { background: "#ffc7ce", color: "#9c0006" }
                     : under
-                      ? { background: "#fde2e1" }
+                      ? { background: "#fde2e1", color: "#0f172a" }
                       : over
-                        ? { background: "#dbeafe" }
+                        ? { background: "#dbeafe", color: "#0f172a" }
                         : undefined;
                   return (
                     <tr key={`tp-audit-${row.agent}`} style={rowStyle}>

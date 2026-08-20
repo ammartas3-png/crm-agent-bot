@@ -3,6 +3,10 @@
   padding: 8px;
   background: #edf2f7;
   color: #0f172a;
+  --viz-track: #f1f5f9;
+  --viz-label: #334155;
+  --viz-value: #0f172a;
+  --metric-value: #0f172a;
   font-family:
     Inter,
     "Segoe UI",
@@ -1562,6 +1566,13 @@
   color: #e2e8f0;
 }
 
+:global([data-theme="dark"]) .page {
+  --viz-track: #1e2a44;
+  --viz-label: #cbd5e1;
+  --viz-value: #e2e8f0;
+  --metric-value: #f1f5f9;
+}
+
 :global([data-theme="dark"]) .panel {
   background: #111a2e;
   border-color: #26324a;
@@ -1681,9 +1692,78 @@
   color: #e2e8f0;
 }
 
-/* Data tables stay on a light surface so JS-colored cells remain readable. */
-:global([data-theme="dark"]) table {
-  background: #ffffff;
-  color: #0f172a;
-  border-radius: 8px;
+/* Metric / status labels */
+:global([data-theme="dark"]) .metricLabel,
+:global([data-theme="dark"]) .statusLabel {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .statusValue {
+  color: #f1f5f9;
+}
+
+/* Table action bar (Compare Table / Compare All Groups, Expand, etc.) */
+:global([data-theme="dark"]) .tableActionButton {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableActionButton:hover {
+  background: #223350;
+  border-color: #47597a;
+  color: #e2e8f0;
+}
+
+/* Data tables: dark surface with light default text. Cells that carry a
+   JS-computed inline colour (Target Reach / Benchmark gradients, status badges)
+   keep their own light background + dark text, so they stay readable. */
+:global([data-theme="dark"]) .table th {
+  background: #16213a;
+  color: #cbd5e1;
+  border-bottom-color: #2b3a56;
+}
+
+:global([data-theme="dark"]) .table td {
+  color: #e2e8f0;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .table tbody tr:hover td {
+  box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0.1);
+}
+
+:global([data-theme="dark"]) .tableTotalRow td {
+  background: #17233d;
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .tableGroupRow td {
+  background: #101a30;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .tableGroupToggle {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableGroupToggle span:first-child {
+  background: #1b2942;
+  border-color: #3a4a66;
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableEmpty {
+  color: #94a3b8;
+}
+
+/* Details context menu */
+:global([data-theme="dark"]) .detailsContextMenu {
+  background: #16213a;
+  border-color: #2f3d57;
+}
+
+:global([data-theme="dark"]) .detailsContextMenuItem {
+  background: #16213a;
+  color: #e2e8f0;
 }
