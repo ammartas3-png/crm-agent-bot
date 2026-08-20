@@ -4544,11 +4544,6 @@ function DashboardGuide() {
               <span className={styles.guideTerm}>Include Work Time</span> — Enables the “per-agent average”
               metrics that factor in how many days/months an agent actually worked.
             </li>
-            <li>
-              <span className={styles.guideTerm}>HR Code</span> <span className={styles.guideBadge}>Turkey only</span>
-              — An optional column in the Agent breakdown that shows the HR code from the “Agent ID” list. Off by
-              default; when enabled it also appears in the export.
-            </li>
           </ul>
         </div>
       </div>
@@ -4563,6 +4558,30 @@ function DashboardGuide() {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [theme, setTheme] = useState("light");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("crm-dashboard-theme");
+      if (stored === "dark" || stored === "light") {
+        setTheme(stored);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = theme;
+    }
+    try {
+      window.localStorage.setItem("crm-dashboard-theme", theme);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [theme]);
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
   const [sessionState, setSessionState] = useState({
     loading: true,
     authenticated: false,
@@ -5572,9 +5591,20 @@ export default function DashboardPage() {
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
-        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
-          Log out
-        </button>
+        <div className={styles.topBarActions}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`${styles.button} ${styles.buttonSecondary} ${styles.themeToggle}`}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
+            Log out
+          </button>
+        </div>
       </section>
 
       {needOfficeSelection ? (

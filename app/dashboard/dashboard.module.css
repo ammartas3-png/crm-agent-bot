@@ -1538,3 +1538,152 @@
     transform: rotate(360deg);
   }
 }
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.themeToggle {
+  min-width: 92px;
+}
+
+/* ===================== Dark mode ===================== */
+/* The [data-theme="dark"] attribute is set on <html>. We theme the chrome
+   (page, panels, top bar, sections, guide, filters, buttons) but intentionally
+   keep the data tables on a light surface, because many table cells receive
+   JS-computed inline colors that must stay readable. */
+:global([data-theme="dark"]) .page,
+:global([data-theme="dark"]) .unauthorizedPage,
+:global([data-theme="dark"]) .loginPage {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .panel {
+  background: #111a2e;
+  border-color: #26324a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+:global([data-theme="dark"]) .sectionFancy {
+  background: linear-gradient(180deg, #111a2e 0%, #0f1830 100%);
+}
+
+:global([data-theme="dark"]) .title,
+:global([data-theme="dark"]) .topBarTitle,
+:global([data-theme="dark"]) .sectionTitle,
+:global([data-theme="dark"]) .guideHeaderTitle,
+:global([data-theme="dark"]) .guideCardTitle,
+:global([data-theme="dark"]) .guideStepTitle,
+:global([data-theme="dark"]) .guideTerm {
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .subtitle,
+:global([data-theme="dark"]) .sectionHint,
+:global([data-theme="dark"]) .guideHeaderSub,
+:global([data-theme="dark"]) .guideStepText,
+:global([data-theme="dark"]) .guideList li {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .guideHeader {
+  border-bottom-color: #26324a;
+}
+
+:global([data-theme="dark"]) .guideStep {
+  background: linear-gradient(180deg, #16213a 0%, #131d33 100%);
+  border-color: #29354e;
+}
+
+:global([data-theme="dark"]) .guideCard {
+  background: #16213a;
+  border-color: #29354e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+:global([data-theme="dark"]) .guideNote {
+  background: #0f1830;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .guideBadge {
+  background: rgba(30, 58, 138, 0.35);
+  color: #c7d2fe;
+  border-color: rgba(55, 48, 163, 0.5);
+}
+
+:global([data-theme="dark"]) .loginCard {
+  background: #111a2e;
+  border-color: #26324a;
+}
+
+/* Buttons: keep the primary (blue) button as-is; darken the neutral ones. */
+:global([data-theme="dark"]) .button {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .button:hover {
+  background: #223350;
+  border-color: #47597a;
+}
+
+:global([data-theme="dark"]) .buttonSecondary {
+  background: #1b2942;
+  border-color: #2f3d57;
+}
+
+:global([data-theme="dark"]) .buttonPrimary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* Form controls */
+:global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .selectInput,
+:global([data-theme="dark"]) .multiSelectSearch {
+  background: #0f1830;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .selectLabel,
+:global([data-theme="dark"]) .selectLabelRow {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .multiSelectMenu {
+  background: #111a2e;
+  border-color: #2f3d57;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+:global([data-theme="dark"]) .multiSelectClear {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .multiSelectOption {
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .pillButton {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+/* Data tables stay on a light surface so JS-colored cells remain readable. */
+:global([data-theme="dark"]) table {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 8px;
+}
