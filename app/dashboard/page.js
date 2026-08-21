@@ -1092,7 +1092,7 @@ function SimpleTable({ rows = [] }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
       </div>
       {tableExpanded ? (
@@ -1159,7 +1159,7 @@ function SimpleTable({ rows = [] }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1207,11 +1207,11 @@ function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
         {hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -1332,7 +1332,7 @@ function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1380,11 +1380,11 @@ function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) 
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
         {hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -1673,7 +1673,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) 
       </table>
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1970,7 +1970,7 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
       </div>
       {tableExpanded ? (
@@ -2028,7 +2028,7 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -2237,11 +2237,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
         {showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -2557,7 +2557,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
       </table>
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -2567,6 +2567,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
+  const [compactDensity, setCompactDensity] = useState(false);
   const { startResize, widthStyle } = useResizableColumns();
 
   const isColumnPivot =
@@ -2727,6 +2728,36 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     }
     setCollapsedByDepth(next);
   }, [showGroupControls, allCollapsed, collapsibleDepthCount, groupMeta.depthOrder]);
+
+  // Start compact: collapse every group by default when a new dataset loads, so
+  // the table opens tidy (desk/team-leader totals only) and the user expands
+  // just the groups they care about. Re-runs only when the top-level group set
+  // changes, so it never fights the user's manual expand/collapse.
+  const topLevelGroupOrder = groupMeta.depthOrder[0] || [];
+  const groupSignature = useMemo(() => topLevelGroupOrder.join("|"), [topLevelGroupOrder]);
+  const collapseInitRef = useRef("");
+  useEffect(() => {
+    if (!showGroupControls) {
+      collapseInitRef.current = "";
+      return;
+    }
+    if (collapseInitRef.current === groupSignature) {
+      return;
+    }
+    collapseInitRef.current = groupSignature;
+    const next = {};
+    for (let depth = 0; depth < collapsibleDepthCount; depth += 1) {
+      const order = groupMeta.depthOrder[depth] || [];
+      if (order.length) {
+        next[depth] = new Set(order);
+      }
+    }
+    setCollapsedByDepth(next);
+  }, [groupSignature, showGroupControls, collapsibleDepthCount, groupMeta.depthOrder]);
+
+  const dataRowCount = useMemo(() => rows.filter((row) => row?.__rowKind !== "total").length, [rows]);
+  const topGroupCount = topLevelGroupOrder.length;
+
   const formatMissingFtdValue = useCallback((value) => {
     const numeric = Number(value);
     const safeValue = Number.isFinite(numeric) ? numeric : 0;
@@ -2926,17 +2957,34 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
         {showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
+        <button
+          type="button"
+          className={`${styles.tableActionButton} ${compactDensity ? styles.tableActionButtonActive : ""}`}
+          onClick={() => setCompactDensity((previous) => !previous)}
+          aria-pressed={compactDensity}
+          title="Toggle compact row height"
+        >
+          ▤ Compact
+        </button>
+        <span className={styles.tableActionSpacer} />
+        <span className={styles.tableCountBadge}>
+          {formatNumber(dataRowCount)} rows{topGroupCount ? ` • ${topGroupCount} groups` : ""}
+        </span>
       </div>
       {tableExpanded ? (
         <div className={styles.tableScroll}>
-          <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
+          <table
+            className={`${styles.table} ${styles.tableSticky} ${compactDensity ? styles.tableCompact : ""}`}
+            style={{ minWidth: 900 }}
+            onMouseLeave={() => setHoveredColumnKey("")}
+          >
             <thead>
               {isColumnPivot ? (
                 <>
@@ -3273,7 +3321,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -4256,7 +4304,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
           onClick={() => setTablesExpanded((previous) => !previous)}
           aria-expanded={tablesExpanded}
         >
-          {tablesExpanded ? "Collapse Table" : "Expand Table"}
+          {tablesExpanded ? "▾ Collapse tables" : "▸ Expand tables"}
         </button>
       </div>
       {tablesExpanded ? (
@@ -4343,7 +4391,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
         })}
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint} style={{ marginLeft: 0 }}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint} style={{ marginLeft: 0 }}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </section>
   );

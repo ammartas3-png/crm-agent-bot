@@ -735,7 +735,7 @@ function InteractiveDetailTable({
           {truncated ? <span className={styles.inlineHint}>Showing first {displayDetailRows.length} rows</span> : null}
           {canGroupCollapse ? (
             <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
-              {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+              {allGroupsCollapsed ? "▸ Expand all rows" : "▾ Collapse all rows"}
             </button>
           ) : null}
           <button
@@ -878,13 +878,6 @@ function InteractiveDetailTable({
             ) : null}
           </tbody>
         </table>
-      </div>
-      <div className={styles.tableFooterActions}>
-        {canGroupCollapse ? (
-          <button type="button" className={styles.actionButton} onClick={toggleAllGroups}>
-            {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
-          </button>
-        ) : null}
       </div>
     </section>
   );
@@ -1111,7 +1104,7 @@ function HierarchicalTrafficTable({
         <div className={styles.headerActions}>
           {truncated ? <span className={styles.inlineHint}>Showing first {displayRows.length} rows</span> : null}
           <button type="button" className={styles.actionButton} onClick={toggleAll}>
-            {allCollapsed ? "Expand All Rows" : "Collapse All Rows"}
+            {allCollapsed ? "▸ Expand all rows" : "▾ Collapse all rows"}
           </button>
           <button
             type="button"
@@ -1160,11 +1153,6 @@ function HierarchicalTrafficTable({
             ) : null}
           </tbody>
         </table>
-      </div>
-      <div className={styles.tableFooterActions}>
-        <button type="button" className={styles.actionButton} onClick={toggleAll}>
-          {allCollapsed ? "Expand All Rows" : "Collapse All Rows"}
-        </button>
       </div>
     </section>
   );

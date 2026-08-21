@@ -734,19 +734,25 @@
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 6px 10px 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef2f7;
+  background: #fbfdff;
 }
 
 .tableActionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 1px solid #d0d7de;
-  border-radius: 6px;
+  border-radius: 7px;
   background: #ffffff;
   color: #334155;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
-  padding: 4px 9px;
+  padding: 5px 10px;
   cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .tableActionButton:hover {
@@ -755,15 +761,61 @@
   color: #1e3a8a;
 }
 
+/* Toggle in its "on" state (e.g. Compact density). */
+.tableActionButtonActive {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.tableActionButtonActive:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+/* Pushes following action-bar items to the right. */
+.tableActionSpacer {
+  margin-left: auto;
+}
+
+/* Small read-only count/summary chip in the action bar. */
+.tableCountBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #eef2f7;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+/* Slim, tidy strip shown when the whole table is collapsed. */
 .tableCollapsedHint {
-  margin: 8px 10px 12px;
+  margin: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 1px dashed #cbd5e1;
   background: #f8fafc;
-  color: #475569;
+  color: #64748b;
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+}
+
+/* Compact density: tighter rows so more data fits without scrolling. */
+.tableCompact th {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.tableCompact td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 12px;
 }
 
 .comparisonGrid {
@@ -1769,7 +1821,12 @@
   color: #f1f5f9;
 }
 
-/* Table action bar (Compare Table / Compare All Groups, Expand, etc.) */
+/* Table action bar (Collapse table / groups, Compact, count badge). */
+:global([data-theme="dark"]) .tableActionBar {
+  background: #0f1830;
+  border-bottom-color: #26324a;
+}
+
 :global([data-theme="dark"]) .tableActionButton {
   background: #1b2942;
   border-color: #2f3d57;
@@ -1780,6 +1837,25 @@
   background: #223350;
   border-color: #47597a;
   color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .tableActionButtonActive,
+:global([data-theme="dark"]) .tableActionButtonActive:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .tableCountBadge {
+  background: #16213a;
+  border-color: #2b3a56;
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .tableCollapsedHint {
+  background: #101a30;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
 }
 
 /* Data tables: dark surface with light default text. Cells that carry a
