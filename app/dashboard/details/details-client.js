@@ -315,6 +315,54 @@ function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
 }
 
+function safeSheetName(name = "Data") {
+  const cleaned = String(name || "Data")
+    .replace(/[\\/?*[\]:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31);
+  return cleaned || "Data";
+}
+
+function safeFileName(name = "export") {
+  const cleaned = String(name || "export")
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+  return cleaned || "export";
+}
+
+function exportValueForColumn(column = {}, value) {
+  if (column.type === "number" || column.type === "percent") {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : "";
+  }
+  return value == null ? "" : String(value);
+}
+
+// Client-side XLSX export (SheetJS) for a single detail table. Kept dependency
+// light via dynamic import so it only loads when the user downloads.
+async function exportAoaToXlsx(fileBase, sheetName, aoa) {
+  const XLSX = await import("xlsx");
+  const worksheet = XLSX.utils.aoa_to_sheet(aoa);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(sheetName));
+  XLSX.writeFile(workbook, `${safeFileName(fileBase)}.xlsx`);
+}
+
+async function exportColumnsRowsToXlsx(fileBase, sheetName, columns = [], rows = []) {
+  const usableColumns = (Array.isArray(columns) ? columns : []).filter((column) => column && column.key);
+  if (!usableColumns.length) {
+    return;
+  }
+  const header = usableColumns.map((column) => column.label || column.key);
+  const body = (Array.isArray(rows) ? rows : []).map((row) =>
+    usableColumns.map((column) => exportValueForColumn(column, row?.[column.key])),
+  );
+  await exportAoaToXlsx(fileBase, sheetName, [header, ...body]);
+}
+
 function parseMaybeNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
@@ -467,10 +515,27 @@ function Last4MonthsMatrixTable({
   const rowKey = `${tableId || "last4-matrix"}:context`;
   const isSelected = selectedRowKey === rowKey;
 
+  const handleExport = () => {
+    const header = ["Desk", "Team Leader", "Agent"];
+    months.forEach((month) => {
+      LAST4_MATRIX_METRICS.forEach((metric) => header.push(`${month.label} ${metric.label}`));
+    });
+    const dataRow = [deskLabel || "-", teamLeaderLabel || "-", agentLabel || "-"];
+    months.forEach((month) => {
+      LAST4_MATRIX_METRICS.forEach((metric) => dataRow.push(Number(month.metrics?.[metric.key] || 0)));
+    });
+    exportAoaToXlsx(title || "Last 4 Months", title || "Last 4 Months", [header, dataRow]);
+  };
+
   return (
     <section className={styles.panel}>
       <div className={styles.tableHeaderRow}>
         <h2 className={styles.sectionTitle}>{title}</h2>
+        <div className={styles.headerActions}>
+          <button type="button" className={styles.actionButton} onClick={handleExport} disabled={!hasMonths}>
+            Export XLSX
+          </button>
+        </div>
       </div>
       <div className={styles.tableScroll}>
         <table className={`${styles.table} ${styles.matrixTable}`}>
@@ -673,6 +738,13 @@ function InteractiveDetailTable({
               {allGroupsCollapsed ? "Expand All Rows" : "Collapse All Rows"}
             </button>
           ) : null}
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => exportColumnsRowsToXlsx(title || "Details", title || "Details", sourceColumns, [...sortedDetailRows, ...totalRows])}
+          >
+            Export XLSX
+          </button>
         </div>
       </div>
       <div className={styles.tableScroll}>
@@ -1041,6 +1113,13 @@ function HierarchicalTrafficTable({
           <button type="button" className={styles.actionButton} onClick={toggleAll}>
             {allCollapsed ? "Expand All Rows" : "Collapse All Rows"}
           </button>
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={() => exportColumnsRowsToXlsx(title || "Traffic Report", title || "Traffic", sourceColumns, [...sortedDetailRows, ...totalRows])}
+          >
+            Export XLSX
+          </button>
         </div>
       </div>
       <div className={styles.tableScroll}>
@@ -1225,6 +1304,30 @@ function benchmarkMetricsFromReport(report = null) {
 export default function DashboardDetailsClientPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [theme, setTheme] = useState("light");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("crm-dashboard-theme");
+      if (stored === "dark" || stored === "light") {
+        setTheme(stored);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = theme;
+    }
+    try {
+      window.localStorage.setItem("crm-dashboard-theme", theme);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [theme]);
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
   const [contextFilters, setContextFilters] = useState(null);
   const [state, setState] = useState({
     loading: true,
@@ -1699,18 +1802,18 @@ export default function DashboardDetailsClientPage() {
       : (Array.isArray(contextFilters?.desk) && contextFilters.desk.length ? contextFilters.desk[0] : "") ||
         String(representativeRow?.desk || "").trim() ||
         "-";
+  // The report is always scoped to the whole entity (a desk includes all its
+  // team leaders/agents, a team leader includes all its agents). Reflect that
+  // in the labels so a team-leader view does not look like a single agent.
   const teamLeaderLabel =
     detailTarget.entityKey === "teamLeader"
       ? detailTarget.entityValue
-      : (Array.isArray(contextFilters?.teamLeader) && contextFilters.teamLeader.length ? contextFilters.teamLeader[0] : "") ||
-        String(representativeRow?.teamLeader || "").trim() ||
-        "-";
-  const agentLabel =
-    detailTarget.entityKey === "agent"
-      ? detailTarget.entityValue
-      : (Array.isArray(contextFilters?.agent) && contextFilters.agent.length ? contextFilters.agent[0] : "") ||
-        String(representativeRow?.agent || "").trim() ||
-        "-";
+      : detailTarget.entityKey === "agent"
+        ? (Array.isArray(contextFilters?.teamLeader) && contextFilters.teamLeader.length ? contextFilters.teamLeader[0] : "") ||
+          String(representativeRow?.teamLeader || "").trim() ||
+          "-"
+        : "All team leaders";
+  const agentLabel = detailTarget.entityKey === "agent" ? detailTarget.entityValue : "All agents";
   const hasAnyData = Boolean(
     state.breakdownReport || state.trendReport || state.leadsReport || state.benchmarkRowsReport || state.last4Rows.length,
   );
@@ -1721,6 +1824,14 @@ export default function DashboardDetailsClientPage() {
         <div className={styles.headerRow}>
           <button type="button" className={styles.backButton} onClick={() => router.push("/dashboard")}>
             ← Back to Dashboard
+          </button>
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
           </button>
         </div>
         <h1 className={styles.title}>Detailed Report</h1>
