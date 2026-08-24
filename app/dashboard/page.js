@@ -1849,7 +1849,10 @@ function compareBuilderValues(left, right, type) {
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
-function formatColumnGroupLabel(value = "") {
+function formatColumnGroupLabel(value = "", labels = null) {
+  if (labels && Object.prototype.hasOwnProperty.call(labels, value)) {
+    return labels[value];
+  }
   return String(value || "") === "__grand_total__" ? "Grand Total" : String(value || "");
 }
 
@@ -2272,7 +2275,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                 })}
                 {builder.columnValues.map((value) => (
                   <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
-                    {formatColumnGroupLabel(value)}
+                    {formatColumnGroupLabel(value, builder?.columnValueLabels)}
                   </th>
                 ))}
                 {pivotTailColumns.map((column) => {
@@ -3015,7 +3018,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                     })}
                     {builder.columnValues.map((value) => (
                       <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
-                        {formatColumnGroupLabel(value)}
+                        {formatColumnGroupLabel(value, builder?.columnValueLabels)}
                       </th>
                     ))}
                     {pivotTailColumns.map((column) => {
@@ -3376,9 +3379,13 @@ const DEFAULT_BUILDER_METRICS = [
 
 const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
   { key: "month", label: "Months", type: "text" },
+  { key: "week", label: "Week", type: "text" },
   { key: "date", label: "Date", type: "date" },
   { key: "hour", label: "Hour", type: "hour" },
 ];
+
+// Coarse -> fine order; a secondary (sub) column must be strictly finer.
+const COLUMN_DIMENSION_ORDER = ["month", "week", "date", "hour"];
 
 const EMPTY_FILTERS = {
   officeScope: [],
@@ -3397,6 +3404,7 @@ const EMPTY_FILTERS = {
   teamLeader: [],
   agent: [],
   columnDimension: "",
+  columnDimension2: "",
   includeColumnGrandTotal: false,
   agentProductivityPlanMode: false,
   last4QuickMode: false,
@@ -6033,11 +6041,20 @@ export default function DashboardPage() {
             items={builderColumnDimensionOptions}
             selectedKey={filters.columnDimension}
             onSelect={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                columnDimension: value,
-                includeColumnGrandTotal: value ? prev.includeColumnGrandTotal : false,
-              }))
+              setFilters((prev) => {
+                // Drop the sub-column if it is no longer strictly finer than the
+                // newly chosen primary column.
+                const primaryIndex = COLUMN_DIMENSION_ORDER.indexOf(value);
+                const secondaryIndex = COLUMN_DIMENSION_ORDER.indexOf(prev.columnDimension2 || "");
+                const keepSecondary =
+                  value && prev.columnDimension2 && primaryIndex >= 0 && secondaryIndex > primaryIndex;
+                return {
+                  ...prev,
+                  columnDimension: value,
+                  columnDimension2: keepSecondary ? prev.columnDimension2 : "",
+                  includeColumnGrandTotal: value ? prev.includeColumnGrandTotal : false,
+                };
+              })
             }
             noLabel="No"
             grandTotalLabel="Column Grand Total"
@@ -6051,6 +6068,23 @@ export default function DashboardPage() {
             locked={isBuilderLockedPreset}
             activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
           />
+          {filters.columnDimension && !isBuilderLockedPreset ? (
+            <SingleChoiceChipGroup
+              label={`Sub-column (under ${
+                (builderColumnDimensionOptions.find((option) => option.key === filters.columnDimension) || {}).label ||
+                filters.columnDimension
+              })`}
+              items={builderColumnDimensionOptions.filter(
+                (option) =>
+                  COLUMN_DIMENSION_ORDER.indexOf(option.key) > COLUMN_DIMENSION_ORDER.indexOf(filters.columnDimension),
+              )}
+              selectedKey={filters.columnDimension2}
+              onSelect={(value) => setFilters((prev) => ({ ...prev, columnDimension2: value }))}
+              noLabel="No"
+              locked={isBuilderLockedPreset}
+              activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
+            />
+          ) : null}
           <RowDimensionGroup
             label="Row / Group Dimensions"
             items={builderDimensionOptions}

@@ -28,6 +28,7 @@ function queryParams(searchParams) {
     metricFields: String(searchParams.get("metricFields") || "").trim(),
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
+    columnDimension2: String(searchParams.get("columnDimension2") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
     comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
