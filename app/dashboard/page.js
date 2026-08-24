@@ -1209,7 +1209,7 @@ function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
         >
           {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {hasGroups ? (
+        {tableExpanded && hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
             {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
@@ -1382,7 +1382,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) 
         >
           {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {hasGroups ? (
+        {tableExpanded && hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
             {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
@@ -2239,7 +2239,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
         >
           {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {showGroupControls ? (
+        {tableExpanded && showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
             {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
@@ -2959,24 +2959,30 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
         >
           {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {showGroupControls ? (
+        {tableExpanded && showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
             {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
-        <button
-          type="button"
-          className={`${styles.tableActionButton} ${compactDensity ? styles.tableActionButtonActive : ""}`}
-          onClick={() => setCompactDensity((previous) => !previous)}
-          aria-pressed={compactDensity}
-          title="Toggle compact row height"
-        >
-          ▤ Compact
-        </button>
-        <span className={styles.tableActionSpacer} />
-        <span className={styles.tableCountBadge}>
-          {formatNumber(dataRowCount)} rows{topGroupCount ? ` • ${topGroupCount} groups` : ""}
-        </span>
+        {tableExpanded ? (
+          <button
+            type="button"
+            className={`${styles.tableActionButton} ${compactDensity ? styles.tableActionButtonActive : ""}`}
+            onClick={() => setCompactDensity((previous) => !previous)}
+            aria-pressed={compactDensity}
+            title="Toggle compact row height"
+          >
+            ▤ Compact
+          </button>
+        ) : null}
+        {tableExpanded ? (
+          <>
+            <span className={styles.tableActionSpacer} />
+            <span className={styles.tableCountBadge}>
+              {formatNumber(dataRowCount)} rows{topGroupCount ? ` • ${topGroupCount} groups` : ""}
+            </span>
+          </>
+        ) : null}
       </div>
       {tableExpanded ? (
         <div className={styles.tableScroll}>
