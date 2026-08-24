@@ -1811,6 +1811,11 @@
   color: #e2e8f0;
 }
 
+/* Work Time / Hide Not Working / HR Code toggle labels (uppercase). */
+:global([data-theme="dark"]) .workTimeToggleLabel {
+  color: #e2e8f0;
+}
+
 /* Metric / status labels */
 :global([data-theme="dark"]) .metricLabel,
 :global([data-theme="dark"]) .statusLabel {
