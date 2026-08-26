@@ -223,6 +223,23 @@ function selectedForScopeStage(draft = {}, stage = "office") {
   return draft.selectedTeams || [];
 }
 
+// When the admin selected EVERY currently-available value at a Desk/Team level,
+// persist it as a dynamic "all" (an empty list is written as "all" and the read
+// layer treats "all" as no restriction). That way desks/teams added later are
+// automatically covered and nobody has to be re-granted. A partial selection is
+// kept explicit.
+function dynamicScopeValues(draft = {}, stage = "office", selectedValues = []) {
+  const selected = uniqueSorted((selectedValues || []).filter(Boolean));
+  if (!selected.length) {
+    return [];
+  }
+  const options = uniqueSorted(valuesForScopeStage(draft, stage));
+  if (options.length && selected.length >= options.length && options.every((option) => selected.includes(option))) {
+    return [];
+  }
+  return selected;
+}
+
 function normalizeScopeSelections(draft = {}) {
   const next = { ...draft };
   const validOffices = new Set(valuesForScopeStage(next, "office"));
@@ -1189,8 +1206,8 @@ async function handleTelegramUpdate(request) {
           await upsertAuthorityUserScope({
             user: draft.targetUser,
             offices: officesForSelectedCountries(draft),
-            desks: draft.selectedDesks || [],
-            teams: draft.selectedTeams || [],
+            desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+            teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
             authorityRole: draft.authorityRole || "Manager",
           });
           clearAuthorityScopeCache();
@@ -1210,8 +1227,8 @@ async function handleTelegramUpdate(request) {
         await upsertAuthorityUserScope({
           user: request.user,
           offices: officesForSelectedCountries(draft),
-          desks: draft.selectedDesks || [],
-          teams: draft.selectedTeams || [],
+          desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+          teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
           authorityRole: "Manager",
         });
         clearAuthorityScopeCache();
