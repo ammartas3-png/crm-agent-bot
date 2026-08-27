@@ -1051,6 +1051,7 @@ function StatusCards({ stats = {} }) {
     ["Total Agent", formatNumber(stats.totalAgent)],
     ["Team Leader Total", formatNumber(stats.teamLeaderTotal)],
     ["Desk Total", formatNumber(stats.deskTotal)],
+    ["Agents with Target", formatNumber(stats.agentsWithTarget)],
     ["Total Target Achieved", formatNumber(stats.totalTargetAchieved)],
     ["Rate Of Target Achieved", formatPercent(stats.rateOfTargetAchieved)],
   ];

@@ -339,6 +339,55 @@ test("buildDashboardStats target-achieved rate reflects only the agents in view"
   }));
   const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-07-20T12:00:00Z"));
   assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.agentsWithTarget, 1);
+  assert.equal(stats.totalTargetAchieved, 1);
+  assert.equal(stats.rateOfTargetAchieved, 100);
+});
+
+test("buildDashboardStats excludes team leaders from agent and target counts", () => {
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  // Housse is a team leader who also shows up as an "agent" in the data.
+  const infoContext = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Ahmet", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+    { "Working Status": "Working", "Agent Name": "Housse", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+  ]);
+  const rows = [
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ID: `A${index + 1}`,
+      "AGENT NAMES": "Ahmet",
+      "Team Leader": "Housse",
+      Desk: "Turkey English",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-07-05T08:00:00Z",
+      "FTD DATE": "2026-07-05",
+    })),
+    ...Array.from({ length: 3 }, (_, index) => ({
+      ID: `H${index + 1}`,
+      "AGENT NAMES": "Housse",
+      "Team Leader": "Housse",
+      Desk: "Turkey English",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-07-05T08:00:00Z",
+      "FTD DATE": "2026-07-05",
+    })),
+  ];
+  const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-07-20T12:00:00Z"));
+  // Only Ahmet counts; Housse (team leader) is excluded from every agent metric.
+  assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.agentsWithTarget, 1);
   assert.equal(stats.totalTargetAchieved, 1);
   assert.equal(stats.rateOfTargetAchieved, 100);
 });
