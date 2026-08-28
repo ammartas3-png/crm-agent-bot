@@ -83,6 +83,11 @@ import { flushPersistence } from "../../../lib/store.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
 export const runtime = "nodejs";
+// The AI Assistant path awaits an n8n/OpenAI call (up to AI_REPLY_TIMEOUT_MS,
+// default 30s). Without a raised maxDuration the webhook function was killed
+// before that call returned, so the bot silently sent no reply. Give it enough
+// headroom to finish and emit the answer.
+export const maxDuration = 60;
 
 export async function GET(request) {
   const url = new URL(request.url);
