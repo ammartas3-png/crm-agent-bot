@@ -36,6 +36,43 @@ test("flat builder table appends a Grand Total row (counts summed, CR recomputed
   assert.equal(Math.round(grand.cr), 67);
 });
 
+test("flat builder Grand Total FTD Target counts only agents in the filtered view", () => {
+  // Office roster has 3 working agents (target 10 each = 30), but the filtered
+  // report only contains Agent A. The Grand Total FTD Target must be 10 (the
+  // visible agent), not 30 (the whole office) — otherwise FTD Target Reach is
+  // nonsensical for a filtered report.
+  const scopedInfo = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Agent A", "Agent Target": "10", Office: "Turkey English", "Team Leader": "TL1" },
+    { "Working Status": "Working", "Agent Name": "Agent B", "Agent Target": "10", Office: "Turkey English", "Team Leader": "TL1" },
+    { "Working Status": "Working", "Agent Name": "Agent C", "Agent Target": "10", Office: "Turkey English", "Team Leader": "TL1" },
+  ]);
+  const filteredRows = [
+    {
+      ID: "x1",
+      "Lead Date": "2026-07-01",
+      Country: "United States",
+      "AGENT NAMES": "Agent A",
+      "Team Leader": "TL1",
+      Desk: "Turkey English",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      "FTD DATE": "2026-07-01",
+    },
+  ];
+  const result = specificBuilderTable(
+    filteredRows,
+    tabConfig,
+    scopedInfo,
+    null,
+    { rowDimensions: "agent", metricFields: "ftd,ftdTarget,ftdTargetReach" },
+    NOW,
+  );
+  const grand = result.grandTotalRow;
+  assert.ok(grand, "grandTotalRow present");
+  assert.equal(grand.ftd, 1, "ftd summed");
+  assert.equal(grand.ftdTarget, 10, "FTD Target restricted to the visible agent, not the whole office");
+});
+
 test("date columns are restricted to the selected month (no stray other-month columns)", () => {
   const augustRows = [
     { ID: "a1", "Lead Date": "2026-08-05", Country: "United States", "AGENT NAMES": "Agent A" },
