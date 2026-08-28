@@ -73,6 +73,38 @@ test("flat builder Grand Total FTD Target counts only agents in the filtered vie
   assert.equal(grand.ftdTarget, 10, "FTD Target restricted to the visible agent, not the whole office");
 });
 
+test("flat builder Grand Total KYC FTD counts only agents in the filtered view", () => {
+  const leadsRows = [
+    {
+      ID: "l1",
+      "Lead Date": "2026-07-01",
+      Country: "United States",
+      "AGENT NAMES": "Agent A",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      "FTD DATE": "2026-07-01",
+    },
+  ];
+  // KYC FTD dataset also has an agent (Agent Z) who is not in the filtered leads.
+  const kycRows = [
+    { "AGENT NAMES": "Agent A", __kycFtd: 1, "FTD DATE": "2026-07-01" },
+    { "AGENT NAMES": "Agent Z", __kycFtd: 1, "FTD DATE": "2026-07-01" },
+    { "AGENT NAMES": "Agent Z", __kycFtd: 1, "FTD DATE": "2026-07-02" },
+  ];
+  const result = specificBuilderTable(
+    leadsRows,
+    tabConfig,
+    infoContext,
+    null,
+    { rowDimensions: "agent", metricFields: "kycFtd,ftd" },
+    NOW,
+    { kycFtdRows: kycRows },
+  );
+  const grand = result.grandTotalRow;
+  assert.ok(grand, "grandTotalRow present");
+  assert.equal(grand.kycFtd, 1, "KYC FTD restricted to the visible agent, not the whole office");
+});
+
 test("date columns are restricted to the selected month (no stray other-month columns)", () => {
   const augustRows = [
     { ID: "a1", "Lead Date": "2026-08-05", Country: "United States", "AGENT NAMES": "Agent A" },
