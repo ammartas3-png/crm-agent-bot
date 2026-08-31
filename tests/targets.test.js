@@ -17,6 +17,7 @@ import {
   targetAggregationForScope,
   targetReachPercent,
 } from "../lib/targets.js";
+import { buildDashboardStats } from "../lib/dashboardService.js";
 
 const tabConfig = {
   fields: {
@@ -302,4 +303,132 @@ test("targetAggregationForScope reads dynamic non-CR target columns", () => {
     },
   });
   assert.equal(aggregation.includedTarget, 14);
+});
+
+test("buildDashboardStats target-achieved rate reflects only the agents in view", () => {
+  // Info sheet has 3 working agents with targets, but the filtered rows only
+  // contain one of them (Ahmet, who hit target). The rate must be over the
+  // agents on screen (1/1 = 100%), not the whole office (1/3), which used to
+  // produce a nonsensical value for filtered/scoped teams.
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  const infoContext = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Ahmet", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+    { "Working Status": "Working", "Agent Name": "Mehmet", "Agent Target": "10", Office: "Turkey Africa", "Team Leader": "Epere" },
+    { "Working Status": "Working", "Agent Name": "Ayse", "Agent Target": "10", Office: "Turkey Africa", "Team Leader": "Epere" },
+  ]);
+  const rows = Array.from({ length: 12 }, (_, index) => ({
+    ID: `L${index + 1}`,
+    "AGENT NAMES": "Ahmet",
+    "Team Leader": "Housse",
+    Desk: "Turkey English",
+    FTD: "1",
+    "FTD MAKER": "Closer",
+    Created: "2026-07-05T08:00:00Z",
+    "FTD DATE": "2026-07-05",
+  }));
+  const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-07-20T12:00:00Z"));
+  assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.agentsWithTarget, 1);
+  assert.equal(stats.totalTargetAchieved, 1);
+  assert.equal(stats.rateOfTargetAchieved, 100);
+});
+
+test("buildDashboardStats rate excludes left-without-target agents but keeps last-7-day leavers", () => {
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  const info = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Agent A", "Agent Target": "1", Office: "D1", "Team Leader": "TL" },
+    { "Working Status": "Not Working", "Agent Name": "Agent B", "Agent Target": "1", Office: "D1", "Team Leader": "TL" },
+    { "Working Status": "Not Working", "Agent Name": "Agent C", "Agent Target": "1", Office: "D1", "Team Leader": "TL" },
+    { "Working Status": "Not Working", "Agent Name": "Agent D", "Agent Target": "1", Office: "D1", "Team Leader": "TL" },
+  ]);
+  const keyOf = (name) => info.records.find((record) => record.agent_name === name)?.normalized_name;
+  info.endDateByAgent = new Map([
+    [keyOf("Agent C"), "2026-08-10"], // left mid-month, no target -> excluded
+    [keyOf("Agent D"), "2026-08-28"], // left in the last 7 days -> included
+  ]);
+  const rows = [
+    { ID: "a1", "AGENT NAMES": "Agent A", "Team Leader": "TL", Desk: "D1", FTD: "1", "FTD MAKER": "Agent A", Created: "2026-08-05", "FTD DATE": "2026-08-05" },
+    { ID: "b1", "AGENT NAMES": "Agent B", "Team Leader": "TL", Desk: "D1", FTD: "1", "FTD MAKER": "Agent B", Created: "2026-08-05", "FTD DATE": "2026-08-05" },
+    { ID: "c1", "AGENT NAMES": "Agent C", "Team Leader": "TL", Desk: "D1", "Lead Date": "2026-08-05" },
+    { ID: "d1", "AGENT NAMES": "Agent D", "Team Leader": "TL", Desk: "D1", "Lead Date": "2026-08-05" },
+  ];
+  const monthFilter = { type: "month", month: 7, year: 2026 };
+  const stats = buildDashboardStats(rows, tabConfig, info, monthFilter, new Date("2026-08-31T12:00:00Z"));
+  assert.equal(stats.totalAgent, 4, "all four agents counted");
+  assert.equal(stats.activeAgent, 1, "only Agent A is working");
+  // Denominator: A (working), B (reached target then left), D (left last 7 days) = 3; C excluded.
+  assert.equal(stats.agentsWithTarget, 3);
+  // Achieved: A and B reached target = 2.
+  assert.equal(stats.totalTargetAchieved, 2);
+  assert.equal(Math.round(stats.rateOfTargetAchieved), 67);
+});
+
+test("buildDashboardStats excludes team leaders from agent and target counts", () => {
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  // Housse is a team leader who also shows up as an "agent" in the data.
+  const infoContext = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Ahmet", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+    { "Working Status": "Working", "Agent Name": "Housse", "Agent Target": "10", Office: "Turkey English", "Team Leader": "Housse" },
+  ]);
+  const rows = [
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ID: `A${index + 1}`,
+      "AGENT NAMES": "Ahmet",
+      "Team Leader": "Housse",
+      Desk: "Turkey English",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-07-05T08:00:00Z",
+      "FTD DATE": "2026-07-05",
+    })),
+    ...Array.from({ length: 3 }, (_, index) => ({
+      ID: `H${index + 1}`,
+      "AGENT NAMES": "Housse",
+      "Team Leader": "Housse",
+      Desk: "Turkey English",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-07-05T08:00:00Z",
+      "FTD DATE": "2026-07-05",
+    })),
+  ];
+  const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-07-20T12:00:00Z"));
+  // Only Ahmet counts; Housse (team leader) is excluded from every agent metric.
+  assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.agentsWithTarget, 1);
+  assert.equal(stats.totalTargetAchieved, 1);
+  assert.equal(stats.rateOfTargetAchieved, 100);
 });

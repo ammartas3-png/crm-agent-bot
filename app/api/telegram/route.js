@@ -83,6 +83,11 @@ import { flushPersistence } from "../../../lib/store.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
 export const runtime = "nodejs";
+// The AI Assistant path awaits an n8n/OpenAI call (up to AI_REPLY_TIMEOUT_MS,
+// default 30s). Without a raised maxDuration the webhook function was killed
+// before that call returned, so the bot silently sent no reply. Give it enough
+// headroom to finish and emit the answer.
+export const maxDuration = 60;
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -221,6 +226,23 @@ function selectedForScopeStage(draft = {}, stage = "office") {
     return draft.selectedDesks || [];
   }
   return draft.selectedTeams || [];
+}
+
+// When the admin selected EVERY currently-available value at a Desk/Team level,
+// persist it as a dynamic "all" (an empty list is written as "all" and the read
+// layer treats "all" as no restriction). That way desks/teams added later are
+// automatically covered and nobody has to be re-granted. A partial selection is
+// kept explicit.
+function dynamicScopeValues(draft = {}, stage = "office", selectedValues = []) {
+  const selected = uniqueSorted((selectedValues || []).filter(Boolean));
+  if (!selected.length) {
+    return [];
+  }
+  const options = uniqueSorted(valuesForScopeStage(draft, stage));
+  if (options.length && selected.length >= options.length && options.every((option) => selected.includes(option))) {
+    return [];
+  }
+  return selected;
 }
 
 function normalizeScopeSelections(draft = {}) {
@@ -1189,8 +1211,8 @@ async function handleTelegramUpdate(request) {
           await upsertAuthorityUserScope({
             user: draft.targetUser,
             offices: officesForSelectedCountries(draft),
-            desks: draft.selectedDesks || [],
-            teams: draft.selectedTeams || [],
+            desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+            teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
             authorityRole: draft.authorityRole || "Manager",
           });
           clearAuthorityScopeCache();
@@ -1210,8 +1232,8 @@ async function handleTelegramUpdate(request) {
         await upsertAuthorityUserScope({
           user: request.user,
           offices: officesForSelectedCountries(draft),
-          desks: draft.selectedDesks || [],
-          teams: draft.selectedTeams || [],
+          desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+          teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
           authorityRole: "Manager",
         });
         clearAuthorityScopeCache();

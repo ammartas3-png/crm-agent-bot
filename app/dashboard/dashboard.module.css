@@ -3,6 +3,11 @@
   padding: 8px;
   background: #edf2f7;
   color: #0f172a;
+  --viz-track: #f1f5f9;
+  --viz-label: #334155;
+  --viz-value: #0f172a;
+  --metric-value: #0f172a;
+  --cell-text: #0f172a;
   font-family:
     Inter,
     "Segoe UI",
@@ -263,6 +268,153 @@
   margin: 0;
   color: #64748b;
   font-size: 13px;
+}
+
+.guide {
+  gap: 16px;
+  padding: 18px 20px 22px;
+}
+
+.guideHeader {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  padding: 2px 0;
+  border-bottom: 1px solid #eef2f7;
+  padding-bottom: 14px;
+}
+
+.guideHeaderTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.guideHeaderSub {
+  margin: 0 auto;
+  max-width: 720px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.guideSteps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.guideStep {
+  flex: 1 1 220px;
+  max-width: 300px;
+  border: 1px solid #dbe5f1;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f4f8ff 100%);
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.guideStepNum {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.guideStepTitle {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.guideStepText {
+  color: #475569;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.guideGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 14px;
+}
+
+.guideCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.guideCardTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guideCardIcon {
+  font-size: 17px;
+}
+
+.guideList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+
+.guideList li {
+  font-size: 12.5px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.guideTerm {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.guideBadge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #e0e7ff;
+  white-space: nowrap;
+}
+
+.guideNote {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  line-height: 1.55;
 }
 
 .toolbar {
@@ -582,19 +734,25 @@
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  padding: 6px 10px 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef2f7;
+  background: #fbfdff;
 }
 
 .tableActionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: 1px solid #d0d7de;
-  border-radius: 6px;
+  border-radius: 7px;
   background: #ffffff;
   color: #334155;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
-  padding: 4px 9px;
+  padding: 5px 10px;
   cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .tableActionButton:hover {
@@ -603,15 +761,61 @@
   color: #1e3a8a;
 }
 
+/* Toggle in its "on" state (e.g. Compact density). */
+.tableActionButtonActive {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.tableActionButtonActive:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+/* Pushes following action-bar items to the right. */
+.tableActionSpacer {
+  margin-left: auto;
+}
+
+/* Small read-only count/summary chip in the action bar. */
+.tableCountBadge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #eef2f7;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+/* Slim, tidy strip shown when the whole table is collapsed. */
 .tableCollapsedHint {
-  margin: 8px 10px 12px;
+  margin: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border: 1px dashed #cbd5e1;
   background: #f8fafc;
-  color: #475569;
+  color: #64748b;
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+}
+
+/* Compact density: tighter rows so more data fits without scrolling. */
+.tableCompact th {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.tableCompact td {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 12px;
 }
 
 .comparisonGrid {
@@ -662,23 +866,16 @@
   font-size: 12px;
 }
 
-/* Name column + 3 metric columns: 40% / 20% / 20% / 20% = 100% (no overflow). */
+/* Name column + 5 metric columns (Leads / FTD / CR / CR Target / CR Reach):
+   25% + 15% x5 = 100% so every column fits without a horizontal scrollbar. */
 .comparisonTable th:first-child,
 .comparisonTable td:first-child {
-  width: 40%;
-}
-
-.comparisonTable th:nth-child(2),
-.comparisonTable td:nth-child(2),
-.comparisonTable th:nth-child(3),
-.comparisonTable td:nth-child(3),
-.comparisonTable th:nth-child(4),
-.comparisonTable td:nth-child(4) {
-  width: 20%;
+  width: 25%;
 }
 
 .comparisonTable th:not(:first-child),
 .comparisonTable td:not(:first-child) {
+  width: 15%;
   text-align: center;
 }
 
@@ -699,6 +896,30 @@
 .tableScroll {
   overflow: auto;
   max-height: 58vh;
+}
+
+/* Traffic Distribution 3-up tables: fixed layout so columns share the panel
+   width and long text truncates with an ellipsis instead of forcing a
+   horizontal scrollbar. */
+.trafficTable {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.trafficTable th,
+.trafficTable td {
+  padding: 3px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trafficScroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 60vh;
 }
 
 .table {
@@ -1373,4 +1594,339 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.themeToggle {
+  min-width: 92px;
+}
+
+.syncBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #eef2f7;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* ===================== Dark mode ===================== */
+/* The [data-theme="dark"] attribute is set on <html>. We theme the chrome
+   (page, panels, top bar, sections, guide, filters, buttons) but intentionally
+   keep the data tables on a light surface, because many table cells receive
+   JS-computed inline colors that must stay readable. */
+:global([data-theme="dark"]) .page,
+:global([data-theme="dark"]) .unauthorizedPage,
+:global([data-theme="dark"]) .loginPage {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .page {
+  --viz-track: #1e2a44;
+  --viz-label: #cbd5e1;
+  --viz-value: #e2e8f0;
+  --metric-value: #f1f5f9;
+  --cell-text: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .panel {
+  background: #111a2e;
+  border-color: #26324a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+:global([data-theme="dark"]) .sectionFancy {
+  background: linear-gradient(180deg, #111a2e 0%, #0f1830 100%);
+}
+
+:global([data-theme="dark"]) .title,
+:global([data-theme="dark"]) .topBarTitle,
+:global([data-theme="dark"]) .sectionTitle,
+:global([data-theme="dark"]) .guideHeaderTitle,
+:global([data-theme="dark"]) .guideCardTitle,
+:global([data-theme="dark"]) .guideStepTitle,
+:global([data-theme="dark"]) .guideTerm {
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .subtitle,
+:global([data-theme="dark"]) .sectionHint,
+:global([data-theme="dark"]) .guideHeaderSub,
+:global([data-theme="dark"]) .guideStepText,
+:global([data-theme="dark"]) .guideList li {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .guideHeader {
+  border-bottom-color: #26324a;
+}
+
+:global([data-theme="dark"]) .guideStep {
+  background: linear-gradient(180deg, #16213a 0%, #131d33 100%);
+  border-color: #29354e;
+}
+
+:global([data-theme="dark"]) .guideCard {
+  background: #16213a;
+  border-color: #29354e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+:global([data-theme="dark"]) .guideNote {
+  background: #0f1830;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .guideBadge {
+  background: rgba(30, 58, 138, 0.35);
+  color: #c7d2fe;
+  border-color: rgba(55, 48, 163, 0.5);
+}
+
+:global([data-theme="dark"]) .loginCard {
+  background: #111a2e;
+  border-color: #26324a;
+}
+
+/* Buttons: keep the primary (blue) button as-is; darken the neutral ones. */
+:global([data-theme="dark"]) .button {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .button:hover {
+  background: #223350;
+  border-color: #47597a;
+}
+
+:global([data-theme="dark"]) .buttonSecondary {
+  background: #1b2942;
+  border-color: #2f3d57;
+}
+
+:global([data-theme="dark"]) .buttonPrimary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* Form controls */
+:global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .selectInput,
+:global([data-theme="dark"]) .multiSelectSearch {
+  background: #0f1830;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .selectLabel,
+:global([data-theme="dark"]) .selectLabelRow {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .multiSelectMenu {
+  background: #111a2e;
+  border-color: #2f3d57;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+:global([data-theme="dark"]) .multiSelectClear {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .multiSelectOption {
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .pillButton {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+/* Let native controls (date pickers, scrollbars, dropdowns) render dark. */
+:global([data-theme="dark"]) {
+  color-scheme: dark;
+}
+
+/* Filter field container (wraps every filter incl. the date range). */
+:global([data-theme="dark"]) .selectWrap {
+  background: #16213a;
+  border-color: #2b3a56;
+  box-shadow: none;
+}
+
+:global([data-theme="dark"]) .dateRangeInput {
+  background: #0f1830;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .dateRangeSummary {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .dateRangeClear {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+/* Quick Report cards */
+:global([data-theme="dark"]) .reportModeCard {
+  background: linear-gradient(180deg, #17233d 0%, #131d33 100%);
+  border-color: #2b3a56;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .reportModeCard:hover {
+  border-color: #3b82f6;
+}
+
+/* Builder dimension / metric chips (inactive). Active chips keep their
+   green/blue highlight, which stays readable on the dark panel. */
+:global([data-theme="dark"]) .chip {
+  background: #17233d;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .chipTitle {
+  color: #94a3b8;
+}
+
+/* Selection "order" preview bars (Column / Row order / Metrics order) */
+:global([data-theme="dark"]) .orderPreview {
+  background: #101a30;
+  border-color: #26324a;
+}
+
+:global([data-theme="dark"]) .orderLabel {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .orderValue {
+  color: #e2e8f0;
+}
+
+/* Work Time / Hide Not Working / HR Code toggle labels (uppercase). */
+:global([data-theme="dark"]) .workTimeToggleLabel {
+  color: #e2e8f0;
+}
+
+/* Metric / status labels */
+:global([data-theme="dark"]) .metricLabel,
+:global([data-theme="dark"]) .statusLabel {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .statusValue {
+  color: #f1f5f9;
+}
+
+/* Table action bar (Collapse table / groups, Compact, count badge). */
+:global([data-theme="dark"]) .tableActionBar {
+  background: #0f1830;
+  border-bottom-color: #26324a;
+}
+
+:global([data-theme="dark"]) .tableActionButton {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableActionButton:hover {
+  background: #223350;
+  border-color: #47597a;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .tableActionButtonActive,
+:global([data-theme="dark"]) .tableActionButtonActive:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .tableCountBadge,
+:global([data-theme="dark"]) .syncBadge {
+  background: #16213a;
+  border-color: #2b3a56;
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .tableCollapsedHint {
+  background: #101a30;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
+}
+
+/* Data tables: dark surface with light default text. Cells that carry a
+   JS-computed inline colour (Target Reach / Benchmark gradients, status badges)
+   keep their own light background + dark text, so they stay readable. */
+:global([data-theme="dark"]) .table th {
+  background: #16213a;
+  color: #cbd5e1;
+  border-bottom-color: #2b3a56;
+}
+
+:global([data-theme="dark"]) .table td {
+  color: #e2e8f0;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .table tbody tr:hover td {
+  box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0.1);
+}
+
+:global([data-theme="dark"]) .tableTotalRow td {
+  background: #17233d;
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .tableGroupRow td {
+  background: #101a30;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .tableGroupToggle {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableGroupToggle span:first-child {
+  background: #1b2942;
+  border-color: #3a4a66;
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .tableEmpty {
+  color: #94a3b8;
+}
+
+/* Details context menu */
+:global([data-theme="dark"]) .detailsContextMenu {
+  background: #16213a;
+  border-color: #2f3d57;
+}
+
+:global([data-theme="dark"]) .detailsContextMenuItem {
+  background: #16213a;
+  color: #e2e8f0;
 }

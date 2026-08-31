@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { dashboardAccessFromRequest } from "../../../../lib/dashboardRequest.js";
 import { loadDashboardReport } from "../../../../lib/dashboardService.js";
+import { logReportEvent } from "../../../../lib/reportLog.js";
 
 export const maxDuration = 300;
 
@@ -27,11 +28,16 @@ function queryParams(searchParams) {
     metricFields: String(searchParams.get("metricFields") || "").trim(),
     totalDimensions: String(searchParams.get("totalDimensions") || "").trim(),
     columnDimension: String(searchParams.get("columnDimension") || "").trim(),
+    columnDimension2: String(searchParams.get("columnDimension2") || "").trim(),
     includeColumnGrandTotal: String(searchParams.get("includeColumnGrandTotal") || "").trim(),
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
+    comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
+    leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
+    trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),
     hideNotWorking: String(searchParams.get("hideNotWorking") || "").trim(),
+    showHrCode: String(searchParams.get("showHrCode") || "").trim(),
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
@@ -54,7 +60,9 @@ export async function GET(request) {
     if (!resolved.access?.authorized) {
       return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
     }
-    const query = queryParams(new URL(request.url).searchParams);
+    const searchParams = new URL(request.url).searchParams;
+    const query = queryParams(searchParams);
+    void logReportEvent({ telegramUser: resolved.telegramUser, searchParams, action: "view" });
     if (asBool(query.monitor)) {
       const encoder = new TextEncoder();
       let latestProgress = {

@@ -4,6 +4,13 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 import { DataBar, RankBars } from "./viz.js";
+import {
+  TRAFFIC_DEFAULT_COUNT,
+  allocationSequence,
+  buildDistributionAudit,
+  mergeCountryEntries,
+  resolveTrafficRanking,
+} from "../../lib/trafficPriority.js";
 
 const MULTI_VALUE_FILTER_KEYS = new Set([
   "date",
@@ -86,7 +93,7 @@ function reachCellStyle(value) {
 function benchmarkRateStyle(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) {
-    return { background: "transparent", color: "#0f172a" };
+    return { background: "transparent", color: "var(--cell-text, #0f172a)" };
   }
   const fill = Math.max(0, Math.min(100, number));
   let fillColor;
@@ -118,7 +125,7 @@ function workingStatusStyle(value) {
   if (normalized === "not working" || normalized === "not_working" || normalized) {
     return { background: "#ef4444", color: "#ffffff" };
   }
-  return { background: "transparent", color: "#0f172a" };
+  return { background: "transparent", color: "var(--cell-text, #0f172a)" };
 }
 
 function officeThemeForName(officeName = "") {
@@ -995,11 +1002,11 @@ function OverviewBand({ report }) {
       <h3 className={styles.sectionTitle} style={{ marginBottom: 10 }}>{`Overview — Top ${data.dimensionLabel}`}</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
         <div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By FTD</div>
+          <div style={{ fontSize: 12, color: "var(--viz-label, #64748b)", marginBottom: 6 }}>By FTD</div>
           <RankBars items={data.topFtd} color="#16a34a" formatValue={(value) => formatNumber(value)} />
         </div>
         <div>
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>By Leads</div>
+          <div style={{ fontSize: 12, color: "var(--viz-label, #64748b)", marginBottom: 6 }}>By Leads</div>
           <RankBars items={data.topLeads} color="#2563eb" formatValue={(value) => formatNumber(value)} />
         </div>
       </div>
@@ -1030,7 +1037,7 @@ function SummaryCards({ summary }) {
       {items.map((item) => (
         <div key={item.label} className={`${styles.panel} ${styles.metricCard}`}>
           <div className={styles.metricLabel}>{item.label}</div>
-          <div className={styles.metricValue} style={{ color: item.color || "#0f172a" }}>
+          <div className={styles.metricValue} style={{ color: item.color || "var(--metric-value, #0f172a)" }}>
             {item.value}
           </div>
         </div>
@@ -1042,8 +1049,10 @@ function SummaryCards({ summary }) {
 function StatusCards({ stats = {} }) {
   const items = [
     ["Total Agent", formatNumber(stats.totalAgent)],
+    ["Active Agents", formatNumber(stats.activeAgent)],
     ["Team Leader Total", formatNumber(stats.teamLeaderTotal)],
     ["Desk Total", formatNumber(stats.deskTotal)],
+    ["Agents with Target", formatNumber(stats.agentsWithTarget)],
     ["Total Target Achieved", formatNumber(stats.totalTargetAchieved)],
     ["Rate Of Target Achieved", formatPercent(stats.rateOfTargetAchieved)],
   ];
@@ -1085,7 +1094,7 @@ function SimpleTable({ rows = [] }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
       </div>
       {tableExpanded ? (
@@ -1152,7 +1161,7 @@ function SimpleTable({ rows = [] }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1200,11 +1209,11 @@ function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {hasGroups ? (
+        {tableExpanded && hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -1325,7 +1334,7 @@ function PivotTable({ rows = [], summary = {}, onEntityContextMenu }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1373,11 +1382,11 @@ function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) 
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {hasGroups ? (
+        {tableExpanded && hasGroups ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -1666,7 +1675,7 @@ function Last4MatrixTable({ rows = [], monthBlocks = [], onEntityContextMenu }) 
       </table>
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -1842,7 +1851,24 @@ function compareBuilderValues(left, right, type) {
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
-function formatColumnGroupLabel(value = "") {
+// Compact "last data sync" label from a ms-epoch timestamp (n8n -> Redis sync).
+function formatLastSync(timestamp) {
+  const numeric = Number(timestamp);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "";
+  }
+  return new Date(numeric).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatColumnGroupLabel(value = "", labels = null) {
+  if (labels && Object.prototype.hasOwnProperty.call(labels, value)) {
+    return labels[value];
+  }
   return String(value || "") === "__grand_total__" ? "Grand Total" : String(value || "");
 }
 
@@ -1963,7 +1989,7 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
       </div>
       {tableExpanded ? (
@@ -2021,7 +2047,7 @@ function AgentProductivityPlanTable({ rows = [], builder = {}, months = [] }) {
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -2230,11 +2256,11 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {showGroupControls ? (
+        {tableExpanded && showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
         ) : null}
       </div>
@@ -2265,7 +2291,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                 })}
                 {builder.columnValues.map((value) => (
                   <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
-                    {formatColumnGroupLabel(value)}
+                    {formatColumnGroupLabel(value, builder?.columnValueLabels)}
                   </th>
                 ))}
                 {pivotTailColumns.map((column) => {
@@ -2439,7 +2465,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                 ? benchmarkStyle.color
                                 : isReach
                                   ? reachStyle.color
-                                  : "#0f172a",
+                                  : "var(--cell-text, #0f172a)",
                             background: missingFtdStyle
                               ? missingFtdStyle.background
                               : statusStyle
@@ -2510,7 +2536,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                                   ? benchmarkStyle.color
                                   : isReach
                                     ? reachStyle.color
-                                    : "#0f172a",
+                                    : "var(--cell-text, #0f172a)",
                             background: isHistoricalBeforeStartMonth
                               ? "#f8fafc"
                               : missingFtdStyle
@@ -2550,7 +2576,7 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
       </table>
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -2560,6 +2586,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
   const [hoveredColumnKey, setHoveredColumnKey] = useState("");
   const [selectedRowKey, setSelectedRowKey] = useState("");
   const [tableExpanded, setTableExpanded] = useState(true);
+  const [compactDensity, setCompactDensity] = useState(false);
   const { startResize, widthStyle } = useResizableColumns();
 
   const isColumnPivot =
@@ -2720,6 +2747,36 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
     }
     setCollapsedByDepth(next);
   }, [showGroupControls, allCollapsed, collapsibleDepthCount, groupMeta.depthOrder]);
+
+  // Start compact: collapse every group by default when a new dataset loads, so
+  // the table opens tidy (desk/team-leader totals only) and the user expands
+  // just the groups they care about. Re-runs only when the top-level group set
+  // changes, so it never fights the user's manual expand/collapse.
+  const topLevelGroupOrder = groupMeta.depthOrder[0] || [];
+  const groupSignature = useMemo(() => topLevelGroupOrder.join("|"), [topLevelGroupOrder]);
+  const collapseInitRef = useRef("");
+  useEffect(() => {
+    if (!showGroupControls) {
+      collapseInitRef.current = "";
+      return;
+    }
+    if (collapseInitRef.current === groupSignature) {
+      return;
+    }
+    collapseInitRef.current = groupSignature;
+    const next = {};
+    for (let depth = 0; depth < collapsibleDepthCount; depth += 1) {
+      const order = groupMeta.depthOrder[depth] || [];
+      if (order.length) {
+        next[depth] = new Set(order);
+      }
+    }
+    setCollapsedByDepth(next);
+  }, [groupSignature, showGroupControls, collapsibleDepthCount, groupMeta.depthOrder]);
+
+  const dataRowCount = useMemo(() => rows.filter((row) => row?.__rowKind !== "total").length, [rows]);
+  const topGroupCount = topLevelGroupOrder.length;
+
   const formatMissingFtdValue = useCallback((value) => {
     const numeric = Number(value);
     const safeValue = Number.isFinite(numeric) ? numeric : 0;
@@ -2919,17 +2976,40 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           onClick={() => setTableExpanded((previous) => !previous)}
           aria-expanded={tableExpanded}
         >
-          {tableExpanded ? "Collapse Table" : "Expand Table"}
+          {tableExpanded ? "▾ Collapse table" : "▸ Expand table"}
         </button>
-        {showGroupControls ? (
+        {tableExpanded && showGroupControls ? (
           <button type="button" className={styles.tableActionButton} onClick={toggleAllGroups}>
-            {allCollapsed ? "Expand All Groups" : "Collapse All Groups"}
+            {allCollapsed ? "▸ Expand all groups" : "▾ Collapse all groups"}
           </button>
+        ) : null}
+        {tableExpanded ? (
+          <button
+            type="button"
+            className={`${styles.tableActionButton} ${compactDensity ? styles.tableActionButtonActive : ""}`}
+            onClick={() => setCompactDensity((previous) => !previous)}
+            aria-pressed={compactDensity}
+            title="Toggle compact row height"
+          >
+            ▤ Compact
+          </button>
+        ) : null}
+        {tableExpanded ? (
+          <>
+            <span className={styles.tableActionSpacer} />
+            <span className={styles.tableCountBadge}>
+              {formatNumber(dataRowCount)} rows{topGroupCount ? ` • ${topGroupCount} groups` : ""}
+            </span>
+          </>
         ) : null}
       </div>
       {tableExpanded ? (
         <div className={styles.tableScroll}>
-          <table className={`${styles.table} ${styles.tableSticky}`} style={{ minWidth: 900 }} onMouseLeave={() => setHoveredColumnKey("")}>
+          <table
+            className={`${styles.table} ${styles.tableSticky} ${compactDensity ? styles.tableCompact : ""}`}
+            style={{ minWidth: 900 }}
+            onMouseLeave={() => setHoveredColumnKey("")}
+          >
             <thead>
               {isColumnPivot ? (
                 <>
@@ -2954,7 +3034,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                     })}
                     {builder.columnValues.map((value) => (
                       <th key={`group-${value}`} colSpan={perGroupMetricCount} className={styles.tableGroupHeader}>
-                        {formatColumnGroupLabel(value)}
+                        {formatColumnGroupLabel(value, builder?.columnValueLabels)}
                       </th>
                     ))}
                     {pivotTailColumns.map((column) => {
@@ -3141,7 +3221,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                       ? benchmarkStyle.color
                                       : isReach
                                         ? reachStyle.color
-                                        : "#0f172a",
+                                        : "var(--cell-text, #0f172a)",
                                 background: missingFtdStyle
                                   ? missingFtdStyle.background
                                   : statusStyle
@@ -3226,7 +3306,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                                         ? benchmarkStyle.color
                                         : isReach
                                           ? reachStyle.color
-                                          : "#0f172a",
+                                          : "var(--cell-text, #0f172a)",
                                 background: isHistoricalBeforeStartMonth
                                   ? "#f8fafc"
                                   : missingFtdStyle
@@ -3266,7 +3346,7 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
           </table>
         </div>
       ) : (
-        <p className={styles.tableCollapsedHint}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
     </div>
   );
@@ -3315,9 +3395,13 @@ const DEFAULT_BUILDER_METRICS = [
 
 const DEFAULT_BUILDER_COLUMN_DIMENSIONS = [
   { key: "month", label: "Months", type: "text" },
+  { key: "week", label: "Week", type: "text" },
   { key: "date", label: "Date", type: "date" },
   { key: "hour", label: "Hour", type: "hour" },
 ];
+
+// Coarse -> fine order; a secondary (sub) column must be strictly finer.
+const COLUMN_DIMENSION_ORDER = ["month", "week", "date", "hour"];
 
 const EMPTY_FILTERS = {
   officeScope: [],
@@ -3336,11 +3420,13 @@ const EMPTY_FILTERS = {
   teamLeader: [],
   agent: [],
   columnDimension: "",
+  columnDimension2: "",
   includeColumnGrandTotal: false,
   agentProductivityPlanMode: false,
   last4QuickMode: false,
   includeWorkTime: false,
   hideNotWorking: false,
+  showHrCode: false,
   benchmarkMode: false,
   groupBy: "agent",
   rowDimensions: ["date", "desk", "teamLeader", "agent"],
@@ -3384,12 +3470,32 @@ const QUICK_PRESET_COUNTRY_DAILY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_COUNTRY_DAILY_METRICS = ["cr", "leads", "ftd", "crTarget", "crTargetReach", "missingFtd"];
 const QUICK_PRESET_DESK_COUNTRY_CR_ROW_DIMENSIONS = ["desk", "country"];
 const QUICK_PRESET_DESK_COUNTRY_CR_METRICS = ["ftd", "crTargetReach", "cr"];
-const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["hour", "country"];
+const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_ROW_DIMENSIONS = ["hour", "country", "campaign"];
 const QUICK_PRESET_COUNTRY_CAMPAIGN_CR_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_STATUS_ROW_DIMENSIONS = ["status"];
 const QUICK_PRESET_STATUS_METRICS = ["leadShare", "leads", "ftd", "cr", "crTarget", "crTargetReach"];
 const QUICK_PRESET_COMPARISON_ROW_DIMENSIONS = ["country", "campaign", "placement", "subCampaign", "teamLeader", "agent"];
-const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTargetReach"];
+const QUICK_PRESET_COMPARISON_METRICS = ["leads", "ftd", "cr", "crTarget", "crTargetReach"];
+const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
+const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS = ["country", "campaign", "agent"];
+const QUICK_PRESET_TRAFFIC_PRIORITY_METRICS = ["leads", "ftd", "cr"];
+// Display names used for the export filename + Info sheet (matches the quick
+// report buttons). Empty preset = a custom Report Builder run.
+const QUICK_PRESET_LABELS = {
+  monthly: "Monthly Quick",
+  last4: "Last 4 Months Quick",
+  traffic: "Traffic Reports",
+  "country-daily": "Country Daily Watch",
+  benchmark: "Benchmark Report",
+  "desk-country-cr": "Desk Country Daily CR Watch",
+  "country-campaign-hourly-cr": "Country Campaign Hourly CR Watch",
+  "status-watch": "Status Performance Watch",
+  "comparison-report": "Comparison Report",
+  leadsplitter: "LeadSplitter",
+  "traffic-priority": "Traffic Distribution",
+  "agent-productivity-plan": "Agent Productivity vs Plan Report",
+};
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
 const QUICK_PRESET_AGENT_PRODUCTIVITY_METRICS = ["leads", "ftd", "cr", "crTargetReach", "crTarget", "ftdTarget", "agentCount"];
 const COMPARISON_TABLE_DIMENSIONS = [
@@ -3408,6 +3514,8 @@ const COMPARISON_COLUMNS = [
   { key: "label", label: "Name", type: "text" },
   { key: "leads", label: "Leads", type: "number" },
   { key: "ftd", label: "FTD", type: "number" },
+  { key: "cr", label: "CR", type: "number" },
+  { key: "crTarget", label: "CR Target", type: "number" },
   { key: "crTargetReach", label: "CR Reach", type: "number" },
 ];
 
@@ -3418,6 +3526,676 @@ function asOptions(values = []) {
 function toMetricNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function LeadSplitterTable({ data = { rows: [] } }) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const formatPercent = (value) => `${Math.round(Number(value) || 0)}%`;
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap", border: "1px solid #b8cce4", padding: "3px 8px", color: "#0f172a" };
+  const textCell = { border: "1px solid #b8cce4", padding: "3px 8px", color: "#0f172a" };
+  const headerStyle = {
+    background: "#1f3864",
+    color: "#ffffff",
+    fontWeight: 700,
+    border: "1px solid #16294d",
+    padding: "4px 8px",
+    textAlign: "center",
+  };
+  const crStyle = (value) =>
+    Number(value) > 0
+      ? { background: "#c6efce", color: "#006100" }
+      : { background: "#ffc7ce", color: "#9c0006" };
+  const reachStyle = (value) =>
+    Number(value) >= 100
+      ? { background: "#c6efce", color: "#006100" }
+      : { background: "#ffc7ce", color: "#9c0006" };
+  const countryTotalRow = { background: "#ddebf7", fontWeight: 600 };
+  const deskTotalRow = { background: "#bdd7ee", fontWeight: 700 };
+  let lastDesk = null;
+  let lastCountry = null;
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <h3 className={styles.sectionTitle}>LeadSplitter</h3>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13, background: "#ffffff" }}>
+          <thead>
+            <tr>
+              <th style={headerStyle}>Desk</th>
+              <th style={headerStyle}>Country</th>
+              <th style={headerStyle}>Agent</th>
+              <th style={headerStyle}>Leads</th>
+              <th style={headerStyle}>FTD</th>
+              <th style={headerStyle}>CR</th>
+              <th style={headerStyle}>CR Target</th>
+              <th style={headerStyle}>CR Target Reach</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              if (row.kind === "deskTotal") {
+                lastDesk = null;
+                lastCountry = null;
+                return (
+                  <tr key={`d-${index}`} style={deskTotalRow}>
+                    <td style={textCell}>{row.desk}</td>
+                    <td style={textCell} colSpan={2}>
+                      {row.label}
+                    </td>
+                    <td style={numberCell}>{row.leads}</td>
+                    <td style={numberCell}>{row.ftd}</td>
+                    <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                    <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                    <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
+                  </tr>
+                );
+              }
+              if (row.kind === "countryTotal") {
+                lastCountry = null;
+                return (
+                  <tr key={`c-${index}`} style={countryTotalRow}>
+                    <td style={textCell} />
+                    <td style={textCell} colSpan={2}>
+                      {row.label}
+                    </td>
+                    <td style={numberCell}>{row.leads}</td>
+                    <td style={numberCell}>{row.ftd}</td>
+                    <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                    <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                    <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
+                  </tr>
+                );
+              }
+              const showDesk = row.desk !== lastDesk;
+              const showCountry = showDesk || row.country !== lastCountry;
+              lastDesk = row.desk;
+              lastCountry = row.country;
+              return (
+                <tr key={`a-${index}`}>
+                  <td style={{ ...textCell, fontWeight: showDesk ? 600 : 400 }}>{showDesk ? row.desk : ""}</td>
+                  <td style={textCell}>{showCountry ? row.country : ""}</td>
+                  <td style={textCell}>{row.agent}</td>
+                  <td style={numberCell}>{row.leads}</td>
+                  <td style={numberCell}>{row.ftd}</td>
+                  <td style={{ ...numberCell, ...crStyle(row.cr) }}>{formatPercent(row.cr)}</td>
+                  <td style={numberCell}>{formatPercent(row.crTarget)}</td>
+                  <td style={{ ...numberCell, ...reachStyle(row.crTargetReach) }}>{formatPercent(row.crTargetReach)}</td>
+                </tr>
+              );
+            })}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: "center", padding: 16 }}>
+                  No leads found for this selection.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function TrafficPriorityPanel({
+  data = { countries: [] },
+  selections = {},
+  onToggleCountry,
+  onSelectAllCountries,
+  onClearCountries,
+  onSelectCampaign,
+  onClear,
+  onCountChange,
+  onExcludedChange,
+}) {
+  const countries = Array.isArray(data?.countries) ? data.countries : [];
+  const minSegmentLeads = Number(data?.minSegmentLeads) || 10;
+  const windowDays = Number(data?.windowDays) || 60;
+  const blockWindowDays = Number(data?.blockWindowDays) || 7;
+  const selectedCountries = useMemo(
+    () => (Array.isArray(selections?.countries) ? selections.countries.map((value) => String(value || "").trim()).filter(Boolean) : []),
+    [selections],
+  );
+  const selectedCountrySet = useMemo(() => new Set(selectedCountries), [selectedCountries]);
+  const isSingleCountry = selectedCountries.length === 1;
+  const selectedCampaign = isSingleCountry ? String(selections?.campaign || "").trim() : "";
+  const selectionKey = `${selectedCountries.join("|")}::${selectedCampaign}`;
+  const count =
+    Number(selections?.count) > 0 ? Number(selections.count) : Number(data?.defaultCount) || TRAFFIC_DEFAULT_COUNT;
+
+  // Manual per-agent include/exclude overrides. Reset whenever the country /
+  // campaign selection changes so defaults recompute for the new segment.
+  const [manualChecks, setManualChecks] = useState({});
+  useEffect(() => {
+    setManualChecks({});
+  }, [selectionKey]);
+
+  // Distribution Check (audit): pick a day + press "Load" to compute it.
+  const availableDays = Array.isArray(data?.days) ? data.days : [];
+  const [auditDaySelection, setAuditDaySelection] = useState("");
+  const [audit, setAudit] = useState(null);
+  useEffect(() => {
+    setAudit(null);
+    setAuditDaySelection("");
+  }, [selectionKey]);
+
+  // For the audit: a single (possibly merged) country entry for the selection.
+  const countryEntry = useMemo(
+    () => (selectedCountries.length ? mergeCountryEntries(data, selectedCountries) : null),
+    [data, selectedCountries],
+  );
+  const singleCountryEntry = isSingleCountry
+    ? countries.find((entry) => entry.country === selectedCountries[0]) || null
+    : null;
+  const campaigns = singleCountryEntry && Array.isArray(singleCountryEntry.campaigns) ? singleCountryEntry.campaigns : [];
+
+  const ranking = useMemo(
+    () => resolveTrafficRanking(data, { countries: selectedCountries, campaign: selectedCampaign }),
+    [data, selectedCountries, selectedCampaign],
+  );
+  // An agent whose FTD count equals its lead count = 100% CR, almost always a
+  // tiny-sample fluke (e.g. 1 lead / 1 FTD). Flag it yellow and leave its
+  // checkbox OFF by default so it does not dominate the allocation.
+  const isFullConversion = useCallback(
+    (agent) => Number(agent?.leads) > 0 && Number(agent?.ftd) === Number(agent?.leads),
+    [],
+  );
+  const isChecked = useCallback(
+    (agent) => {
+      const override = manualChecks[agent.agent];
+      if (override !== undefined) {
+        return override;
+      }
+      // Off by default for cold (blocked) and full-conversion agents, but both
+      // can still be ticked on manually.
+      return !agent?.blocked && !isFullConversion(agent);
+    },
+    [manualChecks, isFullConversion],
+  );
+  const toggleAgent = useCallback((agentName, nextChecked) => {
+    setManualChecks((prev) => ({ ...prev, [agentName]: nextChecked }));
+  }, []);
+
+  const allocation = useMemo(() => {
+    // Ticked agents are recipients regardless of the block flag (the user opted
+    // them in), so clear `blocked` before allocation.
+    const active = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
+    return allocationSequence(active, count);
+  }, [ranking, count, isChecked]);
+
+  const summaryAgents = useMemo(() => {
+    const list = Array.isArray(ranking.agents) ? ranking.agents.slice() : [];
+    return list
+      .map((agent) => ({
+        ...agent,
+        checked: isChecked(agent),
+        fullConversion: isFullConversion(agent),
+        allocated: allocation.counts[agent.agent] || 0,
+        share: allocation.shares[agent.agent] || 0,
+      }))
+      .sort(
+        (left, right) =>
+          Number(left.blocked) - Number(right.blocked) ||
+          right.allocated - left.allocated ||
+          right.cr - left.cr ||
+          String(left.agent).localeCompare(String(right.agent)),
+      );
+  }, [ranking, allocation, isChecked, isFullConversion]);
+
+  const teamLeaderByAgent = useMemo(() => {
+    const map = {};
+    for (const agent of Array.isArray(ranking.agents) ? ranking.agents : []) {
+      if (agent?.agent && !map[agent.agent]) {
+        map[agent.agent] = agent.teamLeader || "";
+      }
+    }
+    return map;
+  }, [ranking]);
+
+  // Surface the resolved excluded-agent list (unchecked, non-blocked) so the
+  // XLSX export matches what is shown on screen.
+  useEffect(() => {
+    if (typeof onExcludedChange !== "function") {
+      return;
+    }
+    const excluded = (Array.isArray(ranking.agents) ? ranking.agents : [])
+      .filter((agent) => !isChecked(agent))
+      .map((agent) => agent.agent);
+    onExcludedChange(excluded);
+  }, [ranking, isChecked, onExcludedChange]);
+
+  const crCell = (value) =>
+    Number(value) > 0 ? { background: "#c6efce", color: "#006100" } : { background: "#ffc7ce", color: "#9c0006" };
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap" };
+
+  const basisNote = (() => {
+    const only = selectedCountries[0];
+    if (ranking.basis === "segment") {
+      return { tone: "ok", text: `Ranking: ${only} · ${selectedCampaign} (segment CR, ${ranking.segmentLeads} leads)` };
+    }
+    if (ranking.basis === "country-fallback") {
+      return {
+        tone: "warn",
+        text: `Not enough data for this AFF (${ranking.segmentLeads} < ${minSegmentLeads}) — ranking by ${only} country-wide CR`,
+      };
+    }
+    if (ranking.basis === "country") {
+      return { tone: "ok", text: `Ranking: ${only} country-wide (last ${windowDays} days)` };
+    }
+    if (ranking.basis === "multi-country") {
+      return {
+        tone: "ok",
+        text: `Ranking: ${selectedCountries.length} countries combined (last ${windowDays} days)`,
+      };
+    }
+    return { tone: "muted", text: "Select one or more countries to build the priority list." };
+  })();
+  const selectionLabel = selectedCountries.length === 1 ? selectedCountries[0] : `${selectedCountries.length} countries`;
+
+  const formatDay = (dayString) => {
+    const parts = String(dayString || "").split("-");
+    return parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dayString;
+  };
+  const runAudit = useCallback(() => {
+    if (!countryEntry || !auditDaySelection) {
+      setAudit(null);
+      return;
+    }
+    // Only agents currently ticked in Agent Priority take part in the check;
+    // ticked-in blocked agents are treated as active recipients.
+    const checkedAgents = (Array.isArray(countryEntry.agents) ? countryEntry.agents : [])
+      .filter((agent) => isChecked(agent))
+      .map((agent) => ({ ...agent, blocked: false }));
+    setAudit(buildDistributionAudit({ agents: checkedAgents }, auditDaySelection, { windowDays }));
+  }, [countryEntry, auditDaySelection, windowDays, isChecked]);
+
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <div className={styles.tableActionBar} style={{ paddingLeft: 0, paddingTop: 0 }}>
+        <h3 className={styles.sectionTitle} style={{ marginRight: 8 }}>Traffic Distribution</h3>
+        <span style={{ fontSize: 12, color: "#64748b" }}>
+          Last {windowDays} days · block = no FTD in last {blockWindowDays} days
+        </span>
+        {selectedCountries.length ? (
+          <button type="button" className={styles.tableActionButton} style={{ marginLeft: "auto" }} onClick={() => onClear?.()}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div className={styles.comparisonGrid}>
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>
+              Country{selectedCountries.length ? ` (${selectedCountries.length})` : ""}
+            </h4>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+                onClick={() => onSelectAllCountries?.(countries.map((entry) => entry.country))}
+              >
+                Select all
+              </button>
+              {selectedCountries.length ? (
+                <button
+                  type="button"
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  style={{ padding: "4px 8px", fontSize: 11 }}
+                  onClick={() => onClearCountries?.()}
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className={styles.trafficScroll}>
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "40%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "18%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th title="Select country" />
+                  <th>Country</th>
+                  <th>Leads</th>
+                  <th>FTD</th>
+                  <th>CR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {countries.map((entry) => {
+                  const isSelected = selectedCountrySet.has(entry.country);
+                  return (
+                    <tr
+                      key={`tp-country-${entry.country}`}
+                      className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                      onClick={() => onToggleCountry?.(entry.country)}
+                    >
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onToggleCountry?.(entry.country)}
+                          onClick={(event) => event.stopPropagation()}
+                        />
+                      </td>
+                      <td className={styles.tableStrong}>{entry.country}</td>
+                      <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                      <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                      <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                    </tr>
+                  );
+                })}
+                {!countries.length ? (
+                  <tr>
+                    <td colSpan={5} className={styles.tableEmpty}>
+                      No leads in the last {windowDays} days.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Campaign (AFF)</h4>
+            {selectedCampaign ? (
+              <button
+                type="button"
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+                onClick={() => onSelectCampaign?.("")}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.trafficScroll}>
+            {!selectedCountries.length ? (
+              <p className={styles.tableEmpty}>Select a country first.</p>
+            ) : !isSingleCountry ? (
+              <p className={styles.tableEmpty}>
+                Multiple countries selected — campaign filter is off (ranking is combined country-wide).
+              </p>
+            ) : (
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "46%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "18%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Leads</th>
+                    <th>FTD</th>
+                    <th>CR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaigns.map((entry) => {
+                    const isSelected = entry.campaign === selectedCampaign;
+                    const thin = Number(entry.leads) < minSegmentLeads;
+                    return (
+                      <tr
+                        key={`tp-campaign-${entry.campaign}`}
+                        className={`${styles.tableInteractiveRow} ${isSelected ? styles.tableSelectedRow : ""}`}
+                        onClick={() => onSelectCampaign?.(entry.campaign)}
+                        title={thin ? `Below ${minSegmentLeads} leads — falls back to country-wide ranking` : ""}
+                      >
+                        <td className={styles.tableStrong}>
+                          {entry.campaign}
+                          {thin ? <span style={{ color: "#b45309", marginLeft: 4 }}>*</span> : null}
+                        </td>
+                        <td style={numberCell}>{formatNumber(entry.leads)}</td>
+                        <td style={numberCell}>{formatNumber(entry.ftd)}</td>
+                        <td style={{ ...numberCell, ...crCell(entry.cr) }}>{formatPercent(entry.cr)}</td>
+                      </tr>
+                    );
+                  })}
+                  {!campaigns.length ? (
+                    <tr>
+                      <td colSpan={4} className={styles.tableEmpty}>
+                        No campaigns for this country.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        <div className={`${styles.panel} ${styles.tableCard}`}>
+          <div className={styles.comparisonHeader}>
+            <h4 className={styles.comparisonTitle}>Agent Priority</h4>
+            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+              N
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={count}
+                onChange={(event) => onCountChange?.(event.target.value)}
+                style={{ width: 60, padding: "2px 6px", border: "1px solid #cbd5e1", borderRadius: 6 }}
+              />
+            </label>
+          </div>
+          <div style={{ padding: "6px 8px" }}>
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 8,
+                padding: "4px 8px",
+                borderRadius: 6,
+                background: basisNote.tone === "warn" ? "#fef3c7" : basisNote.tone === "ok" ? "#ecfdf5" : "#f1f5f9",
+                color: basisNote.tone === "warn" ? "#92400e" : basisNote.tone === "ok" ? "#065f46" : "#475569",
+              }}
+            >
+              {basisNote.text}
+            </div>
+            {allocation.sequence.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {allocation.sequence.map((agent, index) => {
+                  const teamLeader = teamLeaderByAgent[agent];
+                  return (
+                    <span
+                      key={`tp-seq-${index}`}
+                      style={{
+                        fontSize: 11,
+                        background: "#e0e7ff",
+                        color: "#3730a3",
+                        borderRadius: 6,
+                        padding: "2px 6px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <b>{index + 1}.</b> {agent}
+                      {teamLeader ? ` / ${teamLeader}` : ""}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className={styles.trafficScroll}>
+              <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+                <colgroup>
+                  <col style={{ width: "28px" }} />
+                  <col style={{ width: "38%" }} />
+                  <col style={{ width: "26%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "12%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th title="Include in allocation" />
+                    <th>Agent</th>
+                    <th>TL</th>
+                    <th title="Leads in window">Ld</th>
+                    <th>CR</th>
+                    <th title="Allocated calls">Cnt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryAgents.map((agent) => (
+                    <tr
+                      key={`tp-agent-${agent.agent}`}
+                      style={
+                        agent.blocked
+                          ? { background: "#ffc7ce", color: "#9c0006" }
+                          : agent.fullConversion
+                            ? { background: "#fff3cd", color: "#0f172a" }
+                            : undefined
+                      }
+                      title={agent.fullConversion ? "FTD = Leads (100% CR) - likely low sample, off by default" : ""}
+                    >
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={agent.checked}
+                          onChange={(event) => toggleAgent(agent.agent, event.target.checked)}
+                        />
+                      </td>
+                      <td className={styles.tableStrong} title={agent.agent}>
+                        {agent.blocked ? <span title={`No FTD in last ${blockWindowDays} days`}>🚫 </span> : null}
+                        {agent.agent}
+                        {agent.inSelectedCampaign ? (
+                          <span style={{ color: "#2563eb", marginLeft: 4 }}>•</span>
+                        ) : null}
+                      </td>
+                      <td title={agent.teamLeader || ""}>{agent.teamLeader || "-"}</td>
+                      <td style={numberCell}>{formatNumber(agent.leads)}</td>
+                      <td style={numberCell}>{formatPercent(agent.cr)}</td>
+                      <td style={numberCell}>{agent.checked ? agent.allocated : "-"}</td>
+                    </tr>
+                  ))}
+                  {!summaryAgents.length ? (
+                    <tr>
+                      <td colSpan={6} className={styles.tableEmpty}>
+                        {selectedCountries.length ? "No agents for this selection." : "Select a country."}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`${styles.panel} ${styles.tableCard}`} style={{ marginTop: 12 }}>
+        <div className={styles.comparisonHeader} style={{ flexWrap: "wrap", gap: 8 }}>
+          <h4 className={styles.comparisonTitle}>Distribution Check</h4>
+          <span style={{ fontSize: 11, color: "#cbd5e1" }}>
+            Actual vs expected split for a day (expected = CR of the {windowDays} days before)
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+            <select
+              value={auditDaySelection}
+              onChange={(event) => setAuditDaySelection(event.target.value)}
+              disabled={!selectedCountries.length}
+              style={{ padding: "3px 6px", borderRadius: 6, fontSize: 12 }}
+            >
+              <option value="">Select day…</option>
+              {availableDays.map((day) => (
+                <option key={`tp-day-${day}`} value={day}>
+                  {formatDay(day)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              style={{ padding: "4px 10px", fontSize: 12 }}
+              onClick={runAudit}
+              disabled={!selectedCountries.length || !auditDaySelection}
+            >
+              Load
+            </button>
+          </div>
+        </div>
+        <div className={styles.trafficScroll}>
+          {!selectedCountries.length ? (
+            <p className={styles.tableEmpty}>Select a country above first.</p>
+          ) : !audit ? (
+            <p className={styles.tableEmpty}>Pick a day and press Load.</p>
+          ) : (
+            <table className={`${styles.table} ${styles.tableSticky} ${styles.trafficTable}`}>
+              <colgroup>
+                <col style={{ width: "26%" }} />
+                <col style={{ width: "20%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "17%" }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Agent — {selectionLabel} · {formatDay(audit.day)}</th>
+                  <th>TL</th>
+                  <th title="CR of prior 60 days">CR</th>
+                  <th title="Expected leads">Exp</th>
+                  <th title="Actual leads received">Act</th>
+                  <th title="Actual − Expected">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.rows.map((row) => {
+                  const under = row.diff <= -0.5;
+                  const over = row.diff >= 0.5;
+                  const rowStyle = row.blocked
+                    ? { background: "#ffc7ce", color: "#9c0006" }
+                    : under
+                      ? { background: "#fde2e1", color: "#0f172a" }
+                      : over
+                        ? { background: "#dbeafe", color: "#0f172a" }
+                        : undefined;
+                  return (
+                    <tr key={`tp-audit-${row.agent}`} style={rowStyle}>
+                      <td className={styles.tableStrong} title={row.agent}>
+                        {row.blocked ? "🚫 " : null}
+                        {row.agent}
+                      </td>
+                      <td title={row.teamLeader}>{row.teamLeader || "-"}</td>
+                      <td style={{ textAlign: "right" }}>{formatPercent(row.priorCr)}</td>
+                      <td style={{ textAlign: "right" }}>{row.blocked ? "-" : row.expected.toFixed(1)}</td>
+                      <td style={{ textAlign: "right" }}>{row.actual}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700 }}>
+                        {row.blocked ? "-" : `${row.diff > 0 ? "+" : ""}${row.diff.toFixed(1)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!audit.rows.length ? (
+                  <tr>
+                    <td colSpan={6} className={styles.tableEmpty}>
+                      No agents for this day.
+                    </td>
+                  </tr>
+                ) : (
+                  <tr style={{ background: "#e5e7eb", fontWeight: 700 }}>
+                    <td colSpan={4}>Total leads that day</td>
+                    <td style={{ textAlign: "right" }}>{audit.totalActual}</td>
+                    <td />
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, onClearSelections }) {
@@ -3501,6 +4279,9 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
         .map((item) => ({
           ...item,
           cr: item.leads > 0 ? (item.ftd / item.leads) * 100 : 0,
+          // Weighted CR target: targetBase is sum(leads_i * crTarget_i/100), so
+          // dividing by leads recovers the average CR target as a percentage.
+          crTarget: item.leads > 0 ? (item.targetBase / item.leads) * 100 : 0,
           crTargetReach: item.targetBase > 0 ? (item.ftd / item.targetBase) * 100 : 0,
         }))
         .sort((left, right) => {
@@ -3553,7 +4334,7 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
           onClick={() => setTablesExpanded((previous) => !previous)}
           aria-expanded={tablesExpanded}
         >
-          {tablesExpanded ? "Collapse Table" : "Expand Table"}
+          {tablesExpanded ? "▾ Collapse tables" : "▸ Expand tables"}
         </button>
       </div>
       {tablesExpanded ? (
@@ -3619,6 +4400,8 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
                             <DataBar value={row.ftd} max={maxFtd} color="#bbf7d0" />
                             <span style={{ position: "relative", zIndex: 1 }}>{formatNumber(row.ftd)}</span>
                           </td>
+                          <td>{formatPercent(row.cr)}</td>
+                          <td>{formatPercent(row.crTarget)}</td>
                           <td style={{ ...reachStyle, fontWeight: 700 }}>{formatPercent(row.crTargetReach)}</td>
                         </tr>
                       );
@@ -3638,14 +4421,245 @@ function ComparisonTablesPanel({ rows = [], selections = {}, onToggleSelection, 
         })}
       </div>
       ) : (
-        <p className={styles.tableCollapsedHint} style={{ marginLeft: 0 }}>Table is collapsed. Click "Expand Table" to view rows.</p>
+        <p className={styles.tableCollapsedHint} style={{ marginLeft: 0 }}>▸ Table collapsed — press “Expand table” above to show the rows.</p>
       )}
+    </section>
+  );
+}
+
+function DashboardGuide() {
+  return (
+    <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy} ${styles.guide}`}>
+      <div className={styles.guideHeader}>
+        <h2 className={styles.guideHeaderTitle}>User Guide</h2>
+        <p className={styles.guideHeaderSub}>
+          This panel lets you track each office’s lead and FTD performance in one place. Below is a quick
+          overview of how to build and download reports and what every metric means. You only ever see the
+          offices, desks and agents your permissions allow.
+        </p>
+      </div>
+
+      <div className={styles.guideSteps}>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>1</span>
+          <span className={styles.guideStepTitle}>Select an Office</span>
+          <span className={styles.guideStepText}>
+            Click one of the office cards above. Only the offices you are allowed to see are listed.
+          </span>
+        </div>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>2</span>
+          <span className={styles.guideStepTitle}>Filter or Quick Report</span>
+          <span className={styles.guideStepText}>
+            Pick a ready-made Quick Report, or build your own breakdown in the Report Builder. Apply filters
+            such as month, date, desk and country.
+          </span>
+        </div>
+        <div className={styles.guideStep}>
+          <span className={styles.guideStepNum}>3</span>
+          <span className={styles.guideStepTitle}>View and Download</span>
+          <span className={styles.guideStepText}>
+            Press “Load Report” to render the table, then “Export XLSX” to download it as Excel.
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.guideGrid}>
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>📊</span> Quick Reports
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Monthly Quick</span> — The selected month’s core performance,
+              broken down Desk → Team Leader → Agent. Loads automatically when the panel opens.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Comparison Report</span> — Compares country, campaign, placement,
+              team leader and agent breakdowns side by side.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>LeadSplitter</span> — Splits leads by a Desk derived from the
+              Department field (Desk → Country → Agent).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Traffic Distribution</span> — Uses the last 60 days of
+              performance to decide who should receive new customers and in what proportion; includes a daily
+              check table.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Benchmark Report</span> — Compares an agent’s FTD against the
+              desk’s long-term average.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Last 4 Months</span> — Shows the FTD and CR trend over the last
+              four months.
+            </li>
+            <li>
+              Plus daily/hourly watch reports such as <span className={styles.guideTerm}>Country Daily</span>,
+              <span className={styles.guideTerm}> Hourly CR</span> and <span className={styles.guideTerm}>Status Watch</span>.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>🎯</span> Core Metrics
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Leads</span> — Total number of leads (records).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>FTD</span> — Number of customers who made a First Time Deposit.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR</span> — Conversion rate = FTD ÷ Leads.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR Target</span> — The target conversion rate set for the
+              agent/desk.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>CR Target Reach</span> — CR ÷ CR Target. 100% or above means the
+              target was met.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>FTD Target / Reach</span> — The expected FTD count and how much of
+              it was achieved.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>KYC FTD</span> — Verified FTD count confirmed on the KYC side;
+              counted from a separate source.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>📈</span> Advanced Metrics
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Benchmark Rate</span> — An agent’s FTD relative to the desk’s
+              long-term benchmark value.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Lead Share</span> — The row’s share of total leads (%).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Late FTD / Late FTD/FTD</span> — FTDs that arrive late after the
+              lead, and their share of total FTD.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Missing FTD</span> — FTD expected by target but not received.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Avg Lead / FTD by Agent</span> — Average leads and FTD per agent
+              (with a daily option).
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Number of Agents</span> — Agent count in the breakdown.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>🧩</span> Report Builder (Your Own Report)
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Dimensions (Breakdown)</span> — How rows are grouped: Desk, Team
+              Leader, Agent, Country, Campaign, Placement…
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Metrics</span> — Pick the metrics you want in the table.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Filters</span> — Office, Month, Date, Hour, Desk, Country, Status,
+              Team Leader and Agent.
+            </li>
+            <li>
+              Run it with <span className={styles.guideTerm}>Load Report</span>. The
+              <span className={styles.guideTerm}> Grand Total</span> row at the bottom sums every column.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>⬇️</span> Download (Export)
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              The <span className={styles.guideTerm}>Export XLSX</span> button downloads the report as Excel.
+            </li>
+            <li>
+              File name: <span className={styles.guideBadge}>Office - Month Date - Report Name.xlsx</span>
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Sheet 1</span> is the main report.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Sheet 2 (Info)</span> — source URL, metrics used, who exported it
+              and when, plus summary totals.
+            </li>
+          </ul>
+        </div>
+
+        <div className={styles.guideCard}>
+          <h3 className={styles.guideCardTitle}>
+            <span className={styles.guideCardIcon}>⚙️</span> Working Status &amp; Settings
+          </h3>
+          <ul className={styles.guideList}>
+            <li>
+              <span className={styles.guideTerm}>Hide Not Working</span> — Hides inactive / departed (“Not
+              Working”) agents from the report. When off, everyone is shown; it is off by default in Monthly
+              Quick.
+            </li>
+            <li>
+              <span className={styles.guideTerm}>Include Work Time</span> — Enables the “per-agent average”
+              metrics that factor in how many days/months an agent actually worked.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <p className={styles.guideNote}>
+        Data is sourced from each office’s Google Sheets and refreshes automatically as the source updates. If you
+        see a question or an inconsistency, first check the filters (office / month / date).
+      </p>
     </section>
   );
 }
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [theme, setTheme] = useState("light");
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("crm-dashboard-theme");
+      if (stored === "dark" || stored === "light") {
+        setTheme(stored);
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.theme = theme;
+    }
+    try {
+      window.localStorage.setItem("crm-dashboard-theme", theme);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [theme]);
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  }, []);
   const [sessionState, setSessionState] = useState({
     loading: true,
     authenticated: false,
@@ -3681,6 +4695,8 @@ export default function DashboardPage() {
   const [exportState, setExportState] = useState({ loading: false, error: "" });
   const [quickPreset, setQuickPreset] = useState("");
   const [comparisonSelections, setComparisonSelections] = useState({});
+  const [trafficSelections, setTrafficSelections] = useState({ countries: [], campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+  const [trafficExcluded, setTrafficExcluded] = useState([]);
   const detailsContextMenuRef = useRef(null);
   const [detailsContextMenu, setDetailsContextMenu] = useState({
     open: false,
@@ -3921,18 +4937,16 @@ export default function DashboardPage() {
     if (quickPreset !== "comparison-report") {
       setComparisonSelections({});
     }
+    if (quickPreset !== "traffic-priority") {
+      setTrafficSelections({ countries: [], campaign: "", count: TRAFFIC_DEFAULT_COUNT });
+    }
   }, [quickPreset]);
   useEffect(() => {
     router.prefetch("/dashboard/details");
   }, [router]);
 
-  useEffect(() => {
-    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
-    if (!hasOfficeScope || filters.reportMode) {
-      return;
-    }
-    setFilters((prev) => ({ ...prev, reportMode: "specific", specificType: "builder" }));
-  }, [filters.officeScope, filters.reportMode]);
+  // Initial default report (Monthly Quick) is applied + auto-loaded below, once
+  // applyQuickPreset is defined (see the effects after it).
 
   const handleTelegramAuth = useCallback(
     async (user) => {
@@ -4123,6 +5137,25 @@ export default function DashboardPage() {
     setExportState({ loading: true, error: "" });
     try {
       const query = buildReportQuery(appliedFilters);
+      const presetName = QUICK_PRESET_LABELS[quickPreset] || "";
+      if (presetName) {
+        query.set("reportName", presetName);
+      }
+      if (typeof window !== "undefined") {
+        query.set("sourceUrl", `${window.location.origin}${window.location.pathname}`);
+      }
+      if (appliedFilters.trafficPriority) {
+        if (Array.isArray(trafficSelections.countries) && trafficSelections.countries.length) {
+          query.set("tpCountries", trafficSelections.countries.join(","));
+        }
+        if (trafficSelections.countries?.length === 1 && trafficSelections.campaign) {
+          query.set("tpCampaign", trafficSelections.campaign);
+        }
+        query.set("tpCount", String(trafficSelections.count || TRAFFIC_DEFAULT_COUNT));
+        if (Array.isArray(trafficExcluded) && trafficExcluded.length) {
+          query.set("tpExclude", trafficExcluded.join(","));
+        }
+      }
       const response = await fetch(`/api/dashboard/export?${query.toString()}`, { method: "GET" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -4144,15 +5177,23 @@ export default function DashboardPage() {
     } catch (error) {
       setExportState({ loading: false, error: error?.message || "Could not export report." });
     }
-  }, [appliedFilters]);
+  }, [appliedFilters, trafficSelections, trafficExcluded, quickPreset]);
 
   const report = reportState.report;
   const options = report?.options || {};
   const isComparisonPreset = quickPreset === "comparison-report";
   const isAgentProductivityPreset = quickPreset === "agent-productivity-plan";
+  const isLeadSplitterPreset = quickPreset === "leadsplitter";
   const isTrafficPreset = quickPreset === "traffic";
-  const isBuilderLockedPreset = isComparisonPreset || isAgentProductivityPreset;
+  const isTrafficPriorityPreset = quickPreset === "traffic-priority";
+  const isBuilderLockedPreset =
+    isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset || isTrafficPriorityPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
+  const isLeadSplitterView = report?.tableType === "leadsplitter";
+  const isTrafficPriorityView = report?.tableType === "trafficpriority";
+  // HR Code is a Turkey-only column, so its toggle only appears for that office.
+  const isTurkeyOfficeSelected =
+    Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
   const isAgentProductivityReportView =
     report?.tableType === "builder" && (isAgentProductivityPreset || Boolean(appliedFilters?.agentProductivityPlanMode));
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -4209,6 +5250,9 @@ export default function DashboardPage() {
           benchmarkMode: false,
           agentProductivityPlanMode: false,
           last4QuickMode: false,
+          comparisonMode: false,
+          leadSplitter: false,
+          trafficPriority: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -4218,7 +5262,7 @@ export default function DashboardPage() {
             ...basePreset,
             monthKey: defaultMonth,
             includeWorkTime: true,
-            hideNotWorking: true,
+            hideNotWorking: false,
             rowDimensions: QUICK_PRESET_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_MONTHLY_METRICS,
@@ -4312,9 +5356,38 @@ export default function DashboardPage() {
             monthKey: defaultMonth,
             includeWorkTime: false,
             hideNotWorking: false,
+            comparisonMode: true,
             rowDimensions: QUICK_PRESET_COMPARISON_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_COMPARISON_METRICS,
+          };
+        }
+        if (preset === "leadsplitter") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: false,
+            hideNotWorking: false,
+            leadSplitter: true,
+            rowDimensions: QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_LEADSPLITTER_METRICS,
+          };
+        }
+        if (preset === "traffic-priority") {
+          return {
+            ...basePreset,
+            // Scores the trailing ~60-day window. Loading all offices for several
+            // months blows the request timeout, so it runs on the selected office
+            // (switch office from the dropdown) with the 2 most recent months.
+            officeScope: selectedOfficeScope,
+            monthKey: availableMonthKeys.slice(0, 2),
+            includeWorkTime: false,
+            hideNotWorking: false,
+            trafficPriority: true,
+            rowDimensions: QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_TRAFFIC_PRIORITY_METRICS,
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -4336,6 +5409,45 @@ export default function DashboardPage() {
     },
     [availableMonthKeys, officeOptions],
   );
+
+  // On first open, default the report to Monthly Quick and auto-load it (for
+  // everyone). Runs once per page load: applies the preset when the office and
+  // months are ready, then copies the draft into appliedFilters so the report
+  // fetches without needing a manual "Load Report" click.
+  const initialMonthlyPresetDone = useRef(false);
+  useEffect(() => {
+    if (initialMonthlyPresetDone.current) {
+      return;
+    }
+    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
+    if (!hasOfficeScope || !availableMonthKeys.length) {
+      return;
+    }
+    if (filters.reportMode) {
+      // A report mode is already set (e.g. the user navigated/selected) -- don't
+      // override their choice, just stop trying to force the default.
+      initialMonthlyPresetDone.current = true;
+      return;
+    }
+    applyQuickPreset("monthly");
+  }, [filters.officeScope, filters.reportMode, availableMonthKeys, applyQuickPreset]);
+
+  useEffect(() => {
+    if (initialMonthlyPresetDone.current) {
+      return;
+    }
+    if (quickPreset !== "monthly") {
+      return;
+    }
+    const hasOfficeScope = Array.isArray(filters.officeScope) && filters.officeScope.length > 0;
+    const hasMonth = Array.isArray(filters.monthKey) && filters.monthKey.length > 0;
+    if (!hasOfficeScope || filters.reportMode !== "specific" || !hasMonth) {
+      return;
+    }
+    initialMonthlyPresetDone.current = true;
+    setAppliedFilters({ ...filters });
+  }, [quickPreset, filters]);
+
   const draftQueryKey = useMemo(() => buildReportQuery(filters).toString(), [filters]);
   const appliedQueryKey = useMemo(() => buildReportQuery(appliedFilters).toString(), [appliedFilters]);
   const hasPendingChanges = draftQueryKey !== appliedQueryKey;
@@ -4353,9 +5465,16 @@ export default function DashboardPage() {
       return [];
     }
     const rows = Array.isArray(report?.table) ? [...report.table] : [];
+    // Grand Total row (computed server-side over the full data set). Rendered as
+    // a "total"-styled row pinned to the very bottom, only on the last page.
+    const grandTotalRow = report?.builder?.grandTotalRow;
+    const pag = report?.pagination;
+    const onLastPage = !pag || !pag.totalPages || (pag.page || 1) >= pag.totalPages;
+    const appendGrandTotal = (list) =>
+      grandTotalRow && onLastPage ? [...list, { ...grandTotalRow, __rowKind: "total", __grandTotal: true }] : list;
     const activeColumn = builderColumns.find((column) => column.key === builderSort.key);
     if (!activeColumn) {
-      return rows;
+      return appendGrandTotal(rows);
     }
     const selectedDimensions = Array.isArray(report?.builder?.selectedDimensions) ? report.builder.selectedDimensions : [];
     const selectedTotalDimensions = Array.isArray(report?.builder?.selectedTotalDimensions)
@@ -4371,7 +5490,7 @@ export default function DashboardPage() {
         const compare = compareBuilderValues(left[activeColumn.key], right[activeColumn.key], activeColumn.type);
         return builderSort.direction === "desc" ? -compare : compare;
       });
-      return rows;
+      return appendGrandTotal(rows);
     }
 
     const detailRows = rows.filter((row) => row.__rowKind !== "total");
@@ -4473,8 +5592,16 @@ export default function DashboardPage() {
       return ordered;
     };
 
-    return orderHierarchical(detailRows, 0, []);
-  }, [builderColumns, builderSort.direction, builderSort.key, report?.table, report?.tableType]);
+    return appendGrandTotal(orderHierarchical(detailRows, 0, []));
+  }, [
+    builderColumns,
+    builderSort.direction,
+    builderSort.key,
+    report?.table,
+    report?.tableType,
+    report?.builder?.grandTotalRow,
+    report?.pagination,
+  ]);
 
   useEffect(() => {
     if (report?.tableType !== "builder") {
@@ -4542,15 +5669,37 @@ export default function DashboardPage() {
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
-        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
-          Log out
-        </button>
+        <div className={styles.topBarActions}>
+          {sessionState.bootstrap?.lastSyncAt ? (
+            <span
+              className={styles.syncBadge}
+              title={`Son senkronizasyon (n8n → veri): ${new Date(sessionState.bootstrap.lastSyncAt).toLocaleString("tr-TR")}`}
+            >
+              ⟳ Son senkron: {formatLastSync(sessionState.bootstrap.lastSyncAt)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={`${styles.button} ${styles.buttonSecondary} ${styles.themeToggle}`}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
+            Log out
+          </button>
+        </div>
       </section>
 
       {needOfficeSelection ? (
-        <section className={`${styles.panel} ${styles.section}`}>
-          <h2 className={styles.sectionTitle}>Step 1 — Select Office</h2>
-          <p className={styles.sectionHint}>Choose your office first, then filters and quick reports will open.</p>
+        <>
+        <section className={`${styles.panel} ${styles.section} ${styles.sectionFancy}`}>
+          <h2 className={styles.sectionTitle}>Step 1 — Select an Office</h2>
+          <p className={styles.sectionHint}>
+            Select an office to begin. Once an office is chosen, the filters and ready-made Quick reports open.
+          </p>
           <div className={styles.officeGrid}>
             {officeOptions.map((office) => {
               const officeTheme = officeThemeForName(office);
@@ -4600,6 +5749,8 @@ export default function DashboardPage() {
             })}
           </div>
         </section>
+        <DashboardGuide />
+        </>
       ) : null}
 
       {!needOfficeSelection ? (
@@ -4875,6 +6026,24 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("leadsplitter")}
+              className={styles.reportModeCard}
+              style={quickPreset === "leadsplitter" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>LeadSplitter</span>
+              <span className={styles.reportModeIcon}>🧩</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => applyQuickPreset("traffic-priority")}
+              className={styles.reportModeCard}
+              style={quickPreset === "traffic-priority" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Traffic Distribution</span>
+              <span className={styles.reportModeIcon}>🚦</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -4896,11 +6065,20 @@ export default function DashboardPage() {
             items={builderColumnDimensionOptions}
             selectedKey={filters.columnDimension}
             onSelect={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                columnDimension: value,
-                includeColumnGrandTotal: value ? prev.includeColumnGrandTotal : false,
-              }))
+              setFilters((prev) => {
+                // Drop the sub-column if it is no longer strictly finer than the
+                // newly chosen primary column.
+                const primaryIndex = COLUMN_DIMENSION_ORDER.indexOf(value);
+                const secondaryIndex = COLUMN_DIMENSION_ORDER.indexOf(prev.columnDimension2 || "");
+                const keepSecondary =
+                  value && prev.columnDimension2 && primaryIndex >= 0 && secondaryIndex > primaryIndex;
+                return {
+                  ...prev,
+                  columnDimension: value,
+                  columnDimension2: keepSecondary ? prev.columnDimension2 : "",
+                  includeColumnGrandTotal: value ? prev.includeColumnGrandTotal : false,
+                };
+              })
             }
             noLabel="No"
             grandTotalLabel="Column Grand Total"
@@ -4914,6 +6092,23 @@ export default function DashboardPage() {
             locked={isBuilderLockedPreset}
             activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
           />
+          {filters.columnDimension && !isBuilderLockedPreset ? (
+            <SingleChoiceChipGroup
+              label={`Sub-column (under ${
+                (builderColumnDimensionOptions.find((option) => option.key === filters.columnDimension) || {}).label ||
+                filters.columnDimension
+              })`}
+              items={builderColumnDimensionOptions.filter(
+                (option) =>
+                  COLUMN_DIMENSION_ORDER.indexOf(option.key) > COLUMN_DIMENSION_ORDER.indexOf(filters.columnDimension),
+              )}
+              selectedKey={filters.columnDimension2}
+              onSelect={(value) => setFilters((prev) => ({ ...prev, columnDimension2: value }))}
+              noLabel="No"
+              locked={isBuilderLockedPreset}
+              activeClassName={isBuilderLockedPreset ? styles.chipActiveLocked : ""}
+            />
+          ) : null}
           <RowDimensionGroup
             label="Row / Group Dimensions"
             items={builderDimensionOptions}
@@ -4980,6 +6175,19 @@ export default function DashboardPage() {
                 >
                   <span className={styles.workTimeToggleThumb} />
                   <span>{filters.hideNotWorking ? "ON" : "OFF"}</span>
+                </button>
+              </>
+            ) : null}
+            {isTurkeyOfficeSelected ? (
+              <>
+                <span className={styles.workTimeToggleLabel}>HR Code</span>
+                <button
+                  type="button"
+                  className={`${styles.workTimeToggle} ${filters.showHrCode ? styles.workTimeToggleOn : ""}`}
+                  onClick={() => setFilters((prev) => ({ ...prev, showHrCode: !prev.showHrCode }))}
+                >
+                  <span className={styles.workTimeToggleThumb} />
+                  <span>{filters.showHrCode ? "ON" : "OFF"}</span>
                 </button>
               </>
             ) : null}
@@ -5057,9 +6265,51 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView ? <SummaryCards summary={report.summary || {}} /> : null}
-          {!isComparisonReportView ? <StatusCards stats={report.stats || {}} /> : null}
-          {!isComparisonReportView ? <OverviewBand report={report} /> : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <SummaryCards summary={report.summary || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <StatusCards stats={report.stats || {}} />
+          ) : null}
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+            <OverviewBand report={report} />
+          ) : null}
+          {report.tableType === "leadsplitter" ? (
+            <LeadSplitterTable data={report.leadSplitter || { rows: [] }} />
+          ) : null}
+          {report.tableType === "trafficpriority" ? (
+            <TrafficPriorityPanel
+              data={report.trafficPriority || { countries: [] }}
+              selections={trafficSelections}
+              onToggleCountry={(country) =>
+                setTrafficSelections((prev) => {
+                  const current = Array.isArray(prev.countries) ? prev.countries : [];
+                  const nextCountries = current.includes(country)
+                    ? current.filter((item) => item !== country)
+                    : [...current, country];
+                  // Campaign only applies to a single-country selection.
+                  return { ...prev, countries: nextCountries, campaign: nextCountries.length === 1 ? prev.campaign : "" };
+                })
+              }
+              onSelectAllCountries={(allCountries) =>
+                setTrafficSelections((prev) => ({
+                  ...prev,
+                  countries: Array.isArray(allCountries) ? [...allCountries] : [],
+                  campaign: "",
+                }))
+              }
+              onClearCountries={() => setTrafficSelections((prev) => ({ ...prev, countries: [], campaign: "" }))}
+              onSelectCampaign={(campaign) =>
+                setTrafficSelections((prev) => ({ ...prev, campaign: prev.campaign === campaign ? "" : campaign }))
+              }
+              onClear={() => setTrafficSelections((prev) => ({ ...prev, countries: [], campaign: "" }))}
+              onCountChange={(value) => {
+                const parsed = Math.max(1, Math.min(500, Math.floor(Number(value) || 0)));
+                setTrafficSelections((prev) => ({ ...prev, count: parsed }));
+              }}
+              onExcludedChange={setTrafficExcluded}
+            />
+          ) : null}
           {report.tableType === "pivot" ? (
             <PivotTable rows={report.table || []} summary={report.summary || {}} onEntityContextMenu={handleEntityContextMenu} />
           ) : null}
@@ -5103,7 +6353,12 @@ export default function DashboardPage() {
               )}
             </section>
           ) : null}
-          {report.tableType && report.tableType !== "pivot" && report.tableType !== "last4_matrix" && report.tableType !== "builder" ? (
+          {report.tableType &&
+          report.tableType !== "pivot" &&
+          report.tableType !== "last4_matrix" &&
+          report.tableType !== "builder" &&
+          report.tableType !== "leadsplitter" &&
+          report.tableType !== "trafficpriority" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>

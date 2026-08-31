@@ -212,13 +212,13 @@ export function RankBars({ items = [], color = "#2563eb", formatValue }) {
         const pct = Math.max(2, Math.min(100, (Number(item.value) / max) * 100));
         return (
           <div key={`${item.label}-${index}`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 120, fontSize: 12, color: "#334155", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <div style={{ width: 120, fontSize: 12, color: "var(--viz-label, #334155)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {item.label}
             </div>
-            <div style={{ flex: 1, background: "#f1f5f9", borderRadius: 4, height: 16, position: "relative" }}>
+            <div style={{ flex: 1, background: "var(--viz-track, #f1f5f9)", borderRadius: 4, height: 16, position: "relative" }}>
               <div style={{ width: `${pct}%`, background: color, height: "100%", borderRadius: 4 }} />
             </div>
-            <div style={{ width: 56, textAlign: "right", fontSize: 12, fontWeight: 600, color: "#0f172a" }}>
+            <div style={{ width: 56, textAlign: "right", fontSize: 12, fontWeight: 600, color: "var(--viz-value, #0f172a)" }}>
               {formatValue ? formatValue(item.value) : item.value}
             </div>
           </div>
