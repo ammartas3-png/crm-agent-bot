@@ -75,3 +75,32 @@ test("readDashboardSheetRows serves ingested rows for a spreadsheet when present
   assert.deepEqual(rows.map((row) => row.ID), ["7"]);
   clearLeadsStore();
 });
+
+test("readDashboardSheetRows reads the CURRENT month live even when ingested", async () => {
+  clearLeadsStore();
+  const now = new Date();
+  const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  // Ingest holds a STALE snapshot for the current month.
+  saveSource(
+    `istanbul:${currentMonth}:leads`,
+    { office: "Istanbul", period: currentMonth, spreadsheetId: "sheet-cur", category: "leads" },
+    [{ ID: "stale" }],
+  );
+  const rows = await readDashboardSheetRows("leads", {
+    spreadsheetId: "sheet-cur",
+    office: "Istanbul",
+    period: currentMonth,
+    cache: false,
+    tabConfig: { name: "Leads", range: "'Leads'!A:Y", columns: ["ID"] },
+    sheetsClient: {
+      spreadsheets: {
+        values: {
+          get: async () => ({ data: { values: [["fresh"]] } }),
+        },
+      },
+    },
+  });
+  // Current month must come from the live sheet (fresh), not the stale ingest.
+  assert.deepEqual(rows, [{ ID: "fresh" }]);
+  clearLeadsStore();
+});
