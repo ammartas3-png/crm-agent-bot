@@ -31,6 +31,7 @@ export async function GET(request) {
     months: [],
     defaultMonthKey: "",
     officeScopes: [],
+    lastSyncAt: null,
   }));
   return NextResponse.json({
     authenticated: true,

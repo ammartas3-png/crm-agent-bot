@@ -1607,6 +1607,20 @@
   min-width: 92px;
 }
 
+.syncBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #eef2f7;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
 /* ===================== Dark mode ===================== */
 /* The [data-theme="dark"] attribute is set on <html>. We theme the chrome
    (page, panels, top bar, sections, guide, filters, buttons) but intentionally
@@ -1851,7 +1865,8 @@
   color: #ffffff;
 }
 
-:global([data-theme="dark"]) .tableCountBadge {
+:global([data-theme="dark"]) .tableCountBadge,
+:global([data-theme="dark"]) .syncBadge {
   background: #16213a;
   border-color: #2b3a56;
   color: #94a3b8;

@@ -1850,6 +1850,20 @@ function compareBuilderValues(left, right, type) {
   return String(left || "").localeCompare(String(right || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
+// Compact "last data sync" label from a ms-epoch timestamp (n8n -> Redis sync).
+function formatLastSync(timestamp) {
+  const numeric = Number(timestamp);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "";
+  }
+  return new Date(numeric).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function formatColumnGroupLabel(value = "", labels = null) {
   if (labels && Object.prototype.hasOwnProperty.call(labels, value)) {
     return labels[value];
@@ -5655,6 +5669,14 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className={styles.topBarActions}>
+          {sessionState.bootstrap?.lastSyncAt ? (
+            <span
+              className={styles.syncBadge}
+              title={`Son senkronizasyon (n8n → veri): ${new Date(sessionState.bootstrap.lastSyncAt).toLocaleString("tr-TR")}`}
+            >
+              ⟳ Son senkron: {formatLastSync(sessionState.bootstrap.lastSyncAt)}
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={toggleTheme}
