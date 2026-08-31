@@ -1049,6 +1049,7 @@ function SummaryCards({ summary }) {
 function StatusCards({ stats = {} }) {
   const items = [
     ["Total Agent", formatNumber(stats.totalAgent)],
+    ["Active Agents", formatNumber(stats.activeAgent)],
     ["Team Leader Total", formatNumber(stats.teamLeaderTotal)],
     ["Desk Total", formatNumber(stats.deskTotal)],
     ["Agents with Target", formatNumber(stats.agentsWithTarget)],
