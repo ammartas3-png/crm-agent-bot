@@ -957,13 +957,57 @@
   color: #93c5fd;
 }
 
-/* Team Roster: team blocks flow side by side and wrap; summary tables below. */
+/* Team Roster org chart: office node on top, a trunk line, then team blocks
+   each with a short stub line so they read as branches of the office. */
+.orgChart {
+  padding: 6px 0 12px;
+}
+
+.orgTopRow {
+  display: flex;
+  justify-content: center;
+}
+
+.orgOffice {
+  display: inline-block;
+  background: #1f3864;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 8px 22px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+.orgTrunk {
+  width: 2px;
+  height: 18px;
+  background: #94a3b8;
+  margin: 0 auto;
+}
+
+/* team blocks flow side by side and wrap */
 .teamRosterGrid {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   padding: 4px 0 12px;
   align-items: flex-start;
+  justify-content: center;
+  border-top: 2px solid #94a3b8;
+  padding-top: 0;
+}
+
+.orgTeamNode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.orgStub {
+  width: 2px;
+  height: 14px;
+  background: #94a3b8;
 }
 
 .teamRosterSummaries {

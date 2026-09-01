@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDeskLanguageLabelMap, buildTeamRosterReport } from "../lib/teamRoster.js";
+import { abbreviateLanguage, buildDeskLanguageLabelMap, buildTeamRosterReport } from "../lib/teamRoster.js";
+
+test("abbreviateLanguage maps full names and collapses compound values", () => {
+  assert.equal(abbreviateLanguage("English"), "EN");
+  assert.equal(abbreviateLanguage("English Africa"), "ENAF");
+  assert.equal(abbreviateLanguage("Africa"), "ENAF");
+  assert.equal(abbreviateLanguage("Arabic"), "AR");
+  assert.equal(abbreviateLanguage("French"), "FR");
+  assert.equal(abbreviateLanguage("Indonesia, Malaysia"), "ID");
+  assert.equal(abbreviateLanguage("EN / AR"), "EN");
+  assert.equal(abbreviateLanguage(""), "");
+});
 
 const languageRows = [
   { Desk: "Turkey English", Lang: "EN" },

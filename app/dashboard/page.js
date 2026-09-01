@@ -3736,34 +3736,39 @@ function TeamRosterTable({ data = { teams: [], byLanguage: [], byTeam: [], total
       {!teams.length ? (
         <p style={{ padding: 12 }}>No roster data found for this office.</p>
       ) : (
-        <div className={styles.teamRosterGrid}>
-          {teams.map((team, teamIndex) => (
-            <table
-              key={`team-${teamIndex}`}
-              className={styles.teamRosterCard}
-              style={{ borderCollapse: "collapse", fontSize: 12 }}
-            >
-              <thead>
-                <tr>
-                  <th style={headerStyle} colSpan={2}>
-                    {team.teamLeader}&apos;s Team
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(team.agents || []).map((agent, agentIndex) => (
-                  <tr key={`a-${teamIndex}-${agentIndex}`}>
-                    <td style={cell}>{agent.agent}</td>
-                    <td style={{ ...cell, textAlign: "center", whiteSpace: "nowrap" }}>{agent.language || ""}</td>
-                  </tr>
-                ))}
-                <tr style={cntRow}>
-                  <td style={cell}>Agent Cnt</td>
-                  <td style={{ ...numCell, ...cntRow }}>{team.count}</td>
-                </tr>
-              </tbody>
-            </table>
-          ))}
+        <div className={styles.orgChart}>
+          <div className={styles.orgTopRow}>
+            <div className={styles.orgOffice}>{data?.office || "Office"}</div>
+          </div>
+          <div className={styles.orgTrunk} />
+          <div className={styles.teamRosterGrid}>
+            {teams.map((team, teamIndex) => (
+              <div key={`team-${teamIndex}`} className={styles.orgTeamNode}>
+                <div className={styles.orgStub} />
+                <table className={styles.teamRosterCard} style={{ borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th style={headerStyle} colSpan={2}>
+                        {team.teamLeader}&apos;s Team
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(team.agents || []).map((agent, agentIndex) => (
+                      <tr key={`a-${teamIndex}-${agentIndex}`}>
+                        <td style={cell}>{agent.agent}</td>
+                        <td style={{ ...cell, textAlign: "center", whiteSpace: "nowrap" }}>{agent.language || ""}</td>
+                      </tr>
+                    ))}
+                    <tr style={cntRow}>
+                      <td style={cell}>Agent Cnt</td>
+                      <td style={{ ...numCell, ...cntRow }}>{team.count}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
