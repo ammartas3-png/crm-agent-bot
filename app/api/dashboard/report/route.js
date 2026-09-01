@@ -34,6 +34,7 @@ function queryParams(searchParams) {
     comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
     leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
     targetResult: String(searchParams.get("targetResult") || "").trim(),
+    teamRoster: String(searchParams.get("teamRoster") || "").trim(),
     trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),

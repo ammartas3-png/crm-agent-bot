@@ -3497,6 +3497,7 @@ const QUICK_PRESET_LABELS = {
   leadsplitter: "LeadSplitter",
   "traffic-priority": "Traffic Distribution",
   "target-result": "Target Result",
+  "team-roster": "Team Roster",
   "agent-productivity-plan": "Agent Productivity vs Plan Report",
 };
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
@@ -3707,6 +3708,116 @@ function TargetResultTable({ data = { rows: [], summary: {} } }) {
           </tbody>
         </table>
       </div>
+    </section>
+  );
+}
+
+function TeamRosterTable({ data = { teams: [], byLanguage: [], byTeam: [], totals: {} } }) {
+  const teams = Array.isArray(data?.teams) ? data.teams : [];
+  const byLanguage = Array.isArray(data?.byLanguage) ? data.byLanguage : [];
+  const byTeam = Array.isArray(data?.byTeam) ? data.byTeam : [];
+  const totals = data?.totals || {};
+  const headerStyle = {
+    background: "#1f3864",
+    color: "#ffffff",
+    fontWeight: 700,
+    border: "1px solid #16294d",
+    padding: "4px 8px",
+    textAlign: "left",
+  };
+  const cell = { border: "1px solid var(--table-border, #d5deeb)", padding: "3px 8px" };
+  const numCell = { ...cell, textAlign: "right", whiteSpace: "nowrap" };
+  const cntRow = { background: "#e2ddce", fontWeight: 700 };
+  const totalRow = { background: "#ddebf7", fontWeight: 700 };
+
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <h3 className={styles.sectionTitle}>Team Roster{data?.office ? ` — ${data.office}` : ""}</h3>
+      {!teams.length ? (
+        <p style={{ padding: 12 }}>No roster data found for this office.</p>
+      ) : (
+        <div className={styles.teamRosterGrid}>
+          {teams.map((team, teamIndex) => (
+            <table
+              key={`team-${teamIndex}`}
+              className={styles.teamRosterCard}
+              style={{ borderCollapse: "collapse", fontSize: 12 }}
+            >
+              <thead>
+                <tr>
+                  <th style={headerStyle} colSpan={2}>
+                    {team.teamLeader}&apos;s Team
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(team.agents || []).map((agent, agentIndex) => (
+                  <tr key={`a-${teamIndex}-${agentIndex}`}>
+                    <td style={cell}>{agent.agent}</td>
+                    <td style={{ ...cell, textAlign: "center", whiteSpace: "nowrap" }}>{agent.language || ""}</td>
+                  </tr>
+                ))}
+                <tr style={cntRow}>
+                  <td style={cell}>Agent Cnt</td>
+                  <td style={{ ...numCell, ...cntRow }}>{team.count}</td>
+                </tr>
+              </tbody>
+            </table>
+          ))}
+        </div>
+      )}
+
+      {teams.length ? (
+        <div className={styles.teamRosterSummaries}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }} className={styles.teamRosterCard}>
+            <thead>
+              <tr>
+                <th style={headerStyle}>Language</th>
+                <th style={{ ...headerStyle, textAlign: "right" }}>Agent Cnt (Including TL)</th>
+                <th style={{ ...headerStyle, textAlign: "right" }}>Agent Cnt (Not Including TL)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byLanguage.map((row, index) => (
+                <tr key={`lang-${index}`}>
+                  <td style={cell}>{row.language || "—"}</td>
+                  <td style={numCell}>{row.inclTL}</td>
+                  <td style={numCell}>{row.exclTL}</td>
+                </tr>
+              ))}
+              <tr style={totalRow}>
+                <td style={cell}>Grand Total</td>
+                <td style={{ ...numCell, ...totalRow }}>{totals.inclTL || 0}</td>
+                <td style={{ ...numCell, ...totalRow }}>{totals.exclTL || 0}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }} className={styles.teamRosterCard}>
+            <thead>
+              <tr>
+                <th style={headerStyle}>Team</th>
+                <th style={{ ...headerStyle, textAlign: "right" }}>Agent Cnt (Including TL)</th>
+                <th style={{ ...headerStyle, textAlign: "right" }}>Agent Cnt (Not Including TL)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byTeam.map((row, index) => (
+                <tr key={`team-sum-${index}`}>
+                  <td style={cell}>{row.team}</td>
+                  <td style={numCell}>{row.inclTL}</td>
+                  <td style={numCell}>{row.exclTL}</td>
+                </tr>
+              ))}
+              <tr style={totalRow}>
+                <td style={cell}>Total</td>
+                <td style={{ ...numCell, ...totalRow }}>{totals.inclTL || 0}</td>
+                <td style={{ ...numCell, ...totalRow }}>{totals.exclTL || 0}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -5262,16 +5373,19 @@ export default function DashboardPage() {
   const isTrafficPreset = quickPreset === "traffic";
   const isTrafficPriorityPreset = quickPreset === "traffic-priority";
   const isTargetResultPreset = quickPreset === "target-result";
+  const isTeamRosterPreset = quickPreset === "team-roster";
   const isBuilderLockedPreset =
     isComparisonPreset ||
     isAgentProductivityPreset ||
     isLeadSplitterPreset ||
     isTrafficPriorityPreset ||
-    isTargetResultPreset;
+    isTargetResultPreset ||
+    isTeamRosterPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isLeadSplitterView = report?.tableType === "leadsplitter";
   const isTrafficPriorityView = report?.tableType === "trafficpriority";
   const isTargetResultView = report?.tableType === "targetresult";
+  const isTeamRosterView = report?.tableType === "teamroster";
   // HR Code is a Turkey-only column, so its toggle only appears for that office.
   const isTurkeyOfficeSelected =
     Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
@@ -5335,6 +5449,7 @@ export default function DashboardPage() {
           leadSplitter: false,
           trafficPriority: false,
           targetResult: false,
+          teamRoster: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -5482,6 +5597,18 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_TARGET_RESULT_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TARGET_RESULT_METRICS,
+          };
+        }
+        if (preset === "team-roster") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: false,
+            hideNotWorking: false,
+            teamRoster: true,
+            rowDimensions: [],
+            totalDimensions: [],
+            metricFields: [],
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -6147,6 +6274,15 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("team-roster")}
+              className={styles.reportModeCard}
+              style={quickPreset === "team-roster" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Team Roster</span>
+              <span className={styles.reportModeIcon}>👥</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -6368,13 +6504,13 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView && !isTeamRosterView ? (
             <SummaryCards summary={report.summary || {}} />
           ) : null}
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView && !isTeamRosterView ? (
             <StatusCards stats={report.stats || {}} />
           ) : null}
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView && !isTeamRosterView ? (
             <OverviewBand report={report} />
           ) : null}
           {report.tableType === "leadsplitter" ? (
@@ -6382,6 +6518,9 @@ export default function DashboardPage() {
           ) : null}
           {report.tableType === "targetresult" ? (
             <TargetResultTable data={report.targetResult || { rows: [], summary: {} }} />
+          ) : null}
+          {report.tableType === "teamroster" ? (
+            <TeamRosterTable data={report.teamRoster || { teams: [], byLanguage: [], byTeam: [], totals: {} }} />
           ) : null}
           {report.tableType === "trafficpriority" ? (
             <TrafficPriorityPanel
@@ -6465,7 +6604,8 @@ export default function DashboardPage() {
           report.tableType !== "builder" &&
           report.tableType !== "leadsplitter" &&
           report.tableType !== "trafficpriority" &&
-          report.tableType !== "targetresult" ? (
+          report.tableType !== "targetresult" &&
+          report.tableType !== "teamroster" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>

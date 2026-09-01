@@ -37,6 +37,7 @@ function queryParams(searchParams) {
     comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
     leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
     targetResult: String(searchParams.get("targetResult") || "").trim(),
+    teamRoster: String(searchParams.get("teamRoster") || "").trim(),
     trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     tpCountry: String(searchParams.get("tpCountry") || "").trim(),
     tpCountries: String(searchParams.get("tpCountries") || "").trim(),

@@ -957,6 +957,27 @@
   color: #93c5fd;
 }
 
+/* Team Roster: team blocks flow side by side and wrap; summary tables below. */
+.teamRosterGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 0 12px;
+  align-items: flex-start;
+}
+
+.teamRosterSummaries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.teamRosterCard {
+  background: var(--surface, #ffffff);
+  color: var(--table-text, #0f172a);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
