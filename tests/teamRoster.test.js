@@ -65,6 +65,18 @@ test("buildTeamRosterReport working filter keeps only Working agents", () => {
   assert.equal(murat.count, 2);
 });
 
+test("buildTeamRosterReport treats 'Active' status as working", () => {
+  const report = buildTeamRosterReport(
+    [
+      { Agent: "Anna Vo", "Working Status": "Active", Desk: "AR1 Spanish", "Team Leader": "Anna Vo" },
+      { Agent: "Left Guy", "Working Status": "Fired", Desk: "AR1 Spanish", "Team Leader": "Anna Vo" },
+    ],
+    { deskLangMap: buildDeskLanguageLabelMap([{ Desk: "AR1 Spanish", Lang: "Spanish" }]), workingFilter: "working" },
+  );
+  assert.equal(report.totals.inclTL, 1);
+  assert.equal(report.teams[0].agents[0].language, "SP");
+});
+
 test("buildTeamRosterReport leaves language blank when desk has no mapping", () => {
   const report = buildTeamRosterReport(
     [{ Agent: "Blank Desk", "Working Status": "Working", Desk: "", "Team Leader": "Some TL" }],
