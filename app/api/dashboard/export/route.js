@@ -36,6 +36,7 @@ function queryParams(searchParams) {
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
     comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
     leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
+    targetResult: String(searchParams.get("targetResult") || "").trim(),
     trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     tpCountry: String(searchParams.get("tpCountry") || "").trim(),
     tpCountries: String(searchParams.get("tpCountries") || "").trim(),

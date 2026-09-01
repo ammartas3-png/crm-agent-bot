@@ -33,6 +33,7 @@ function queryParams(searchParams) {
     agentProductivityPlanMode: String(searchParams.get("agentProductivityPlanMode") || "").trim(),
     comparisonMode: String(searchParams.get("comparisonMode") || "").trim(),
     leadSplitter: String(searchParams.get("leadSplitter") || "").trim(),
+    targetResult: String(searchParams.get("targetResult") || "").trim(),
     trafficPriority: String(searchParams.get("trafficPriority") || "").trim(),
     last4QuickMode: String(searchParams.get("last4QuickMode") || "").trim(),
     includeWorkTime: String(searchParams.get("includeWorkTime") || "").trim(),

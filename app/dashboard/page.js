@@ -3480,6 +3480,8 @@ const QUICK_PRESET_LEADSPLITTER_ROW_DIMENSIONS = ["agent"];
 const QUICK_PRESET_LEADSPLITTER_METRICS = ["leads", "ftd"];
 const QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS = ["country", "campaign", "agent"];
 const QUICK_PRESET_TRAFFIC_PRIORITY_METRICS = ["leads", "ftd", "cr"];
+const QUICK_PRESET_TARGET_RESULT_ROW_DIMENSIONS = ["desk", "teamLeader", "agent"];
+const QUICK_PRESET_TARGET_RESULT_METRICS = ["ftdTarget", "ftd", "ftdTargetReach"];
 // Display names used for the export filename + Info sheet (matches the quick
 // report buttons). Empty preset = a custom Report Builder run.
 const QUICK_PRESET_LABELS = {
@@ -3494,6 +3496,7 @@ const QUICK_PRESET_LABELS = {
   "comparison-report": "Comparison Report",
   leadsplitter: "LeadSplitter",
   "traffic-priority": "Traffic Distribution",
+  "target-result": "Target Result",
   "agent-productivity-plan": "Agent Productivity vs Plan Report",
 };
 const QUICK_PRESET_AGENT_PRODUCTIVITY_ROW_DIMENSIONS = ["country"];
@@ -3626,6 +3629,78 @@ function LeadSplitterTable({ data = { rows: [] } }) {
               <tr>
                 <td colSpan={8} style={{ textAlign: "center", padding: 16 }}>
                   No leads found for this selection.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function TargetResultTable({ data = { rows: [], summary: {} } }) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const summary = data?.summary || {};
+  const total = Number(summary.total) || 0;
+  const reached = Number(summary.reached) || 0;
+  const rate = Number(summary.rate) || 0;
+  const formatPercent = (value) => `${Math.round(Number(value) || 0)}%`;
+  const numberCell = { textAlign: "right", whiteSpace: "nowrap", border: "1px solid var(--table-border, #d5deeb)", padding: "3px 8px" };
+  const textCell = { border: "1px solid var(--table-border, #d5deeb)", padding: "3px 8px" };
+  const headerStyle = {
+    background: "#1f3864",
+    color: "#ffffff",
+    fontWeight: 700,
+    border: "1px solid #16294d",
+    padding: "4px 8px",
+    textAlign: "center",
+  };
+  const reachStyle = (value) =>
+    Number(value) >= 100
+      ? { background: "#c6efce", color: "#006100" }
+      : { background: "#ffc7ce", color: "#9c0006" };
+  return (
+    <section className={styles.section} style={{ padding: 0 }}>
+      <h3 className={styles.sectionTitle}>Target Result</h3>
+      <div className={styles.targetResultBar}>
+        <span>
+          <strong>{total}</strong> agent
+        </span>
+        <span>
+          <strong>{reached}</strong> reached target
+        </span>
+        <span>
+          <strong>{formatPercent(rate)}</strong> reach rate
+        </span>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }} className={styles.targetResultTable}>
+          <thead>
+            <tr>
+              <th style={headerStyle}>Desk</th>
+              <th style={headerStyle}>Team Leader</th>
+              <th style={headerStyle}>Agent</th>
+              <th style={headerStyle}>Target</th>
+              <th style={headerStyle}>FTD</th>
+              <th style={headerStyle}>Target Reach</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`tr-${index}`}>
+                <td style={textCell}>{row.desk}</td>
+                <td style={textCell}>{row.teamLeader}</td>
+                <td style={textCell}>{row.agent}</td>
+                <td style={numberCell}>{Math.round(Number(row.ftdTarget) || 0)}</td>
+                <td style={numberCell}>{Math.round(Number(row.ftd) || 0)}</td>
+                <td style={{ ...numberCell, ...reachStyle(row.ftdTargetReach) }}>{formatPercent(row.ftdTargetReach)}</td>
+              </tr>
+            ))}
+            {!rows.length ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", padding: 16 }}>
+                  No agents with a target found for this selection.
                 </td>
               </tr>
             ) : null}
@@ -5186,11 +5261,17 @@ export default function DashboardPage() {
   const isLeadSplitterPreset = quickPreset === "leadsplitter";
   const isTrafficPreset = quickPreset === "traffic";
   const isTrafficPriorityPreset = quickPreset === "traffic-priority";
+  const isTargetResultPreset = quickPreset === "target-result";
   const isBuilderLockedPreset =
-    isComparisonPreset || isAgentProductivityPreset || isLeadSplitterPreset || isTrafficPriorityPreset;
+    isComparisonPreset ||
+    isAgentProductivityPreset ||
+    isLeadSplitterPreset ||
+    isTrafficPriorityPreset ||
+    isTargetResultPreset;
   const isComparisonReportView = quickPreset === "comparison-report" && report?.tableType === "builder";
   const isLeadSplitterView = report?.tableType === "leadsplitter";
   const isTrafficPriorityView = report?.tableType === "trafficpriority";
+  const isTargetResultView = report?.tableType === "targetresult";
   // HR Code is a Turkey-only column, so its toggle only appears for that office.
   const isTurkeyOfficeSelected =
     Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
@@ -5253,6 +5334,7 @@ export default function DashboardPage() {
           comparisonMode: false,
           leadSplitter: false,
           trafficPriority: false,
+          targetResult: false,
           columnDimension: "",
           includeColumnGrandTotal: false,
           ...clearedTopFilters,
@@ -5388,6 +5470,18 @@ export default function DashboardPage() {
             rowDimensions: QUICK_PRESET_TRAFFIC_PRIORITY_ROW_DIMENSIONS,
             totalDimensions: [],
             metricFields: QUICK_PRESET_TRAFFIC_PRIORITY_METRICS,
+          };
+        }
+        if (preset === "target-result") {
+          return {
+            ...basePreset,
+            monthKey: defaultMonth,
+            includeWorkTime: true,
+            hideNotWorking: false,
+            targetResult: true,
+            rowDimensions: QUICK_PRESET_TARGET_RESULT_ROW_DIMENSIONS,
+            totalDimensions: [],
+            metricFields: QUICK_PRESET_TARGET_RESULT_METRICS,
           };
         }
         if (preset === "agent-productivity-plan") {
@@ -6044,6 +6138,15 @@ export default function DashboardPage() {
             </button>
             <button
               type="button"
+              onClick={() => applyQuickPreset("target-result")}
+              className={styles.reportModeCard}
+              style={quickPreset === "target-result" ? { borderColor: "#2563eb", boxShadow: "0 0 0 2px rgba(37,99,235,0.15)" } : undefined}
+            >
+              <span className={styles.reportModeTitle}>Target Result</span>
+              <span className={styles.reportModeIcon}>🎯</span>
+            </button>
+            <button
+              type="button"
               onClick={() => router.push("/dashboard/approved-deposits")}
               className={styles.reportModeCard}
             >
@@ -6265,17 +6368,20 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className={styles.detailsHint}>Right-click on Desk, Team Leader, or Agent cells to open Details view.</p>
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
             <SummaryCards summary={report.summary || {}} />
           ) : null}
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
             <StatusCards stats={report.stats || {}} />
           ) : null}
-          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView ? (
+          {!isComparisonReportView && !isLeadSplitterView && !isTrafficPriorityView && !isTargetResultView ? (
             <OverviewBand report={report} />
           ) : null}
           {report.tableType === "leadsplitter" ? (
             <LeadSplitterTable data={report.leadSplitter || { rows: [] }} />
+          ) : null}
+          {report.tableType === "targetresult" ? (
+            <TargetResultTable data={report.targetResult || { rows: [], summary: {} }} />
           ) : null}
           {report.tableType === "trafficpriority" ? (
             <TrafficPriorityPanel
@@ -6358,7 +6464,8 @@ export default function DashboardPage() {
           report.tableType !== "last4_matrix" &&
           report.tableType !== "builder" &&
           report.tableType !== "leadsplitter" &&
-          report.tableType !== "trafficpriority" ? (
+          report.tableType !== "trafficpriority" &&
+          report.tableType !== "targetresult" ? (
             <SimpleTable rows={report.table || []} />
           ) : null}
         </section>

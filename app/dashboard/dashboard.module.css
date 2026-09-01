@@ -922,6 +922,41 @@
   max-height: 60vh;
 }
 
+/* Target Result summary bar shown above the ranked table. */
+.targetResultBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.targetResultBar strong {
+  font-size: 16px;
+  color: #1d4ed8;
+}
+
+.targetResultTable {
+  background: var(--surface, #ffffff);
+  color: var(--table-text, #0f172a);
+}
+
+:global([data-theme="dark"]) .targetResultBar {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .targetResultBar strong {
+  color: #93c5fd;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
