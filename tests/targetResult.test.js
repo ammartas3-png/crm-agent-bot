@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildTargetResultReport } from "../lib/dashboardService.js";
+import { normalizeAgentName } from "../lib/targets.js";
 
 const builderTable = (rows) => ({ table: rows });
 
@@ -36,6 +37,29 @@ test("buildTargetResultReport keeps a team leader who reached target", () => {
   ]);
   const result = buildTargetResultReport(builder, { teamLeaders: ["TL One"] });
   assert.equal(result.rows.length, 1);
+  assert.equal(result.summary.reached, 1);
+});
+
+test("buildTargetResultReport excludes not-working agents who did not reach target", () => {
+  const builder = builderTable([
+    { desk: "D1", teamLeader: "TL One", agent: "Agent D", ftdTarget: 10, ftd: 12, ftdTargetReach: 120 },
+    { desk: "D1", teamLeader: "TL One", agent: "Agent E", ftdTarget: 10, ftd: 4, ftdTargetReach: 40 },
+    { desk: "D1", teamLeader: "TL One", agent: "Agent F", ftdTarget: 10, ftd: 3, ftdTargetReach: 30 },
+  ]);
+  const latestStatusByAgent = new Map([
+    [normalizeAgentName("Agent D"), "not_working"],
+    [normalizeAgentName("Agent E"), "not_working"],
+    [normalizeAgentName("Agent F"), "working"],
+  ]);
+  const result = buildTargetResultReport(builder, { teamLeaders: [], latestStatusByAgent });
+
+  // Agent E excluded (not working + reach < 100). Agent D kept (not working but
+  // reached). Agent F kept (working, even though reach < 100).
+  assert.deepEqual(
+    result.rows.map((row) => row.agent),
+    ["Agent D", "Agent F"],
+  );
+  assert.equal(result.summary.total, 2);
   assert.equal(result.summary.reached, 1);
 });
 
