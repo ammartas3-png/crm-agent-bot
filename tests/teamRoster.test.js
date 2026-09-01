@@ -77,6 +77,21 @@ test("buildTeamRosterReport treats 'Active' status as working", () => {
   assert.equal(report.teams[0].agents[0].language, "SP");
 });
 
+test("buildTeamRosterReport drops active agents that have an exit/fired date", () => {
+  const deskLangMap = buildDeskLanguageLabelMap([{ Desk: "AR1 Spanish", Lang: "Spanish" }]);
+  const report = buildTeamRosterReport(
+    [
+      { Agent: "Kevin Lo", "Working Status": "Active", Desk: "AR1 Spanish", "Team Leader": "Kevin Lo", "Working Month\n/Fired Date": "3" },
+      { Agent: "Matias Go", "Working Status": "Active", Desk: "AR1 Spanish", "Team Leader": "Kevin Lo", "Working Month\n/Fired Date": "0" },
+      { Agent: "Axel Di", "Working Status": "Active", Desk: "AR1 Spanish", "Team Leader": "Kevin Lo", "Working Month\n/Fired Date": "20/08/2026" },
+    ],
+    { deskLangMap, workingFilter: "working" },
+  );
+  const kevin = report.teams[0];
+  assert.deepEqual(kevin.agents.map((agent) => agent.agent), ["Kevin Lo", "Matias Go"]);
+  assert.equal(report.totals.inclTL, 2);
+});
+
 test("buildTeamRosterReport leaves language blank when desk has no mapping", () => {
   const report = buildTeamRosterReport(
     [{ Agent: "Blank Desk", "Working Status": "Working", Desk: "", "Team Leader": "Some TL" }],
