@@ -43,6 +43,7 @@ function queryParams(searchParams) {
     benchmarkMode: String(searchParams.get("benchmarkMode") || "").trim(),
     benchmarkHydrate: String(searchParams.get("benchmarkHydrate") || "").trim(),
     debugDiagnostics: String(searchParams.get("debugDiagnostics") || "").trim(),
+    fullDetailRows: String(searchParams.get("fullDetailRows") || "").trim(),
     page: String(searchParams.get("page") || "").trim(),
     rowLimit: String(searchParams.get("rowLimit") || "").trim(),
     monitor: String(searchParams.get("monitor") || "").trim(),

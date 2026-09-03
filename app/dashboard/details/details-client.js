@@ -619,6 +619,7 @@ function InteractiveDetailTable({
   selectedRowKey = "",
   enableRowGroupCollapse = true,
   hierarchyKeys = [],
+  showAllRows = false,
 }) {
   const sourceColumns = useMemo(() => {
     if (Array.isArray(inputColumns) && inputColumns.length) {
@@ -667,7 +668,10 @@ function InteractiveDetailTable({
       direction: sortState.direction,
     });
   }, [detailRows, hierarchySortKeys, sortState.direction, sortState.key, sourceColumns]);
-  const displayDetailRows = useMemo(() => sortedDetailRows.slice(0, 320), [sortedDetailRows]);
+  const displayDetailRows = useMemo(
+    () => (showAllRows ? sortedDetailRows : sortedDetailRows.slice(0, 320)),
+    [showAllRows, sortedDetailRows],
+  );
   const effectiveGroupKey = useMemo(
     () => resolveBestGroupKey(displayDetailRows, sourceColumns, groupByKey),
     [displayDetailRows, groupByKey, sourceColumns],
@@ -1437,7 +1441,7 @@ export default function DashboardDetailsClientPage() {
     return {
       ...entityScopedBaseFilters,
       page: "1",
-      rowLimit: "220",
+      fullDetailRows: true,
       rowDimensions: ["brand", "id", "created", "department", "status", "country", "campaign", "subCampaign", "placement", "agent"],
       metricFields: ["ftd"],
     };
@@ -1987,6 +1991,7 @@ export default function DashboardDetailsClientPage() {
               onSelectRow={handleLinkedRowSelection}
               selectedRowKey={selectedLinkedRowKey}
               enableRowGroupCollapse={false}
+              showAllRows
             />
           </section>
           <HierarchicalTrafficTable
