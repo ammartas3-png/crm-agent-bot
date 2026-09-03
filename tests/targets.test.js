@@ -19,6 +19,34 @@ import {
 } from "../lib/targets.js";
 import { buildDashboardStats } from "../lib/dashboardService.js";
 
+test("targetAggregationForScope reports rawTarget for not-working agents even when includedTarget is 0", () => {
+  const ctx = buildInfoAgentsContext([
+    { "Working Status": "Not Working", "Agent Name": "Emmanuel Al", "Agent Target": 10, Office: "Turkey English", "Team Leader": "Oussema Me" },
+    { "Working Status": "Working", "Agent Name": "Heela An", "Agent Target": 15, Office: "Turkey English", "Team Leader": "Oussema Me" },
+  ]);
+  const notWorking = targetAggregationForScope({
+    rows: [],
+    tabConfig: { fields: { agentNames: "AGENT NAMES" } },
+    infoContext: ctx,
+    filters: {},
+    scope: { groupField: "agentNames", onlyWorkingAgents: true, agent: ["Emmanuel Al"] },
+  });
+  // Raw assigned target is shown (10) while the achievement-gated includedTarget
+  // stays 0 (not working, no FTD).
+  assert.equal(notWorking.rawTarget, 10);
+  assert.equal(notWorking.includedTarget, 0);
+
+  const working = targetAggregationForScope({
+    rows: [],
+    tabConfig: { fields: { agentNames: "AGENT NAMES" } },
+    infoContext: ctx,
+    filters: {},
+    scope: { groupField: "agentNames", onlyWorkingAgents: true, agent: ["Heela An"] },
+  });
+  assert.equal(working.rawTarget, 15);
+  assert.equal(working.includedTarget, 15);
+});
+
 const tabConfig = {
   fields: {
     agentNames: "AGENT NAMES",
