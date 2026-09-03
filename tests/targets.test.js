@@ -460,3 +460,53 @@ test("buildDashboardStats excludes team leaders from agent and target counts", (
   assert.equal(stats.totalTargetAchieved, 1);
   assert.equal(stats.rateOfTargetAchieved, 100);
 });
+
+test("buildDashboardStats counts an agent promoted to team leader in a later month", () => {
+  const tabConfig = {
+    fields: {
+      id: "ID",
+      agentNames: "AGENT NAMES",
+      teamLeader: "Team Leader",
+      office: "Desk",
+      ftd: "FTD",
+      ftdMaker: "FTD MAKER",
+      created: "Created",
+      ftdDate: "FTD DATE",
+    },
+  };
+  // Current roster: "Promoted" now leads their own team (someone lists Promoted
+  // as their Team Leader), so infoContext.teamLeaders includes "Promoted".
+  const infoContext = buildInfoAgentsContext([
+    { "Working Status": "Working", "Agent Name": "Feras", "Agent Target": "10", Office: "Turkey Arabic", "Team Leader": "Feras" },
+    { "Working Status": "Working", "Agent Name": "Promoted", "Agent Target": "10", Office: "Turkey Arabic", "Team Leader": "Feras" },
+    { "Working Status": "Working", "Agent Name": "New Agent", "Agent Target": "10", Office: "Turkey Arabic", "Team Leader": "Promoted" },
+  ]);
+  // The reported month's rows: Promoted was still a regular agent under Feras.
+  const rows = [
+    ...Array.from({ length: 8 }, (_, index) => ({
+      ID: `F${index + 1}`,
+      "AGENT NAMES": "Feras",
+      "Team Leader": "Feras",
+      Desk: "Turkey Arabic",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-08-05T08:00:00Z",
+      "FTD DATE": "2026-08-05",
+    })),
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ID: `P${index + 1}`,
+      "AGENT NAMES": "Promoted",
+      "Team Leader": "Feras",
+      Desk: "Turkey Arabic",
+      FTD: "1",
+      "FTD MAKER": "Closer",
+      Created: "2026-08-05T08:00:00Z",
+      "FTD DATE": "2026-08-05",
+    })),
+  ];
+  const stats = buildDashboardStats(rows, tabConfig, infoContext, null, new Date("2026-08-20T12:00:00Z"));
+  // Feras is the month's team leader (excluded). Promoted was an agent this month
+  // and must still count even though they lead a team in the current roster.
+  assert.equal(stats.totalAgent, 1);
+  assert.equal(stats.agentsWithTarget, 1);
+});
