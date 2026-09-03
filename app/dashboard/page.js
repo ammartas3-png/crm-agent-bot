@@ -2489,8 +2489,8 @@ function BuilderTable({ columns = [], rows = [], sortState, onSort, builder = {}
                   <tr
                     onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
                     className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
-                      selectedRowKey === rowKey ? styles.tableSelectedRow : ""
-                    }`}
+                      row.__transferAgent ? styles.tableTransferRow : ""
+                    } ${selectedRowKey === rowKey ? styles.tableSelectedRow : ""}`}
                   >
                     {columns.map((column) => {
                       const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");
@@ -3262,8 +3262,8 @@ function BuilderTableAdvanced({ columns = [], rows = [], sortState, onSort, buil
                       <tr
                         onClick={() => setSelectedRowKey((prev) => (prev === rowKey ? "" : rowKey))}
                         className={`${isTotalRow ? styles.tableTotalRow : ""} ${styles.tableInteractiveRow} ${
-                          selectedRowKey === rowKey ? styles.tableSelectedRow : ""
-                        }`}
+                          row.__transferAgent ? styles.tableTransferRow : ""
+                        } ${selectedRowKey === rowKey ? styles.tableSelectedRow : ""}`}
                       >
                         {visibleColumns.map((column) => {
                           const isMissingFtd = column.key === "missingFtd" || column.key.endsWith("__missingFtd");

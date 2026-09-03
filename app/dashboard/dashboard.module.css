@@ -1116,6 +1116,19 @@
   box-shadow: inset 0 0 0 9999px rgba(29, 78, 216, 0.14);
 }
 
+/* Mid-month transfer agents: neon green in light mode, a legible deep green in
+   dark mode. Applied per cell so inline metric colors still read clearly. */
+.tableTransferRow td {
+  background: #ccff00 !important;
+  color: #14310a !important;
+  font-weight: 600;
+}
+
+:global([data-theme="dark"]) .tableTransferRow td {
+  background: #14532d !important;
+  color: #d9f99d !important;
+}
+
 .tableColumnGlow {
   box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.45);
 }
