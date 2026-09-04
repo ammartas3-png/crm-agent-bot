@@ -5391,9 +5391,6 @@ export default function DashboardPage() {
   const isTrafficPriorityView = report?.tableType === "trafficpriority";
   const isTargetResultView = report?.tableType === "targetresult";
   const isTeamRosterView = report?.tableType === "teamroster";
-  // HR Code is a Turkey-only column, so its toggle only appears for that office.
-  const isTurkeyOfficeSelected =
-    Array.isArray(filters.officeScope) && filters.officeScope.some((office) => /turk/i.test(String(office || "")));
   const isAgentProductivityReportView =
     report?.tableType === "builder" && (isAgentProductivityPreset || Boolean(appliedFilters?.agentProductivityPlanMode));
   const officeOptions = options.officeScopes || sessionState.bootstrap.officeScopes || [];
@@ -6422,19 +6419,17 @@ export default function DashboardPage() {
                 </button>
               </>
             ) : null}
-            {isTurkeyOfficeSelected ? (
-              <>
-                <span className={styles.workTimeToggleLabel}>HR Code</span>
-                <button
-                  type="button"
-                  className={`${styles.workTimeToggle} ${filters.showHrCode ? styles.workTimeToggleOn : ""}`}
-                  onClick={() => setFilters((prev) => ({ ...prev, showHrCode: !prev.showHrCode }))}
-                >
-                  <span className={styles.workTimeToggleThumb} />
-                  <span>{filters.showHrCode ? "ON" : "OFF"}</span>
-                </button>
-              </>
-            ) : null}
+            <>
+              <span className={styles.workTimeToggleLabel}>HR Code</span>
+              <button
+                type="button"
+                className={`${styles.workTimeToggle} ${filters.showHrCode ? styles.workTimeToggleOn : ""}`}
+                onClick={() => setFilters((prev) => ({ ...prev, showHrCode: !prev.showHrCode }))}
+              >
+                <span className={styles.workTimeToggleThumb} />
+                <span>{filters.showHrCode ? "ON" : "OFF"}</span>
+              </button>
+            </>
           </div>
           <ToggleGroup
             label="Metrics / Data Fields"
