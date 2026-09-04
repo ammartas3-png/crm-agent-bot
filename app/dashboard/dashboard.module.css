@@ -922,6 +922,106 @@
   max-height: 60vh;
 }
 
+/* Target Result summary bar shown above the ranked table. */
+.targetResultBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  align-items: center;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #1e293b;
+  font-size: 13px;
+}
+
+.targetResultBar strong {
+  font-size: 16px;
+  color: #1d4ed8;
+}
+
+.targetResultTable {
+  background: var(--surface, #ffffff);
+  color: var(--table-text, #0f172a);
+}
+
+:global([data-theme="dark"]) .targetResultBar {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .targetResultBar strong {
+  color: #93c5fd;
+}
+
+/* Team Roster org chart: office node on top, a trunk line, then team blocks
+   each with a short stub line so they read as branches of the office. */
+.orgChart {
+  padding: 6px 0 12px;
+}
+
+.orgTopRow {
+  display: flex;
+  justify-content: center;
+}
+
+.orgOffice {
+  display: inline-block;
+  background: #1f3864;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 8px 22px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+.orgTrunk {
+  width: 2px;
+  height: 18px;
+  background: #94a3b8;
+  margin: 0 auto;
+}
+
+/* team blocks flow side by side and wrap */
+.teamRosterGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 4px 0 12px;
+  align-items: flex-start;
+  justify-content: center;
+  border-top: 2px solid #94a3b8;
+  padding-top: 0;
+}
+
+.orgTeamNode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.orgStub {
+  width: 2px;
+  height: 14px;
+  background: #94a3b8;
+}
+
+.teamRosterSummaries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.teamRosterCard {
+  background: var(--surface, #ffffff);
+  color: var(--table-text, #0f172a);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -1014,6 +1114,19 @@
 
 .tableSelectedRow td {
   box-shadow: inset 0 0 0 9999px rgba(29, 78, 216, 0.14);
+}
+
+/* Mid-month transfer agents: neon green in light mode, a legible deep green in
+   dark mode. Applied per cell so inline metric colors still read clearly. */
+.tableTransferRow td {
+  background: #ccff00 !important;
+  color: #14310a !important;
+  font-weight: 600;
+}
+
+:global([data-theme="dark"]) .tableTransferRow td {
+  background: #14532d !important;
+  color: #d9f99d !important;
 }
 
 .tableColumnGlow {
