@@ -129,6 +129,64 @@ test("date columns are restricted to the selected month (no stray other-month co
   assert.ok(!result.columnValues.includes("2026-07-31"), "stray July column dropped");
 });
 
+test("mid-month transfer splits the target by FTD made per team (target 10 -> 3 old / 7 new)", () => {
+  // Agent A transferred teams mid-July. Their assigned target is 10. They made 3
+  // FTD in the old team and 2 FTD in the new (latest) team. The expected split is:
+  //   - old (non-latest) team FTD Target = FTD they made there = 3
+  //   - new (latest) team FTD Target = total (10) - other teams' FTD (3) = 7
+  // This also guards the argument order of the per-team FTD calculation: it must
+  // receive the leads tabConfig (so FTD is counted for the reported month), not
+  // the month filter in the tabConfig slot.
+  const julyFilter = { type: "month", month: 6, year: 2026 }; // 0-indexed -> July
+  const transferInfo = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Agent A",
+      "Agent Target": "10",
+      Office: "New Desk",
+      "Team Leader": "TL New",
+    },
+  ]);
+  const ftdLead = (desk, tl, leadDate, ftdDate) => ({
+    ID: `T${(leadId += 1)}`,
+    "Lead Date": leadDate,
+    Country: "United States",
+    "AGENT NAMES": "Agent A",
+    Desk: desk,
+    "Team Leader": tl,
+    FTD: "1",
+    "FTD MAKER": "Closer",
+    "FTD DATE": ftdDate,
+  });
+  const transferRows = [
+    // Old team: 3 FTD, earlier in the month.
+    ftdLead("Old Desk", "TL Old", "2026-07-05", "2026-07-10"),
+    ftdLead("Old Desk", "TL Old", "2026-07-05", "2026-07-11"),
+    ftdLead("Old Desk", "TL Old", "2026-07-05", "2026-07-12"),
+    // New (latest, later lead date) team: 2 FTD.
+    ftdLead("New Desk", "TL New", "2026-07-25", "2026-07-26"),
+    ftdLead("New Desk", "TL New", "2026-07-25", "2026-07-27"),
+  ];
+  const result = specificBuilderTable(
+    transferRows,
+    tabConfig,
+    transferInfo,
+    julyFilter,
+    { rowDimensions: "desk,teamLeader,agent", metricFields: "ftd,ftdTarget,ftdTargetReach" },
+    NOW,
+  );
+  const agentRows = result.table.filter(
+    (row) => row.__rowKind !== "grandTotal" && row.agent === "Agent A",
+  );
+  const oldRow = agentRows.find((row) => row.desk === "Old Desk");
+  const newRow = agentRows.find((row) => row.desk === "New Desk");
+  assert.ok(oldRow && newRow, "both team rows present for the transferred agent");
+  assert.equal(oldRow.__transferAgent, true, "old-team row flagged as transfer");
+  assert.equal(newRow.__transferAgent, true, "new-team row flagged as transfer");
+  assert.equal(oldRow.ftdTarget, 3, "old team target = FTD made there");
+  assert.equal(newRow.ftdTarget, 7, "latest team target = total (10) - other teams' FTD (3)");
+});
+
 test("column-pivot builder table Grand Total sums each column", () => {
   const result = specificBuilderTable(
     rows,
