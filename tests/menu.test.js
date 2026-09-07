@@ -175,3 +175,31 @@ test("manager authority scope blocks bot reports", async () => {
   });
   assert.match(blocked.text, /ALL authority/i);
 });
+
+const NON_ADMIN = { id: 999777, username: "regular_agent" };
+
+test("non-admin report callbacks are not hijacked by the Settings guard", async () => {
+  // Regression: handleSettingsCallback used to answer EVERY callback with the
+  // Settings access-denied message for non-admins, which blocked the report
+  // flow (office / report / month taps were all met with the Settings denial).
+  const response = await handleMenuCallback(301, "simple:report:list", {
+    ...opts,
+    telegramUser: NON_ADMIN,
+  });
+  assert.doesNotMatch(response.text, /can access Settings/i);
+  assert.match(response.text, /Select office/i);
+});
+
+test("non-admin users are still denied the Settings menu", async () => {
+  const denied = await handleMenuCallback(302, "settings:open", {
+    ...opts,
+    telegramUser: NON_ADMIN,
+  });
+  assert.match(denied.text, /can access Settings/i);
+});
+
+test("admin can still open the Settings menu", async () => {
+  const settings = await handleMenuCallback(303, "settings:open", opts);
+  assert.match(settings.text, /Settings/i);
+  assert.ok(buttons(settings).some((button) => button.callback_data === "settings:add"));
+});

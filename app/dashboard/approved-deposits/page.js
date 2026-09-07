@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "../dashboard.module.css";
 
-const CATEGORIES = ["Native", "English", "Other"];
+const CATEGORIES = ["Native", "English", "English & Native", "Other"];
 const CATEGORY_COLORS = {
   Native: "#2563eb",
   English: "#10b981",
+  "English & Native": "#8b5cf6",
   Other: "#f59e0b",
 };
 const EMPTY_FILTERS = {
@@ -21,6 +22,7 @@ const EMPTY_FILTERS = {
   cashier: [],
   department: [],
   ftd: [],
+  office: [],
 };
 
 function formatUsd(value) {
@@ -127,6 +129,94 @@ function CountryBars({ title, countries = [], monthKey = "" }) {
         {!rows.length ? <p className={styles.sectionHint}>No deposit rows for this selection.</p> : null}
       </div>
     </div>
+  );
+}
+
+function OtherLanguageAuditTable({ audit }) {
+  const columns = audit?.columns || [];
+  if (!columns.length) {
+    return null;
+  }
+  const hasEntries = columns.some((column) => column.entries?.length);
+  const columnWidth = 236;
+  return (
+    <section className={`${styles.panel} ${styles.section}`}>
+      <h2 className={styles.sectionTitle}>Other Language Audit - CID List by Month</h2>
+      <p className={styles.sectionHint}>
+        Deposits classified as <strong>Other</strong> are listed below by approved month. Each row shows CID, Brand,
+        Original Department, country, parsed language, KYC office, amount, and why it landed in Other.
+      </p>
+      <p className={styles.sectionHint}>
+        Unique CIDs in Other: <strong>{Number(audit?.uniqueCidCount || 0).toLocaleString("en-US")}</strong>
+      </p>
+      {!hasEntries ? <p className={styles.sectionHint}>No Other-language deposits for the current filter selection.</p> : null}
+      <div className={styles.tableScroll}>
+        <table
+          className={styles.table}
+          style={{ width: "max-content", tableLayout: "fixed", borderCollapse: "separate", borderSpacing: 0 }}
+        >
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th key={column.monthKey} style={{ width: columnWidth, minWidth: columnWidth, maxWidth: columnWidth, padding: "8px 10px" }}>
+                  {column.label}
+                  <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b" }}>
+                    {Number(column.count || 0).toLocaleString("en-US")} CID · {formatUsd(column.totalAmount)}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {columns.map((column) => (
+                <td
+                  key={column.monthKey}
+                  style={{
+                    verticalAlign: "top",
+                    width: columnWidth,
+                    minWidth: columnWidth,
+                    maxWidth: columnWidth,
+                    padding: "8px 10px 8px 0",
+                  }}
+                >
+                  <div style={{ display: "grid", gap: 6, maxHeight: 420, overflowY: "auto", paddingRight: 2 }}>
+                    {(column.entries || []).map((entry) => (
+                      <div
+                        key={`${column.monthKey}-${entry.cid}`}
+                        style={{
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 8,
+                          padding: "7px 8px",
+                          background: "#fff",
+                          fontSize: 11,
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: 12 }}>{entry.cid}</div>
+                        <div style={{ color: "#334155", marginTop: 3 }}>
+                          <strong>Brand:</strong> {entry.brand || "-"}
+                        </div>
+                        <div style={{ color: "#334155", marginTop: 2 }}>
+                          <strong>Dept:</strong> {entry.department || "-"}
+                        </div>
+                        <div style={{ color: "#475569", marginTop: 3 }}>
+                          {entry.country} · {entry.language} · {formatUsd(entry.amount)}
+                          {Number(entry.count || 0) > 1 ? ` · ${entry.count} rows` : ""}
+                        </div>
+                        <div style={{ color: "#64748b", marginTop: 2 }}>KYC: {entry.kycOffice || "Not matched"}</div>
+                        <div style={{ color: "#b45309", marginTop: 2 }}>{entry.reason}</div>
+                      </div>
+                    ))}
+                    {!column.entries?.length ? <span style={{ color: "#94a3b8", fontSize: 12 }}>-</span> : null}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -296,6 +386,12 @@ export default function ApprovedDepositsPage() {
             onChange={(department) => setFilters((previous) => ({ ...previous, department }))}
           />
           <MultiSelectField
+            label="KYC Office"
+            value={filters.office}
+            options={report?.options?.offices || ["All"]}
+            onChange={(office) => setFilters((previous) => ({ ...previous, office }))}
+          />
+          <MultiSelectField
             label="FTD"
             value={filters.ftd}
             options={report?.options?.ftdValues || ["All"]}
@@ -383,6 +479,8 @@ export default function ApprovedDepositsPage() {
         <CountryBars title="Selected Period" countries={report?.countries || []} />
         <CountryBars title={latestMonth ? `${latestMonth.label} MTY` : "Latest Month"} countries={report?.countries || []} monthKey={latestMonth?.key || ""} />
       </section>
+
+      <OtherLanguageAuditTable audit={report?.otherLanguageAudit} />
     </main>
   );
 }

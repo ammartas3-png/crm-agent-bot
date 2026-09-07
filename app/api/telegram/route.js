@@ -60,6 +60,11 @@ import { aiConfigured, generateAiReply } from "../../../lib/aiResponder.js";
 import { clearAuthorityScopeCache, resolveAuthorityScopeForUser } from "../../../lib/authorityScope.js";
 import { getMonthFile, listMonthFiles } from "../../../lib/monthlyReports.js";
 import { getOfficeMonthMap } from "../../../lib/officeMappings.js";
+import {
+  OFFICE_AGENT_ROSTER_SPREADSHEET_ID,
+  officeAgentRosterTabConfig,
+  rosterTabNameForOffice,
+} from "../../../lib/rosterConfig.js";
 import { buildDebugTotalsReport, formatDebugTotalsReport } from "../../../lib/reconciliation.js";
 import { getTabConfig } from "../../../config/sheetsConfig.js";
 import {
@@ -83,6 +88,11 @@ import { flushPersistence } from "../../../lib/store.js";
 import { buildHelpText, isHelpCommand } from "../../../lib/help.js";
 
 export const runtime = "nodejs";
+// The AI Assistant path awaits an n8n/OpenAI call (up to AI_REPLY_TIMEOUT_MS,
+// default 30s). Without a raised maxDuration the webhook function was killed
+// before that call returned, so the bot silently sent no reply. Give it enough
+// headroom to finish and emit the answer.
+export const maxDuration = 60;
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -158,7 +168,9 @@ function buildAccessScopeContext(rows = [], tabConfig) {
   for (const row of rows) {
     const scopeOfficeName = String(row.__scopeOfficeName || "").trim();
     const office = String(scopeOfficeName || getRowValue(row, officeField) || "").trim();
-    const desk = String(getRowValue(row, deskField) || "").trim();
+    // Collapse repeated whitespace so a roster desk like "Turkey  Arabic" matches
+    // the leads desk "Turkey Arabic" (same option, no duplicate entry).
+    const desk = String(getRowValue(row, deskField) || "").replace(/\s+/g, " ").trim();
     const teamLeader = String(getRowValue(row, teamLeaderField) || "").trim();
     const team = teamLeader;
     const country = officeCountryFromOfficeName(scopeOfficeName || office);
@@ -221,6 +233,23 @@ function selectedForScopeStage(draft = {}, stage = "office") {
     return draft.selectedDesks || [];
   }
   return draft.selectedTeams || [];
+}
+
+// When the admin selected EVERY currently-available value at a Desk/Team level,
+// persist it as a dynamic "all" (an empty list is written as "all" and the read
+// layer treats "all" as no restriction). That way desks/teams added later are
+// automatically covered and nobody has to be re-granted. A partial selection is
+// kept explicit.
+function dynamicScopeValues(draft = {}, stage = "office", selectedValues = []) {
+  const selected = uniqueSorted((selectedValues || []).filter(Boolean));
+  if (!selected.length) {
+    return [];
+  }
+  const options = uniqueSorted(valuesForScopeStage(draft, stage));
+  if (options.length && selected.length >= options.length && options.every((option) => selected.includes(option))) {
+    return [];
+  }
+  return selected;
 }
 
 function normalizeScopeSelections(draft = {}) {
@@ -345,6 +374,46 @@ function authorityUserFromRow(row = {}) {
   return user;
 }
 
+// Read the office agent roster tabs (fresh from Sheets) so the grant flow's
+// desk/team options include newly-added teams that have no leads yet. Rows are
+// tagged with __scopeOfficeName and expose "Desk"/"Team Leader" so they feed
+// buildAccessScopeContext exactly like leads rows.
+async function loadRosterScopeRows(officeNames = []) {
+  const offices = uniqueSorted(officeNames);
+  const tabToOffices = new Map();
+  for (const office of offices) {
+    const tab = rosterTabNameForOffice(office);
+    if (!tab) {
+      continue;
+    }
+    if (!tabToOffices.has(tab)) {
+      tabToOffices.set(tab, []);
+    }
+    tabToOffices.get(tab).push(office);
+  }
+  const perTab = await Promise.all(
+    [...tabToOffices.entries()].map(async ([tab, tabOffices]) => {
+      try {
+        const rows = await readSheetRows("officeAgentRoster", {
+          tabConfig: officeAgentRosterTabConfig(tab),
+          spreadsheetId: OFFICE_AGENT_ROSTER_SPREADSHEET_ID,
+        });
+        // A roster tab maps to one office in practice; tag with each office name
+        // that resolved to this tab so the office/desk/team filters line up.
+        return tabOffices.flatMap((office) =>
+          rows
+            .filter((row) => String(row?.["Team Leader"] || "").trim())
+            .map((row) => ({ ...row, __scopeOfficeName: office })),
+        );
+      } catch (error) {
+        console.error("Could not read roster scope options for tab", tab, error);
+        return [];
+      }
+    }),
+  );
+  return perTab.flat();
+}
+
 async function loadScopeRowsForDraft() {
   let officeMonths = [];
   try {
@@ -376,6 +445,10 @@ async function loadScopeRowsForDraft() {
       uniqueMonthsBySheetId.set(sheetId, month);
     }
   }
+  const officeNamesForRoster = uniqueSorted(
+    [...uniqueMonthsBySheetId.values()].map((month) => String(month?.office_name || "").trim()),
+  );
+  const rosterRowsPromise = loadRosterScopeRows(officeNamesForRoster);
   const tabConfig = getTabConfig("leads");
   const monthRows = await Promise.all(
     [...uniqueMonthsBySheetId.values()].map(async (month) => {
@@ -400,7 +473,8 @@ async function loadScopeRowsForDraft() {
       }
     }),
   );
-  return monthRows.flat();
+  const rosterRows = await rosterRowsPromise;
+  return [...monthRows.flat(), ...rosterRows];
 }
 
 async function loadScopeDraftForAuthorityRow(rowNumber) {
@@ -1189,8 +1263,8 @@ async function handleTelegramUpdate(request) {
           await upsertAuthorityUserScope({
             user: draft.targetUser,
             offices: officesForSelectedCountries(draft),
-            desks: draft.selectedDesks || [],
-            teams: draft.selectedTeams || [],
+            desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+            teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
             authorityRole: draft.authorityRole || "Manager",
           });
           clearAuthorityScopeCache();
@@ -1210,8 +1284,8 @@ async function handleTelegramUpdate(request) {
         await upsertAuthorityUserScope({
           user: request.user,
           offices: officesForSelectedCountries(draft),
-          desks: draft.selectedDesks || [],
-          teams: draft.selectedTeams || [],
+          desks: dynamicScopeValues(draft, "desk", draft.selectedDesks),
+          teams: dynamicScopeValues(draft, "team", draft.selectedTeams),
           authorityRole: "Manager",
         });
         clearAuthorityScopeCache();

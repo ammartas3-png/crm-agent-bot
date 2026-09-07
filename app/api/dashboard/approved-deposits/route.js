@@ -17,6 +17,7 @@ function queryParams(searchParams) {
     cashier: String(searchParams.get("cashier") || "All").trim(),
     department: String(searchParams.get("department") || "All").trim(),
     ftd: String(searchParams.get("ftd") || "All").trim(),
+    office: String(searchParams.get("office") || "All").trim(),
   };
 }
 

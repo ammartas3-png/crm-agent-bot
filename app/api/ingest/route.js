@@ -9,6 +9,7 @@ import {
   saveSource,
 } from "../../../lib/leadsStore.js";
 import { prepareRowsForStore, derivePeriod } from "../../../lib/sheetRowMapper.js";
+import { ingestBodySchema, formatZodError } from "../../../lib/schemas.js";
 import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
@@ -110,10 +111,15 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const sourceKey = String(body.sourceKey || "").trim();
-  if (!sourceKey) {
-    return NextResponse.json({ ok: false, error: "sourceKey is required" }, { status: 400 });
+  const parsed = ingestBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: formatZodError(parsed.error) },
+      { status: 400 },
+    );
   }
+
+  const sourceKey = String(body.sourceKey || "").trim();
 
   const tabConfig = getTabConfig(body.tabKey || "leads");
 

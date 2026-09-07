@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   clearSheetsCache,
   getGoogleCredentialConfig,
+  getSheetTitles,
   normalizePrivateKey,
   readSheetRows,
+  readSheetValues,
 } from "../lib/googleSheets.js";
 import { hourlyDistribution } from "../lib/calculations.js";
 
@@ -375,6 +377,129 @@ test("readSheetRows deduplicates in-flight calls for same sheet range", async ()
   assert.deepEqual(firstRows, [{ ID: "1001" }]);
   assert.deepEqual(secondRows, [{ ID: "1001" }]);
   clearSheetsCache();
+});
+
+function withRetryEnv(overrides, run) {
+  const keys = ["SHEETS_RETRY_BASE_MS", "SHEETS_MAX_RETRIES", "NODE_ENV"];
+  const previous = {};
+  for (const key of keys) {
+    previous[key] = process.env[key];
+  }
+  process.env.NODE_ENV = "test";
+  process.env.SHEETS_RETRY_BASE_MS = "1";
+  for (const [key, value] of Object.entries(overrides)) {
+    process.env[key] = value;
+  }
+  const restore = () => {
+    for (const key of keys) {
+      if (previous[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previous[key];
+      }
+    }
+  };
+  return Promise.resolve()
+    .then(run)
+    .finally(restore);
+}
+
+function rateLimitError() {
+  const error = new Error("Quota exceeded for quota metric 'Read requests'");
+  error.code = 429;
+  return error;
+}
+
+test("readSheetValues retries on rate-limit errors then succeeds", async () => {
+  await withRetryEnv({ SHEETS_MAX_RETRIES: "5" }, async () => {
+    let attempts = 0;
+    const values = await readSheetValues("spreadsheet-id", "'ALL'!A:Z", {
+      sheetsClient: {
+        spreadsheets: {
+          values: {
+            get: async () => {
+              attempts += 1;
+              if (attempts < 3) {
+                throw rateLimitError();
+              }
+              return { data: { values: [["ID"], ["1001"]] } };
+            },
+          },
+        },
+      },
+    });
+    assert.equal(attempts, 3);
+    assert.deepEqual(values, [["ID"], ["1001"]]);
+  });
+});
+
+test("readSheetValues gives up after exhausting retries", async () => {
+  await withRetryEnv({ SHEETS_MAX_RETRIES: "2" }, async () => {
+    let attempts = 0;
+    await assert.rejects(
+      () =>
+        readSheetValues("spreadsheet-id", "'ALL'!A:Z", {
+          sheetsClient: {
+            spreadsheets: {
+              values: {
+                get: async () => {
+                  attempts += 1;
+                  throw rateLimitError();
+                },
+              },
+            },
+          },
+        }),
+      /Quota exceeded/,
+    );
+    assert.equal(attempts, 3);
+  });
+});
+
+test("readSheetValues does not retry non-rate-limit errors", async () => {
+  await withRetryEnv({ SHEETS_MAX_RETRIES: "5" }, async () => {
+    let attempts = 0;
+    await assert.rejects(
+      () =>
+        readSheetValues("spreadsheet-id", "'ALL'!A:Z", {
+          sheetsClient: {
+            spreadsheets: {
+              values: {
+                get: async () => {
+                  attempts += 1;
+                  const error = new Error("Requested entity was not found.");
+                  error.code = 404;
+                  throw error;
+                },
+              },
+            },
+          },
+        }),
+      /not found/,
+    );
+    assert.equal(attempts, 1);
+  });
+});
+
+test("getSheetTitles retries on rate-limit errors then succeeds", async () => {
+  await withRetryEnv({ SHEETS_MAX_RETRIES: "5" }, async () => {
+    let attempts = 0;
+    const titles = await getSheetTitles("spreadsheet-id", {
+      sheetsClient: {
+        spreadsheets: {
+          get: async () => {
+            attempts += 1;
+            if (attempts < 2) {
+              throw rateLimitError();
+            }
+            return { data: { sheets: [{ properties: { title: "JULY" } }] } };
+          },
+        },
+      },
+    });
+    assert.equal(attempts, 2);
+    assert.deepEqual(titles, ["JULY"]);
+  });
 });
 
 test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", async () => {

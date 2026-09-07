@@ -18,7 +18,9 @@
 
 .headerRow {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
@@ -276,4 +278,100 @@
   .dualGrid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* ===================== Dark mode ===================== */
+/* Shares the same [data-theme="dark"] attribute (set on <html>) and the same
+   localStorage key as the main dashboard, so the theme follows the user across
+   pages. Data tables get a dark surface; reach/benchmark/status cells keep
+   their own inline colours and stay readable. */
+:global([data-theme="dark"]) {
+  color-scheme: dark;
+}
+
+:global([data-theme="dark"]) .page {
+  background: #0b1220;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .panel {
+  background: #111a2e;
+  border-color: #26324a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+:global([data-theme="dark"]) .backButton,
+:global([data-theme="dark"]) .actionButton {
+  background: #1b2942;
+  border-color: #2f3d57;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .backButton:hover,
+:global([data-theme="dark"]) .actionButton:hover {
+  background: #223350;
+  border-color: #47597a;
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .title,
+:global([data-theme="dark"]) .sectionTitle,
+:global([data-theme="dark"]) .summaryValue {
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .subtitle,
+:global([data-theme="dark"]) .contextLabel,
+:global([data-theme="dark"]) .summaryLabel,
+:global([data-theme="dark"]) .inlineHint {
+  color: #94a3b8;
+}
+
+:global([data-theme="dark"]) .subtitle strong {
+  color: #e2e8f0;
+}
+
+:global([data-theme="dark"]) .contextChip,
+:global([data-theme="dark"]) .summaryCard {
+  background: #16213a;
+  border-color: #29354e;
+}
+
+:global([data-theme="dark"]) .linkedFilterValue {
+  background: rgba(30, 58, 138, 0.35);
+  border-color: rgba(55, 48, 163, 0.5);
+  color: #c7d2fe;
+}
+
+:global([data-theme="dark"]) .loading {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .table th {
+  background: #16213a;
+  color: #cbd5e1;
+  border-bottom-color: #2b3a56;
+}
+
+:global([data-theme="dark"]) .table td {
+  color: #e2e8f0;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .totalRow td {
+  background: #17233d;
+  color: #f1f5f9;
+}
+
+:global([data-theme="dark"]) .groupRow td {
+  background: #101a30;
+  border-bottom-color: #22304a;
+}
+
+:global([data-theme="dark"]) .groupButton {
+  color: #cbd5e1;
+}
+
+:global([data-theme="dark"]) .emptyCell {
+  color: #94a3b8;
 }
