@@ -4,6 +4,7 @@ import { getTabConfig } from "../../../config/sheetsConfig.js";
 import { loadLeadRows } from "../../../lib/dataProvider.js";
 import { isAdminTelegramUser } from "../../../lib/permissions.js";
 import { buildAnswerContext, detectLanguage, refusalMessage } from "../../../lib/aiAgent.js";
+import { aiAskSchema, formatZodError } from "../../../lib/schemas.js";
 
 export const runtime = "nodejs";
 
@@ -61,8 +62,12 @@ async function handle(request, { question, telegramUserId, telegramUser }) {
     }
   }
 
-  if (!String(question || "").trim()) {
-    return NextResponse.json({ ok: false, error: "Missing 'question'." }, { status: 400 });
+  const parsedInput = aiAskSchema.safeParse({ question });
+  if (!parsedInput.success) {
+    return NextResponse.json(
+      { ok: false, error: formatZodError(parsedInput.error) },
+      { status: 400 },
+    );
   }
 
   try {
