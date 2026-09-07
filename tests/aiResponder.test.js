@@ -1,7 +1,12 @@
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 import { generateAiReply, aiConfigured } from "../lib/aiResponder.js";
+import { resetAiReplyCache } from "../lib/aiReplyCache.js";
+
+// The reply cache is process-wide; reset it so identical prompts across cases do
+// not leak a cached answer from one test into another.
+beforeEach(() => resetAiReplyCache());
 
 const baseContext = {
   ok: true,
@@ -103,4 +108,46 @@ test("aiConfigured reflects env", () => {
   assert.equal(aiConfigured({}), false);
   assert.equal(aiConfigured({ OPENAI_API_KEY: "x" }), true);
   assert.equal(aiConfigured({ AI_N8N_WEBHOOK_URL: "https://x" }), true);
+});
+
+test("caches the LLM reply so an identical prompt does not spend tokens again", async () => {
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    calls += 1;
+    return {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "Cached answer." } }] }),
+    };
+  };
+  const env = { OPENAI_API_KEY: "sk-test", OPENAI_MODEL: "gpt-4o-mini" };
+  const first = await generateAiReply(baseContext, { env, fetchImpl });
+  const second = await generateAiReply(baseContext, { env, fetchImpl });
+  assert.equal(first, "Cached answer.");
+  assert.equal(second, "Cached answer.");
+  assert.equal(calls, 1); // second call served from cache
+});
+
+test("AI_REPLY_CACHE_TTL_MS=0 disables the reply cache", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "Fresh." } }] }) };
+  };
+  const env = { OPENAI_API_KEY: "sk-test", AI_REPLY_CACHE_TTL_MS: "0" };
+  await generateAiReply(baseContext, { env, fetchImpl });
+  await generateAiReply(baseContext, { env, fetchImpl });
+  assert.equal(calls, 2); // no caching -> both hit the LLM
+});
+
+test("passes OPENAI_MAX_TOKENS through to the request when set", async () => {
+  let sentBody = null;
+  const fetchImpl = async (url, init) => {
+    sentBody = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ choices: [{ message: { content: "ok" } }] }) };
+  };
+  await generateAiReply(baseContext, {
+    env: { OPENAI_API_KEY: "sk-test", OPENAI_MAX_TOKENS: "64" },
+    fetchImpl,
+  });
+  assert.equal(sentBody.max_tokens, 64);
 });
