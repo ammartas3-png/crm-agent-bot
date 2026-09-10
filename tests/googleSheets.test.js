@@ -8,6 +8,7 @@ import {
   normalizePrivateKey,
   readSheetRows,
   readSheetValues,
+  rowsToObjects,
 } from "../lib/googleSheets.js";
 import { hourlyDistribution } from "../lib/calculations.js";
 
@@ -544,4 +545,37 @@ test("readSheetRows uses env TTL cache and clearSheetsCache resets entries", asy
     }
     clearSheetsCache();
   }
+});
+
+test("rowsToObjects keys a config column whose header cell is blank/trimmed (Info Agents Starting Date in column L)", () => {
+  const expectedColumns = new Array(42).fill(null);
+  expectedColumns[0] = "Working Status";
+  expectedColumns[2] = "Agent Name";
+  expectedColumns[3] = "Agent Target";
+  expectedColumns[5] = "Office";
+  expectedColumns[6] = "Team Leader";
+  expectedColumns[11] = "Starting Date"; // column L
+
+  // The Sheets API trims trailing empty header cells, so when the "Starting
+  // Date" header (column L) is left blank the returned header row stops early
+  // (here at index 6). The data rows still carry the value at index 11.
+  const headerRow = ["Working Status", "", "Agent Name", "Agent Target", "", "Office", "Team Leader"];
+  const dataRow = [
+    "Working",
+    "",
+    "Ali Ve",
+    "10",
+    "",
+    "Turkey English",
+    "TL One",
+    "",
+    "",
+    "",
+    "",
+    "2026-05-26", // index 11 (column L): Starting Date, even though its header cell is blank
+  ];
+
+  const [row] = rowsToObjects([headerRow, dataRow], expectedColumns);
+  assert.equal(row["Agent Name"], "Ali Ve");
+  assert.equal(row["Starting Date"], "2026-05-26");
 });
