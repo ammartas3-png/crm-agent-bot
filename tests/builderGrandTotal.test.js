@@ -187,6 +187,56 @@ test("mid-month transfer splits the target by FTD made per team (target 10 -> 3 
   assert.equal(newRow.ftdTarget, 7, "latest team target = total (10) - other teams' FTD (3)");
 });
 
+test("Exit Date shows only for Not Working agents (hidden for Working agents)", () => {
+  // Ester Ji is Working in the selected month but the roster carries an
+  // end-of-month fired date; her Exit Date must be hidden. Damilola Ad is Not
+  // Working with a roster fired date; hers must be shown.
+  const info = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Ester Ji",
+      "Agent Target": "10",
+      Office: "Turkey Africa",
+      "Team Leader": "Epere Aw",
+      "Starting Date": "29/06/2026",
+    },
+    {
+      "Working Status": "Not Working",
+      "Agent Name": "Damilola Ad",
+      "Agent Target": "10",
+      Office: "Turkey Africa",
+      "Team Leader": "Kingsley Pe",
+      "Starting Date": "25/05/2026",
+    },
+  ]);
+  const keyOf = (name) => info.records.find((record) => record.agent_name === name).normalized_name;
+  info.endDateByAgent = new Map([
+    [keyOf("Ester Ji"), "31/08/2026"],
+    [keyOf("Damilola Ad"), "31/07/2026"],
+  ]);
+
+  const workRows = [
+    { ID: "e1", "Lead Date": "2026-08-05", "AGENT NAMES": "Ester Ji", "Team Leader": "Epere Aw", Desk: "Turkey Africa" },
+    { ID: "d1", "Lead Date": "2026-08-05", "AGENT NAMES": "Damilola Ad", "Team Leader": "Kingsley Pe", Desk: "Turkey Africa" },
+  ];
+  const result = specificBuilderTable(
+    workRows,
+    tabConfig,
+    info,
+    { type: "month", month: 7, year: 2026 },
+    { rowDimensions: "agent", metricFields: "leads", includeWorkTime: "1" },
+    new Date("2026-09-10T12:00:00Z"),
+  );
+  const rowFor = (name) => result.table.find((row) => row.__rowKind !== "grandTotal" && row.agent === name);
+  const ester = rowFor("Ester Ji");
+  const damilola = rowFor("Damilola Ad");
+  assert.ok(ester && damilola, "both agent rows present");
+  assert.equal(ester.workCurrentStatus, "Active");
+  assert.equal(ester.workExitDate, "-", "Working agent Exit Date hidden");
+  assert.equal(damilola.workCurrentStatus, "Not Working");
+  assert.equal(damilola.workExitDate, "2026-07-31", "Not Working agent Exit Date shown from roster fired date");
+});
+
 test("column-pivot builder table Grand Total sums each column", () => {
   const result = specificBuilderTable(
     rows,
