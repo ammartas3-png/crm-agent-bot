@@ -284,6 +284,53 @@ test("Agent fired in an earlier month becomes Not Working once a later month is 
   assert.equal(augustLatest.workExitDate, "-", "fired date hidden while still working that month");
 });
 
+test("Month column-pivot lists a no-lead roster agent (zeros across months)", () => {
+  // Ezekiel Ch is a Not Working roster/info agent with a target but no leads.
+  // In a Month column-pivot he must still appear as a row (with zero columns),
+  // just like agents who produced leads.
+  const info = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Adebayo Ta",
+      "Agent Target": "10",
+      Office: "Turkey Africa",
+      "Team Leader": "Epere Aw",
+      "Starting Date": "06/07/2026",
+    },
+    {
+      "Working Status": "Not Working",
+      "Agent Name": "Ezekiel Ch",
+      "Agent Target": "10",
+      Office: "Turkey Africa",
+      "Team Leader": "Epere Aw",
+      "Starting Date": "01/06/2026",
+    },
+  ]);
+
+  const pivotRows = [
+    // Agent with real leads across two months.
+    { ID: "a1", "Lead Date": "2026-08-05", "AGENT NAMES": "Adebayo Ta", "Team Leader": "Epere Aw", Desk: "Turkey Africa", __sourceMonthKey: "2026-08" },
+    { ID: "a2", "Lead Date": "2026-09-05", "AGENT NAMES": "Adebayo Ta", "Team Leader": "Epere Aw", Desk: "Turkey Africa", __sourceMonthKey: "2026-09" },
+    // Roster-only injected row: no lead date / no month source (mirrors how the
+    // report injects agents that produced no leads).
+    { ID: "roster-ezekiel", "AGENT NAMES": "Ezekiel Ch", "Team Leader": "Epere Aw", Desk: "Turkey Africa", __rosterOnly: true },
+  ];
+
+  const result = specificBuilderTable(
+    pivotRows,
+    tabConfig,
+    info,
+    null,
+    { rowDimensions: "agent", columnDimension: "month", metricFields: "leads,ftd" },
+    new Date("2026-09-10T12:00:00Z"),
+  );
+  const agents = result.table
+    .filter((row) => row.__rowKind !== "grandTotal")
+    .map((row) => row.agent);
+  assert.ok(agents.includes("Ezekiel Ch"), "no-lead roster agent appears in the Month pivot");
+  assert.ok(agents.includes("Adebayo Ta"), "agent with leads still appears");
+});
+
 test("column-pivot builder table Grand Total sums each column", () => {
   const result = specificBuilderTable(
     rows,
