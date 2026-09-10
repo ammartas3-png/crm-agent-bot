@@ -237,6 +237,53 @@ test("Exit Date shows only for Not Working agents (hidden for Working agents)", 
   assert.equal(damilola.workExitDate, "2026-07-31", "Not Working agent Exit Date shown from roster fired date");
 });
 
+test("Agent fired in an earlier month becomes Not Working once a later month is selected", () => {
+  // Fatma Aze worked (and was Active) in August, but the roster shows a fired
+  // date of 31/08/2026. Her August Info Agents row still says "Working", which
+  // used to leak through as a stale Active status. When the latest selected
+  // month is September (she is gone), she must flip to Not Working and her Exit
+  // Date must surface. When only August is selected, she is still working that
+  // month, so she stays Active with the fired date hidden.
+  const info = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Fatma Aze",
+      "Agent Target": "10",
+      Office: "Turkey Arabic",
+      "Team Leader": "Fatma Aze",
+      "Starting Date": "29/04/2026",
+    },
+  ]);
+  const keyOf = (name) => info.records.find((record) => record.agent_name === name).normalized_name;
+  info.endDateByAgent = new Map([[keyOf("Fatma Aze"), "31/08/2026"]]);
+
+  const workRows = [
+    { ID: "f1", "Lead Date": "2026-08-05", "AGENT NAMES": "Fatma Aze", "Team Leader": "Fatma Aze", Desk: "Turkey Arabic" },
+  ];
+  const runFor = (latestMonthKey) => {
+    info.latestMonthKey = latestMonthKey;
+    const result = specificBuilderTable(
+      workRows,
+      tabConfig,
+      info,
+      null,
+      { rowDimensions: "agent", metricFields: "leads", includeWorkTime: "1" },
+      new Date("2026-09-10T12:00:00Z"),
+    );
+    return result.table.find((row) => row.__rowKind !== "grandTotal" && row.agent === "Fatma Aze");
+  };
+
+  const septemberLatest = runFor("2026-09");
+  assert.ok(septemberLatest, "Fatma row present when September is the latest month");
+  assert.equal(septemberLatest.workCurrentStatus, "Not Working", "fired before latest month -> Not Working");
+  assert.equal(septemberLatest.workExitDate, "2026-08-31", "roster fired date shown once she has left");
+
+  const augustLatest = runFor("2026-08");
+  assert.ok(augustLatest, "Fatma row present when August is the latest month");
+  assert.equal(augustLatest.workCurrentStatus, "Active", "still working during her fired month stays Active");
+  assert.equal(augustLatest.workExitDate, "-", "fired date hidden while still working that month");
+});
+
 test("column-pivot builder table Grand Total sums each column", () => {
   const result = specificBuilderTable(
     rows,
