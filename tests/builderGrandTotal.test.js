@@ -284,6 +284,81 @@ test("Agent fired in an earlier month becomes Not Working once a later month is 
   assert.equal(augustLatest.workExitDate, "-", "fired date hidden while still working that month");
 });
 
+test("Agent never inherits the team leader's start date", () => {
+  // Parviz Kh (team leader) started 11/02/2025. Seifallah Ho is a brand-new
+  // agent on his team with no resolvable own start date. She must NOT show his
+  // start date (which produced a wildly inflated tenure); when her own start
+  // date is unknown the Start Date is blank, and when it is known it is used.
+  const info = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Parviz Kh",
+      "Agent Target": "10",
+      Office: "Turkey English",
+      "Team Leader": "Parviz Kh",
+      "Starting Date": "11/02/2025",
+    },
+    {
+      "Working Status": "Working",
+      "Agent Name": "Seifallah Ho",
+      "Agent Target": "10",
+      Office: "Turkey English",
+      "Team Leader": "Parviz Kh",
+      "Starting Date": "",
+    },
+  ]);
+  const workRows = [
+    { ID: "s1", "Lead Date": "2026-08-05", "AGENT NAMES": "Seifallah Ho", "Team Leader": "Parviz Kh", Desk: "Turkey English" },
+  ];
+  const result = specificBuilderTable(
+    workRows,
+    tabConfig,
+    info,
+    { type: "month", month: 7, year: 2026 },
+    { rowDimensions: "teamLeader,agent", metricFields: "leads", includeWorkTime: "1" },
+    new Date("2026-09-10T12:00:00Z"),
+  );
+  const seifallah = result.table.find(
+    (row) => row.__rowKind !== "grandTotal" && row.agent === "Seifallah Ho",
+  );
+  assert.ok(seifallah, "agent row present");
+  assert.notEqual(seifallah.workStartDate, "2025-02-11", "does not inherit team leader start date");
+  assert.equal(seifallah.workStartDate, "-", "missing own start date renders blank");
+
+  // With her own start date known, it is used (and still not the leader's).
+  const infoWithDate = buildInfoAgentsContext([
+    {
+      "Working Status": "Working",
+      "Agent Name": "Parviz Kh",
+      "Agent Target": "10",
+      Office: "Turkey English",
+      "Team Leader": "Parviz Kh",
+      "Starting Date": "11/02/2025",
+    },
+    {
+      "Working Status": "Working",
+      "Agent Name": "Seifallah Ho",
+      "Agent Target": "10",
+      Office: "Turkey English",
+      "Team Leader": "Parviz Kh",
+      "Starting Date": "31/08/2026",
+    },
+  ]);
+  const withDate = specificBuilderTable(
+    workRows,
+    tabConfig,
+    infoWithDate,
+    { type: "month", month: 7, year: 2026 },
+    { rowDimensions: "teamLeader,agent", metricFields: "leads", includeWorkTime: "1" },
+    new Date("2026-09-10T12:00:00Z"),
+  );
+  const seifallahDated = withDate.table.find(
+    (row) => row.__rowKind !== "grandTotal" && row.agent === "Seifallah Ho",
+  );
+  assert.ok(seifallahDated, "agent row present (own start date)");
+  assert.equal(seifallahDated.workStartDate, "2026-08-31", "uses the agent's own start date");
+});
+
 test("Month column-pivot lists a no-lead roster agent (zeros across months)", () => {
   // Ezekiel Ch is a Not Working roster/info agent with a target but no leads.
   // In a Month column-pivot he must still appear as a row (with zero columns),
