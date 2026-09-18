@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./upload.module.css";
 
-const CONTACT_ADMIN = "Erişiminiz yok. Lütfen admin ile iletişime geçin.";
-const NOT_CONFIGURED =
-  "Yükleme henüz yapılandırılmadı. Lütfen admin ile iletişime geçin.";
-const WRONG_PASSWORD = "Yanlış parola. Lütfen admin ile iletişime geçin.";
+const CONTACT_ADMIN = "Lütfen admin ile iletişime geçin.";
 
 const TAB_OPTIONS = [
   { value: "leads", label: "Leads" },
@@ -15,11 +12,46 @@ const TAB_OPTIONS = [
   { value: "transactions", label: "Transactions" },
 ];
 
+// Reuses the exact same Telegram login widget as the dashboard so access is
+// shared (same session cookie + admin approval).
+function TelegramLoginWidget({ botUsername, onAuth }) {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    if (!botUsername || !containerRef.current) {
+      return undefined;
+    }
+    const container = containerRef.current;
+    container.innerHTML = "";
+    globalThis.crmUploadTelegramAuth = async (user) => {
+      await onAuth(user);
+    };
+    const script = document.createElement("script");
+    script.src = "https://telegram.org/js/telegram-widget.js?22";
+    script.async = true;
+    script.setAttribute("data-telegram-login", botUsername);
+    script.setAttribute("data-size", "large");
+    script.setAttribute("data-userpic", "false");
+    script.setAttribute("data-request-access", "write");
+    script.setAttribute("data-onauth", "crmUploadTelegramAuth(user)");
+    script.setAttribute("data-lang", "en");
+    container.appendChild(script);
+    return () => {
+      delete globalThis.crmUploadTelegramAuth;
+      container.innerHTML = "";
+    };
+  }, [botUsername, onAuth]);
+  return <div ref={containerRef} />;
+}
+
 export default function UploadPage() {
-  const [authed, setAuthed] = useState(false);
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [session, setSession] = useState({
+    loading: true,
+    authenticated: false,
+    authorized: false,
+    auth: { enabled: false, botUsername: "" },
+    user: null,
+    error: "",
+  });
 
   const [sourceKey, setSourceKey] = useState("");
   const [tabKey, setTabKey] = useState("leads");
@@ -31,34 +63,61 @@ export default function UploadPage() {
   const [uploadError, setUploadError] = useState("");
   const [result, setResult] = useState(null);
 
-  async function handleLogin(event) {
-    event.preventDefault();
-    setLoginError("");
-    setLoggingIn(true);
+  const fetchSession = useCallback(async () => {
     try {
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+      const response = await fetch("/api/dashboard/session", { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      setSession({
+        loading: false,
+        authenticated: Boolean(payload.authenticated),
+        authorized: Boolean(payload.authorized),
+        auth: {
+          enabled: Boolean(payload.auth?.enabled),
+          botUsername: payload.auth?.botUsername || "",
+        },
+        user: payload.user || null,
+        error: "",
       });
-      if (response.ok) {
-        setAuthed(true);
-        return;
-      }
-      const data = await response.json().catch(() => ({}));
-      if (response.status === 503 || data.error === "not_configured") {
-        setLoginError(NOT_CONFIGURED);
-      } else if (response.status === 401 || data.error === "invalid_password") {
-        setLoginError(WRONG_PASSWORD);
-      } else {
-        setLoginError(CONTACT_ADMIN);
-      }
     } catch {
-      setLoginError(CONTACT_ADMIN);
-    } finally {
-      setLoggingIn(false);
+      setSession((prev) => ({ ...prev, loading: false, error: "Oturum bilgisi alınamadı." }));
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    fetchSession();
+  }, [fetchSession]);
+
+  const handleTelegramAuth = useCallback(
+    async (user) => {
+      setSession((prev) => ({ ...prev, loading: true, error: "" }));
+      try {
+        const response = await fetch("/api/dashboard/auth/telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(user || {}),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload?.error || "Telegram girişi başarısız.");
+        }
+        await fetchSession();
+      } catch (error) {
+        setSession((prev) => ({
+          ...prev,
+          loading: false,
+          error: error?.message || "Telegram girişi başarısız.",
+        }));
+      }
+    },
+    [fetchSession],
+  );
+
+  const handleLogout = useCallback(async () => {
+    await fetch("/api/dashboard/auth/logout", { method: "POST" }).catch(() => {});
+    setResult(null);
+    setUploadError("");
+    await fetchSession();
+  }, [fetchSession]);
 
   async function handleUpload(event) {
     event.preventDefault();
@@ -75,7 +134,6 @@ export default function UploadPage() {
     setUploading(true);
     try {
       const form = new FormData();
-      form.append("password", password);
       form.append("file", file);
       form.append("sourceKey", sourceKey.trim());
       form.append("tabKey", tabKey);
@@ -90,12 +148,12 @@ export default function UploadPage() {
         return;
       }
       if (response.status === 401) {
-        setAuthed(false);
-        setLoginError(WRONG_PASSWORD);
+        await fetchSession();
         return;
       }
-      if (response.status === 503) {
-        setUploadError(NOT_CONFIGURED);
+      if (response.status === 403) {
+        setUploadError(`Yetkiniz yok. ${CONTACT_ADMIN}`);
+        await fetchSession();
         return;
       }
       setUploadError(data.error || "Yükleme başarısız oldu.");
@@ -106,35 +164,54 @@ export default function UploadPage() {
     }
   }
 
-  if (!authed) {
+  if (session.loading) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.card}>
+          <p>Yükleniyor…</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!session.authenticated) {
     return (
       <main className={styles.page}>
         <div className={styles.card}>
           <h1 className={styles.title}>Tablo Yükleme</h1>
-          <p className={styles.subtitle}>Devam etmek için parolanızı girin.</p>
-          {loginError ? <p className={styles.error}>{loginError}</p> : null}
-          <form onSubmit={handleLogin}>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="password">
-                Parola
-              </label>
-              <input
-                id="password"
-                className={styles.input}
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                autoFocus
-              />
-              <span className={styles.hint}>
-                Parolanız yoksa lütfen admin ile iletişime geçin.
-              </span>
-            </div>
-            <button className={styles.button} type="submit" disabled={loggingIn || !password}>
-              {loggingIn ? "Kontrol ediliyor…" : "Giriş"}
+          <p className={styles.subtitle}>
+            Telegram hesabınızla giriş yapın. Erişim izinleri Telegram botu ile paylaşılır.
+          </p>
+          {session.auth.enabled ? (
+            <TelegramLoginWidget botUsername={session.auth.botUsername} onAuth={handleTelegramAuth} />
+          ) : (
+            <p className={styles.error}>
+              Telegram giriş bileşeni kullanılamıyor. TELEGRAM_BOT_TOKEN ayarını kontrol edin.
+            </p>
+          )}
+          <p className={styles.hint}>Erişiminiz yoksa {CONTACT_ADMIN}</p>
+          {session.error ? <p className={styles.error}>{session.error}</p> : null}
+        </div>
+      </main>
+    );
+  }
+
+  if (!session.authorized) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>Tablo Yükleme</h1>
+          <p className={styles.error}>
+            Telegram hesabınız giriş yaptı ancak henüz yetkili değil. Onay için {CONTACT_ADMIN}
+          </p>
+          <div className={styles.footer}>
+            <span>
+              {session.user?.username ? `@${session.user.username}` : session.user?.id}
+            </span>
+            <button type="button" className={styles.linkButton} onClick={handleLogout}>
+              Çıkış
             </button>
-          </form>
+          </div>
         </div>
       </main>
     );
@@ -246,17 +323,10 @@ export default function UploadPage() {
           </button>
         </form>
         <div className={styles.footer}>
-          <span>Giriş yapıldı</span>
-          <button
-            type="button"
-            className={styles.linkButton}
-            onClick={() => {
-              setAuthed(false);
-              setPassword("");
-              setResult(null);
-              setUploadError("");
-            }}
-          >
+          <span>
+            Giriş: {session.user?.username ? `@${session.user.username}` : session.user?.id}
+          </span>
+          <button type="button" className={styles.linkButton} onClick={handleLogout}>
             Çıkış
           </button>
         </div>

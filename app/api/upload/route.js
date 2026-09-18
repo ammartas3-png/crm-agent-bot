@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 import { getTabConfig } from "../../../config/sheetsConfig.js";
+import { dashboardAccessFromRequest } from "../../../lib/dashboardRequest.js";
 import { rowsToObjects } from "../../../lib/googleSheets.js";
 import { saveSource } from "../../../lib/leadsStore.js";
 import {
@@ -13,62 +14,29 @@ import { flushPersistence, isPersistenceEnabled } from "../../../lib/store.js";
 
 export const runtime = "nodejs";
 
-function uploadPassword(env = process.env) {
-  return String(env.UPLOAD_PASSWORD || "").trim();
-}
-
-// Constant-time-ish comparison so the gate does not leak length via early exit.
-function passwordMatches(provided) {
-  const expected = uploadPassword();
-  if (!expected) {
-    return false;
-  }
-  const providedStr = String(provided == null ? "" : provided);
-  if (providedStr.length !== expected.length) {
-    return false;
-  }
-  let mismatch = 0;
-  for (let index = 0; index < expected.length; index += 1) {
-    mismatch |= providedStr.charCodeAt(index) ^ expected.charCodeAt(index);
-  }
-  return mismatch === 0;
-}
-
 export async function GET() {
   return NextResponse.json({
     ok: true,
     service: "crm-upload",
-    passwordConfigured: Boolean(uploadPassword()),
     persistentStoreConfigured: isPersistenceEnabled(),
   });
 }
 
 export async function POST(request) {
-  const contentType = request.headers.get("content-type") || "";
-
-  // A JSON body is a login check (entry gate). We never store anything here.
-  if (contentType.includes("application/json")) {
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
-    }
-    if (!uploadPassword()) {
-      return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
-    }
-    if (!passwordMatches(body.password)) {
-      return NextResponse.json({ ok: false, error: "invalid_password" }, { status: 401 });
-    }
-    return NextResponse.json({ ok: true });
+  // Access is gated by the same Telegram login + admin approval as the
+  // dashboard. There is no separate password: an authorized dashboard user can
+  // upload, an unauthorized (pending-approval) user cannot.
+  const resolved = await dashboardAccessFromRequest(request);
+  if (!resolved.authenticated) {
+    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 });
+  }
+  if (!resolved.access?.authorized) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 403 });
   }
 
+  const contentType = request.headers.get("content-type") || "";
   if (!contentType.includes("multipart/form-data")) {
     return NextResponse.json({ ok: false, error: "unsupported_content_type" }, { status: 415 });
-  }
-
-  if (!uploadPassword()) {
-    return NextResponse.json({ ok: false, error: "not_configured" }, { status: 503 });
   }
 
   let form;
@@ -76,12 +44,6 @@ export async function POST(request) {
     form = await request.formData();
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_form_data" }, { status: 400 });
-  }
-
-  // The upload request re-checks the password so the endpoint stays protected
-  // even if someone calls it directly.
-  if (!passwordMatches(form.get("password"))) {
-    return NextResponse.json({ ok: false, error: "invalid_password" }, { status: 401 });
   }
 
   const file = form.get("file");
