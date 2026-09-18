@@ -4542,18 +4542,9 @@ export default function DashboardPage() {
             Logged in as {sessionState.user?.username ? `@${sessionState.user.username}` : sessionState.user?.id}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={() => router.push("/upload")}
-            className={`${styles.button} ${styles.buttonSecondary}`}
-          >
-            Upload
-          </button>
-          <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
-            Log out
-          </button>
-        </div>
+        <button type="button" onClick={handleLogout} className={`${styles.button} ${styles.buttonSecondary}`}>
+          Log out
+        </button>
       </section>
 
       {needOfficeSelection ? (

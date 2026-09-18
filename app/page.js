@@ -9,10 +9,6 @@ export default function Home() {
         Web dashboard is available at <a href="/dashboard">/dashboard</a>.
       </p>
       <p>
-        Manual table upload (password protected) is available at{" "}
-        <a href="/upload">/upload</a>.
-      </p>
-      <p>
         Configure Telegram, Google Sheets, and allowed users with environment
         variables before using the bot.
       </p>
